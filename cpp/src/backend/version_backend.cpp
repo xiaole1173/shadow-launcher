@@ -2732,35 +2732,24 @@ void VersionBackend::syncPrimaryProgress()
 
     const auto& st = m_dlStates[pid];
 
-    m_installBytesDl = st.bytesDl;
-
-    m_installBytesTotal = st.bytesTotal;
-
-    // speed comes from DownloadSession
-
-
-
-    // Two-segment progress: download 0-90%, verify 90-100%
-
+    // ── 两段式主进度（2026-08-05 修正）──
+    // 旧实现：下载段用字节爬到 100%，校验段直接换成 verifyChecked/verifyTotal
+    // （文件数）从 0 开始 → 进度条 100%→0%→100% 回跳。
+    // 现在统一折算为 0-100 进度刻度：下载 ×0.9 + 校验 ×0.1（注释宣称的两段式）。
+    // 注：卡片进度由步骤管线加权（totalProgress）驱动，本字段无 QML 消费者，
+    // 仅保留主进度语义供未来接入（syncPrimaryProgress 仍由进度变化触发）。
     bool verifying = (st.phase == QStringLiteral("\u6821\u9a8c\u4e2d..."));
-
+    qreal segP = 0.0;
     if (verifying) {
-
-        if (st.verifyTotal > 0) {
-
-            m_installBytesDl = st.verifyChecked;
-
-            m_installBytesTotal = st.verifyTotal;
-
-        }
-
-    } else {
-
-        m_installBytesDl = st.bytesDl;
-
-        m_installBytesTotal = st.bytesTotal;
-
+        if (st.verifyTotal > 0)
+            segP = 0.9 + 0.1 * (qreal)st.verifyChecked / st.verifyTotal;
+        else
+            segP = 0.9;
+    } else if (st.bytesTotal > 0) {
+        segP = 0.9 * (qreal)st.bytesDl / st.bytesTotal;
     }
+    m_installBytesDl = static_cast<qint64>(segP * 100.0);
+    m_installBytesTotal = 100;
 
     setInstallPhase(st.phase);
 
@@ -2896,6 +2885,15 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
 
         if (st.phase != tr("校验中...")) {
 
+            // 步骤 0（下载版本JSON）：经 HTTP race 下载、不走分类统计（cat0 total=0），
+            // 下载一旦有字节流即完成——否则 JSON 步骤(权重 3.0)永远 pending 拖低总进度
+            if (st.bytesDl > 0 && ds->steps.size() > 0) {
+                QVariantMap s0map = ds->steps[0].toMap();
+                if (s0map.value("status").toString() != QStringLiteral("completed"))
+                    updateStep(mergedSessionId, 0, QStringLiteral("completed"), 100,
+                               st.catBytesDl[0], st.catBytesTotal[0]);
+            }
+
             bool allDone = true;
 
             for (int ci = 0; ci < 3; ci++) {
@@ -2954,36 +2952,19 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
 
         }
 
-        // Weighted progress for merged install MC phase: cat1 50%, cat2 50%.
+        // ── merged 卡片进度统一走步骤管线加权（2026-08-05）──
 
-        // Each category uses its own byte progress internally.
+        // 旧实现（已废弃）：mcRaw = 0.5×支持库 + 0.5×资源、mlRaw 加载器进度，
 
-        {
+        // raw = (mcRaw+mlRaw)/2 写 smoothProgress——与下方 primaryVersionId 段的
 
-            qreal mcPct1 = ds->mcStepTotal[1] > 0 ? (qreal)ds->mcStepDone[1] / ds->mcStepTotal[1] : 0.0;
+        // grandTotal 公式（含 cat0、无加载器时 0.5 封顶）互相覆盖，两套口径打架，
 
-            qreal mcPct2 = ds->mcStepTotal[2] > 0 ? (qreal)ds->mcStepDone[2] / ds->mcStepTotal[2] : 0.0;
+        // 主版本与其他版本进度算法不一致。现 merged 卡片 progress = totalProgress()
 
-            qreal mcRaw = qMin(1.0, 0.5 * mcPct1 + 0.5 * mcPct2);
+        // （步骤管线加权，与纯 MC 同构；步骤 1 支持库含 client.jar，天然计入）。
 
-            qreal mlRaw = ds->mlBytesAll > 0 ? qMin(1.0, (qreal)ds->mlBytesDl / ds->mlBytesAll) : 0.0;
 
-            qreal raw = qMin(1.0, (mcRaw + mlRaw) / 2.0);
-
-            // 无条件 MC/loader 各占 50%：MC 完成但 loader 未开始时进度只能到 0.5，
-            // 绝不能把 MC 完成当 100%（否则缓存全命中时卡片提前绿 + dismiss，forge 还没装）
-
-            ds->m_rawTotalProgress = raw;
-
-            if (ds->smoothProgress <= 0.0)
-
-                ds->smoothProgress = raw * 0.3;
-
-            else
-
-                ds->smoothProgress = ds->smoothProgress * 0.7 + raw * 0.3;
-
-        }
 
     }
 
@@ -3045,41 +3026,21 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
 
     if (versionId == primaryVersionId()) {
 
-        m_installBytesDl = db;
-
-        m_installBytesTotal = tb;
-
         // speed comes from DownloadSession
 
+        // （m_installBytesDl/Total 由 syncPrimaryProgress 统一两段式折算，2026-08-05）
 
 
-        // Byte-weighted total progress ── raw ──
 
-        // Find merged session for grand-total calculation
 
-        qreal rawTotalProgress = 0.0;
+        // ── 卡片总进度统一（2026-08-05）──
 
-        if (!mergedSessionId.isEmpty()) {
+        // 旧公式 B（grandTotal 字节加权 + 无加载器 0.5 封顶）已废弃：与公式 A
 
-            auto* ds3 = ensureSession(mergedSessionId);
-            qint64 mlAllG = ds3 ? ds3->mlBytesAll : 0;
+        // 双写覆盖 smoothProgress，主版本/次版本口径不一致。merged 卡片进度
 
-            qint64 grandTotal = mlAllG > 0 ? ((ds3 ? ds3->mcBytesAll : 0) + mlAllG) : (ds3 ? ds3->mcBytesAll : 0);
-            qint64 grandDone = (ds3 ? ds3->mcBytesDl : 0) + (ds3 ? ds3->mlBytesDl : 0);
+        // 由步骤管线加权（totalProgress）驱动，见 updateCardFromSession。
 
-            rawTotalProgress = (grandTotal > 0)
-
-                ? (mlAllG > 0
-                    ? qBound(0.0, (qreal)grandDone / grandTotal, 1.0)
-                    : qBound(0.0, 0.5 * (qreal)(ds3 ? ds3->mcBytesDl : 0) / grandTotal, 0.5))
-
-                : (tb > 0 ? qBound(0.0, (qreal)db / tb, 1.0) : 0.0);
-
-        } else {
-
-            rawTotalProgress = (tb > 0) ? (qreal)db / tb : 0.0;
-
-        }
 
 
 
@@ -3122,13 +3083,9 @@ void VersionBackend::updateDownloadProgress(const QString& versionId,
                 }
             }
 
-            // ── EMA smoothing for each merged session ──
-            mDs->m_rawTotalProgress = rawTotalProgress;
-            if (mDs->smoothProgress <= 0.0 || rawTotalProgress > mDs->smoothProgress + 0.5) {
-                mDs->smoothProgress = rawTotalProgress;
-            } else {
-                mDs->smoothProgress = mDs->smoothProgress * 0.7 + rawTotalProgress * 0.3;
-            }
+            // ── 卡片进度统一（2026-08-05）──
+            // merged 卡片 progress 改由步骤管线加权驱动（totalProgress），
+            // 此处不再写 smoothProgress（旧的字节 EMA 口径已废弃）。
         }
 
 
@@ -6086,7 +6043,7 @@ void VersionBackend::updateCardFromSession(const QString& installId, const QStri
             if (ds->fabricApiPending && ds->fabSpeed > 0)
                 ts += ds->fabSpeed;
             mergedCard.speed = ts;
-            mergedCard.progress = qBound(0.0, ds->smoothProgress, 1.0);
+            mergedCard.progress = qBound(0.0, ds->totalProgress(), 1.0);
             mergedCard.phase = derivePhase(mergedCard.steps);
             m_installCardsModel->appendRow(mergedCard);
         } else {
@@ -6117,7 +6074,7 @@ void VersionBackend::updateCardFromSession(const QString& installId, const QStri
                     m_installCardsModel->updatePhase(mrow, newPhase);
             }
 
-            qreal p = qBound(0.0, ds->smoothProgress, 1.0);
+            qreal p = qBound(0.0, ds->totalProgress(), 1.0);
             qint64 s = 0;
             if (m_dlStates.contains(ds->mcVersion) && !ds->mcDownloadDone)
                 s += m_dlStates[ds->mcVersion].speed;
@@ -6174,8 +6131,8 @@ void VersionBackend::updateCardFromSession(const QString& installId, const QStri
     QString newPhase = derivePhase(pipelineSteps);
 
     // 更新 progress + speed (每 200ms 都会跑, cheap)
-    // Pure MC: use pipeline weighted progress (smoothProgress only updated for merged installs)
-    qreal newP = ds->isMerged() ? qBound(0.0, ds->smoothProgress, 1.0) : qBound(0.0, ds->totalProgress(), 1.0);
+    // 卡片进度统一：merged/纯 MC 均走步骤管线加权 totalProgress（2026-08-05）
+    qreal newP = qBound(0.0, ds->totalProgress(), 1.0);  // 2026-08-05 统一：merged/纯MC 均走步骤加权
     qint64 newS = 0;
     if (!ds->isMerged() && m_dlStates.contains(installId))
         newS = m_dlStates[installId].speed;
@@ -6197,7 +6154,7 @@ void VersionBackend::updateCardFromSession(const QString& installId, const QStri
             patch.canCancel = false;
             needPatch = true;
         }
-        if (ds->smoothProgress >= 1.0 && cur->progress < 1.0) {
+        if (ds->totalProgress() >= 1.0 && cur->progress < 1.0) {  // 2026-08-05 统一口径
             patch.canCancel = false;
             needPatch = true;
         }
@@ -6691,7 +6648,7 @@ bool VersionBackend::isModpackSessionSuppressed(const QString& installId) const
 qreal VersionBackend::installProgressOf(const QString& installId) const
 {
     auto* ds = dlSession(installId);
-    return ds ? qBound(0.0, ds->smoothProgress, 1.0) : 0.0;
+    return ds ? qBound(0.0, ds->totalProgress(), 1.0) : 0.0;  // 2026-08-05 统一口径
 }
 
 qint64 VersionBackend::installSpeedOf(const QString& installId) const
@@ -7255,7 +7212,7 @@ auto* ds = dlSession(it.key());
 
         c.name = cardId;
 
-        c.progress = qBound(0.0, ds->smoothProgress, 1.0); // Show real progress even while MC downloads
+        c.progress = qBound(0.0, ds->totalProgress(), 1.0); // Show real progress even while MC downloads
 
         // Speed: aggregate MC + ML installer + Fabric API
 
@@ -7756,7 +7713,7 @@ void VersionBackend::dismissAllCompleted()
 
         auto* ds = dlSession(it.key());
 
-        if (ds && (ds->isFailed() || (ds->m_rawTotalProgress >= 1.0 && !ds->hasPendingLoader))) {
+        if (ds && (ds->isFailed() || (ds->totalProgress() >= 1.0 && !ds->hasPendingLoader))) {
 
             toDismiss.append(it.key());
 

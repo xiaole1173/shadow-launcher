@@ -105,6 +105,14 @@
 - 支持库 >1MB → 夸父（分片加速）；≤1MB → 山海经（独立并发）；阶段 B assets 追加到山海经（appendTasks）
 - 完成判定：m_assetTasksDone 仅由 allFinished 置位（山海经小库+assets 全完成才算）
 
+### 卡片总进度统一为步骤管线加权（2026-08-05 追加，version_backend.cpp）
+- **背景**：总进度三套口径打架——①纯 MC 卡片=步骤加权（JSON1.0 隐藏/支持库3.0/资源5.0/校验1.0）；②merged 卡片=字节 EMA，且 `updateDownloadProgress` 里对同一 session 的 smoothProgress **写两次、两套公式**（公式 A：mcRaw=0.5×支持库+0.5×资源，漏 cat0；公式 B：grandTotal 字节加权，无加载器 0.5 封顶），主版本/次版本口径不一致；③安装页主进度 m_installBytesDl/Total 注释宣称“下载 0-90%/校验 90-100%”实际下载段爬到 100% 后校验段从 0 重新开始 → 进度条回跳。
+- **修复**：
+  1. merged 卡片 progress 全部改用 `totalProgress()`（步骤管线加权，与纯 MC 同构）；删除公式 A/B 的 smoothProgress 写入（mcBytesDl/mcBytesAll 保留）；canCancel/dismissAllCompleted/installProgressOf 同步改 totalProgress 口径
+  2. **client.jar 澄清**：collectTasks 分类 cat0=version JSON（50KB，HTTP race 下载），cat1=client.jar+libraries，cat2=assets——client.jar 归支持库，本就计入；merged JSON 步骤（权重 3.0）因 cat0 不走分类统计会永远 pending → 下载有字节流即标 completed
+  3. syncPrimaryProgress 真两段式：下载 ×0.9 + 校验 ×0.1 折算 0-100 刻度（字段无 QML 消费者，仅保留语义）；删 updateDownloadProgress 里的重复写入
+- 效果：纯 MC 下载完成 88.9%（8/9）→ 校验 100%；merged 下载完成 83.5% → 校验 86.2% → 加载器 100%，无回跳、无提前绿卡
+
 ---
 
 ## 一、C++ 源码（`src/`）
@@ -334,7 +342,8 @@
 
 | 日期 | 说明 |
 |---|---|
-| 2026-08-05 | 尾程加速：慢速分片看门狗（<128KB/s 持续 2s → 剩余范围一分为二并跑）+ 分片截断字节二次扣减修正（file_downloader.{h,cpp}） |
+| 2026-08-05 | 卡片总进度统一为步骤管线加权：删 merged 双写 smoothProgress（公式 A/B）、merged 卡片改 totalProgress、client.jar 归属澄清（cat1）、JSON 步骤尽早完成、syncPrimaryProgress 真两段式（version_backend.cpp） |
+| 2026-08-05 | 尾程加速：慢速分片看门狗（<128KB/s 持续 2s → 剩余范围一分为二并跑 + 中止老连接换新）+ 分片截断字节二次扣减修正（file_downloader.{h,cpp}） |
 | 2026-08-04 | 新增数据包（Data Pack）Tab：双源池子（Modrinth project_type:datapack + CF classId=6945）、DataPackDetailPage、FilterCard datapack 行（来源/类别/排序）；随后全 Tab 加来源筛选（sourceFilter → 五池 source 参数）；CF sortField 参数化；数据包池权重 2.5→1.0。 |
 | 2026-08-04 | 修 StatsPage 黑屏：Popup 残留 ToolTip 专属属性（text/delay/timeout）导致 QML 报错 delegate 创建失败；改自定义 tipText 属性 + parent 挂 root + mapToItem 坐标换算。 |
 | 2026-08-03 | 首次建档（全量归档 src/ 与 qml/ 全部文件）。 |
