@@ -1493,24 +1493,37 @@ function _showToast(msg) {
     }
 
 
-    // ── 导出联网失败确认（全屏弹窗，同主流启动器；确认按钮先置 opened=false 触发
-    //    closed 再调 onAccept，用 _lookupAccepted 标志区分，防 false 覆盖 true）──
+    // ── 导出联网失败确认（全屏弹窗，同主流启动器）──
+    // 注意：opened 不能用绑定（绑定属性无法被按钮赋值关闭）——用信号驱动赋值。
+    property bool _lookupAccepted: false
+    // ConfirmDialog 组件靠外部 visible 控制（MainWindow Loader 同款模式）——
+    // 实例化默认隐藏，信号到达才显示；按钮关闭走 closed → visible=false
     ConfirmDialog {
         id: exportLookupDialog
         title: qsTr("联网获取文件信息失败")
-        message: exportSection ? exportSection._lookupMessage : ""
-        opened: exportSection ? exportSection._lookupOpen : false
+        message: ""
+        visible: false
         onAccept: {
-            if (exportSection) exportSection._lookupAccepted = true
+            // 确认按钮会先置 opened=false（触发 closed）再调 onAccept——
+            // 用标志区分，防 onClosed 的 false 覆盖这里的 true
+            versionSettingsOverlay._lookupAccepted = true
             if (exportSection && exportSection.backend && exportSection.backend.modpackExporter)
                 exportSection.backend.modpackExporter.continueAfterLookupFailure(true)
         }
         onClosed: {
-            if (exportSection) exportSection._lookupOpen = false
-            if (exportSection && !exportSection._lookupAccepted
-                && exportSection.backend && exportSection.backend.modpackExporter)
+            exportLookupDialog.visible = false
+            if (!versionSettingsOverlay._lookupAccepted
+                && exportSection && exportSection.backend && exportSection.backend.modpackExporter)
                 exportSection.backend.modpackExporter.continueAfterLookupFailure(false)
-            if (exportSection) exportSection._lookupAccepted = false
+            versionSettingsOverlay._lookupAccepted = false
+        }
+    }
+    // 导出分区联网失败 → 显示确认弹窗
+    Connections {
+        target: exportSection
+        function onLookupDecisionRequested(message) {
+            exportLookupDialog.message = message
+            exportLookupDialog.visible = true
         }
     }
 }

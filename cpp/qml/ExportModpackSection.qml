@@ -5,6 +5,7 @@ import QtQuick.Controls
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import QtQuick.Dialogs
+import Qt.labs.platform
 
 /// 整合包导出（版本设置独立分区，Section 7）
 /// 后端 ModpackExporter 全程 worker 线程（哈希/双平台查询/打包），信号回主线程，
@@ -36,9 +37,9 @@ Item {
     property real _progress: 0
     property string _statusText: ""
     property bool _done: false
-    property string _lookupMessage: ""
-    property bool _lookupOpen: false
-    property bool _lookupAccepted: false
+
+    /// 联网查询失败请求确认（顶层 ConfirmDialog 处理，避免 opened 绑定覆盖赋值）
+    signal lookupDecisionRequested(string message)
 
     onVersionNameChanged: {
         if (!_packName.length) _packName = versionName
@@ -52,8 +53,8 @@ Item {
     }
 
     function _resetSavePath() {
-        var dlDir = Qt.StandardPaths.writableLocation(Qt.StandardPaths.DownloadLocation)
-        if (!dlDir) dlDir = Qt.StandardPaths.writableLocation(Qt.StandardPaths.DocumentsLocation)
+        var dlDir = StandardPaths.writableLocation(StandardPaths.DownloadLocation)
+        if (!dlDir) dlDir = StandardPaths.writableLocation(StandardPaths.DocumentsLocation)
         var ext = _format === "curseforge" ? ".zip" : ".mrpack"
         _savePath = (dlDir ? dlDir + "/" : "") + (versionName || "modpack") + ext
     }
@@ -87,10 +88,9 @@ Item {
                     if (root.toastManager) root.toastManager.show(qsTr("导出失败: ") + (err || qsTr("未知错误")), 5000)
                 }
             })
-            // ── 联网查询失败 → 弹窗询问是否继续（同主流启动器）──
+            // ── 联网查询失败 → 通知顶层弹窗询问是否继续（同主流启动器）──
             e.lookupFailed.connect(function(platform, detail) {
-                root._lookupMessage = detail
-                root._lookupOpen = true
+                root.lookupDecisionRequested(detail)
             })
         }
         _loadSaves()
