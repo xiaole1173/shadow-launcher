@@ -556,50 +556,192 @@ void VersionDownloader::downloadAssetIndexRace(const QString& idxUrl, const QStr
     auto won = std::make_shared<bool>(false);
     auto pending = std::make_shared<int>(mirror == official ? 1 : 2);
 
-    auto launch = [this, won, pending, done, idxPath](const QString& url, const QString& label) {
+    // 双源均败 → 继续流程（assets 任务为空）
+    auto failBoth = [this, won, pending, done]() {
+        if (--(*pending) <= 0) {
+            *won = true;
+            emit logMessage(QStringLiteral("[盘古] 资源索引下载失败（双源均失败），按无资源继续"));
+            done();
+        }
+    };
+    // 胜出收尾（幂等）
+    auto win = [this, won, done](const QString& label) {
+        if (*won) return;
+        *won = true;
+        emit logMessage(QStringLiteral("[盘古] 资源索引竞速胜出 源=%1").arg(label));
+        done();
+    };
+
+    // ── 镜像路：单连接 + 跟随重定向（2026-08-05 修复）──
+    // 旧代码未设 RedirectPolicy：bmclapi2 返回 302 被当失败 → 镜像在竞速中从未赢过，
+    // 实际退化为官方单源（官方慢时 assets 启动被拖 10s+）。
+    // 现在跟随 302 到签名 CDN 节点，镜像真正参与抢答。
+    if (mirror != official) {
         auto* nam = new QNetworkAccessManager(this);
-        const QUrl reqUrl(url);
+        const QUrl reqUrl(mirror);
         QNetworkRequest req(reqUrl);
         req.setRawHeader("User-Agent", "ShadowLauncher/1.0");
         req.setTransferTimeout(kRaceTimeoutMs);
+        req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+                         QNetworkRequest::NoLessSafeRedirectPolicy);
         QNetworkReply* reply = nam->get(req);
-
         connect(reply, &QNetworkReply::finished, this,
-                [this, won, pending, done, idxPath, url, label, reply, nam]() {
+                [this, won, failBoth, win, idxPath, reply, nam]() {
             reply->deleteLater();
             nam->deleteLater();
-            if (*won) return;   // 另一源已胜出（旧轮慢请求不干扰）
-
+            if (*won) return;   // 官方已胜出
             const bool ok = (reply->error() == QNetworkReply::NoError)
                 && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 200;
             if (ok) {
                 const QByteArray data = reply->readAll();
-                if (!data.isEmpty()) {
-                    *won = true;
+                if (!data.isEmpty() && !*won) {
                     QDir().mkpath(QFileInfo(idxPath).absolutePath());
                     QFile f(idxPath);
                     if (f.open(QIODevice::WriteOnly)) {
                         f.write(data);
                         f.close();
-                        emit logMessage(QStringLiteral("[盘古] 资源索引竞速胜出 源=%1").arg(label));
-                        done();
+                        win(QStringLiteral("镜像"));
                         return;
                     }
                 }
             } else {
-                qCWarning(logDownload) << QStringLiteral("[盘古] 资源索引源失败 %1: %2")
-                    .arg(label, reply->errorString());
+                qCWarning(logDownload) << QStringLiteral("[盘古] 资源索引镜像源失败: %1")
+                    .arg(reply->errorString());
             }
-            if (--(*pending) <= 0) {
-                *won = true;
-                emit logMessage(QStringLiteral("[盘古] 资源索引下载失败（双源均失败），按无资源继续"));
-                done();   // 继续流程（assets 任务为空）
-            }
+            failBoth();
         });
+    }
+
+    // ── 官方路：探测 total → 分片并行（2026-08-05 新增）──
+    // 旧实现单连接赌官方；index 600KB~2MB，官方单连接慢时（国内抖动）拖死 assets 启动。
+    // 现在 Range 0-0 探测拿总大小 → 按 ≤256KB/片拆最多 4 片并行 → 完成后拼接。
+    auto* nam = new QNetworkAccessManager(this);
+
+    auto launchShards = [this, won, failBoth, win, idxPath, official, nam](qint64 total) {
+        const QString partPrefix = idxPath + QStringLiteral(".part");
+        QDir().mkpath(QFileInfo(idxPath).absolutePath());
+        const int n = qBound(1, static_cast<int>(total / (256 * 1024)) + 1, 4);
+        auto shardOk = std::make_shared<QVector<bool>>(n, false);
+        auto doneCount = std::make_shared<int>(0);
+        const qint64 shardSize = (total + n - 1) / n;
+
+        for (int i = 0; i < n; ++i) {
+            const qint64 start = i * shardSize;
+            const qint64 end = qMin(total - 1, start + shardSize - 1);
+            const QUrl shardUrl(official);
+            QNetworkRequest req(shardUrl);
+            req.setRawHeader("User-Agent", "ShadowLauncher/1.0");
+            req.setRawHeader("Range", QString("bytes=%1-%2").arg(start).arg(end).toUtf8());
+            req.setTransferTimeout(kRaceTimeoutMs);
+            QNetworkReply* r = nam->get(req);
+            connect(r, &QNetworkReply::finished, this,
+                    [this, won, failBoth, win, partPrefix, idxPath, n, i, start, end,
+                     r, doneCount, shardOk]() {
+                r->deleteLater();
+                if (*won) return;   // 镜像已胜出
+                bool ok = (r->error() == QNetworkReply::NoError)
+                    && r->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 206;
+                if (ok) {
+                    const QByteArray data = r->readAll();
+                    if (data.size() == (end - start + 1)) {
+                        QFile pf(partPrefix + QStringLiteral(".") + QString::number(i));
+                        if (pf.open(QIODevice::WriteOnly)) {
+                            pf.write(data);
+                            pf.close();
+                            (*shardOk)[i] = true;
+                        } else {
+                            ok = false;
+                        }
+                    } else {
+                        ok = false;
+                    }
+                }
+                if (!ok)
+                    qCWarning(logDownload) << QStringLiteral("[盘古] 资源索引官方分片 %1/%2 失败: %3")
+                        .arg(i + 1).arg(n).arg(r->errorString());
+                if (++(*doneCount) >= n) {
+                    // 全部分片完成：校验 → 拼接
+                    bool allOk = true;
+                    for (bool s : *shardOk) if (!s) { allOk = false; break; }
+                    if (allOk && !*won) {
+                        QFile out(idxPath);
+                        bool joinOk = out.open(QIODevice::WriteOnly);
+                        for (int j = 0; joinOk && j < n; ++j) {
+                            QFile in(partPrefix + QStringLiteral(".") + QString::number(j));
+                            if (in.open(QIODevice::ReadOnly)) {
+                                joinOk = (out.write(in.readAll()) > 0);
+                                in.close();
+                            } else {
+                                joinOk = false;
+                            }
+                        }
+                        out.close();
+                        // 清理分片临时文件
+                        for (int j = 0; j < n; ++j)
+                            QFile::remove(partPrefix + QStringLiteral(".") + QString::number(j));
+                        if (joinOk) {
+                            win(QStringLiteral("官方"));
+                            return;
+                        }
+                        allOk = false;
+                    }
+                    if (!allOk) {
+                        for (int j = 0; j < n; ++j)
+                            QFile::remove(partPrefix + QStringLiteral(".") + QString::number(j));
+                        QFile::remove(idxPath);
+                        failBoth();
+                    }
+                }
+            });
+        }
     };
 
-    if (mirror != official) launch(mirror, QStringLiteral("镜像"));
-    launch(official, QStringLiteral("官方"));
+    // 探测请求：Range 0-0 → 206 + Content-Range 拿 total；服务器忽略 Range → 200 全量直接用
+    {
+        const QUrl probeUrl(official);
+        QNetworkRequest req(probeUrl);
+        req.setRawHeader("User-Agent", "ShadowLauncher/1.0");
+        req.setRawHeader("Range", "bytes=0-0");
+        req.setTransferTimeout(kRaceTimeoutMs);
+        QNetworkReply* probe = nam->get(req);
+        connect(probe, &QNetworkReply::finished, this,
+                [this, won, failBoth, win, idxPath, probe, launchShards]() {
+            probe->deleteLater();
+            if (*won) return;   // 镜像已胜出
+            const int status = probe->attribute(
+                QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            if (probe->error() == QNetworkReply::NoError && status == 206) {
+                const QByteArray cr = probe->rawHeader("Content-Range");
+                qint64 total = -1;
+                const int slash = cr.lastIndexOf('/');
+                if (slash >= 0)
+                    total = cr.mid(slash + 1).toLongLong();
+                if (total > 0) {
+                    launchShards(total);
+                    return;
+                }
+                qCWarning(logDownload) << QStringLiteral("[盘古] 资源索引探测无法解析大小: %1")
+                    .arg(QString::fromUtf8(cr));
+            } else if (probe->error() == QNetworkReply::NoError && status == 200) {
+                // 服务器忽略 Range 返回全量：探测数据即整个文件
+                const QByteArray data = probe->readAll();
+                if (!data.isEmpty() && !*won) {
+                    QDir().mkpath(QFileInfo(idxPath).absolutePath());
+                    QFile f(idxPath);
+                    if (f.open(QIODevice::WriteOnly)) {
+                        f.write(data);
+                        f.close();
+                        win(QStringLiteral("官方"));
+                        return;
+                    }
+                }
+            } else {
+                qCWarning(logDownload) << QStringLiteral("[盘古] 资源索引官方源失败: %1")
+                    .arg(probe->errorString());
+            }
+            failBoth();
+        });
+    }
 }
 
 // ═══════════════════════════════════════════════════════════
