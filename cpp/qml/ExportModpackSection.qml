@@ -41,6 +41,16 @@ Item {
     /// 联网查询失败请求确认（顶层 ConfirmDialog 处理，避免 opened 绑定覆盖赋值）
     signal lookupDecisionRequested(string message)
 
+    // backend/toastManager 由 MainWindow 在 Loader onLoaded 时注入（晚于本组件 onCompleted），
+    // 注入完成前 _loadSaves 会挂起，这里补执行
+    property bool _pendingSavesLoad: false
+    onBackendChanged: {
+        if (backend && backend.modpackExporter && _pendingSavesLoad) {
+            _pendingSavesLoad = false
+            _loadSaves()
+        }
+    }
+
     onVersionNameChanged: {
         if (!_packName.length) _packName = versionName
         _resetSavePath()
@@ -60,47 +70,57 @@ Item {
     }
 
     function _loadSaves() {
-        if (backend && backend.modpackExporter) {
-            _saves = backend.modpackExporter.listSaves(versionId) || []
-            _selectedSaves = []
+        if (!backend || !backend.modpackExporter) {
+            _pendingSavesLoad = true
+            return
+        }
+        _pendingSavesLoad = false
+        _saves = backend.modpackExporter.listSaves(versionId) || []
+        _selectedSaves = []
+    }
+
+    // ── 后端信号（声明式 Connections）──
+    // 关键：不能用 onCompleted 里 connect——组件 onCompleted 执行时 MainWindow 还没
+    // 注入 backend（Loader onLoaded 才赋值），连接会被整体跳过；Connections 的
+    // target 用绑定表达式，backend 注入后自动生效，根治"导出无任何反馈"
+    Connections {
+        target: backend && backend.modpackExporter ? backend.modpackExporter : null
+        function onBusyChanged() {
+            root._busy = backend.modpackExporter.busy
+        }
+        function onProgressChanged() {
+            root._progress = backend.modpackExporter.progress
+            root._statusText = backend.modpackExporter.statusText
+        }
+        function onFinished(success, outPath, error) {
+            root._busy = false
+            if (success) {
+                root._progress = 1
+                root._statusText = qsTr("导出完成") + " " + error
+                root._done = true
+                if (root.toastManager) root.toastManager.show(qsTr("整合包已导出: ") + outPath)
+            } else {
+                root._progress = 0
+                root._done = false
+                root._statusText = qsTr("导出失败: ") + (error || qsTr("未知错误"))
+                if (root.toastManager) root.toastManager.show(qsTr("导出失败: ") + (error || qsTr("未知错误")), 5000)
+            }
+        }
+        // ── 联网查询失败 → 通知顶层弹窗询问是否继续（同主流启动器）──
+        function onLookupFailed(platform, detail) {
+            root.lookupDecisionRequested(detail)
         }
     }
 
     Component.onCompleted: {
-        if (backend && backend.modpackExporter) {
-            var e = backend.modpackExporter
-            e.busyChanged.connect(function() { root._busy = e.busy })
-            e.progressChanged.connect(function() {
-                root._progress = e.progress
-                root._statusText = e.statusText
-            })
-            e.finished.connect(function(ok, out, err) {
-                root._busy = false
-                if (ok) {
-                    root._progress = 1
-                    root._statusText = qsTr("导出完成") + " " + err
-                    root._done = true
-                    if (root.toastManager) root.toastManager.show(qsTr("整合包已导出: ") + out)
-                } else {
-                    root._progress = 0
-                    root._done = false
-                    root._statusText = qsTr("导出失败: ") + (err || qsTr("未知错误"))
-                    if (root.toastManager) root.toastManager.show(qsTr("导出失败: ") + (err || qsTr("未知错误")), 5000)
-                }
-            })
-            // ── 联网查询失败 → 通知顶层弹窗询问是否继续（同主流启动器）──
-            e.lookupFailed.connect(function(platform, detail) {
-                root.lookupDecisionRequested(detail)
-            })
-        }
-        _loadSaves()
+        _loadSaves()   // backend 未注入时挂起，onBackendChanged 补载
     }
 
     // 点『导出』：校验后弹保存位置窗（主流启动器 交互），确认后真正开始
     function _startExport() {
         if (!backend || !backend.modpackExporter) {
             if (root.toastManager) root.toastManager.show(qsTr("导出模块未就绪，请稍后重试"), 3000)
-            console.log("[export] modpackExporter is null")
+            console.info("[export] modpackExporter is null")
             return
         }
         if (_busy) return
@@ -134,7 +154,7 @@ Item {
         root._progress = 0
         root._statusText = ""
         var fmt = _format === "curseforge" ? 1 : 0
-        console.log("[export] start: " + path)
+        console.info("[export] start: " + path)
         e.exportVersion(versionId, _packName.trim(), _packVersion.trim(),
                         _includeConfig, _selectedSaves,
                         _includeResourcepacks, _includeShaderpacks,
@@ -479,7 +499,7 @@ Item {
                 btnWidth: 140
                 z: 10
                 onClicked: {
-                    console.log("[export] btn clicked, busy=" + root._busy)
+                    console.info("[export] btn clicked, busy=" + root._busy)
                     if (root._busy) {
                         if (backend && backend.modpackExporter) backend.modpackExporter.cancel()
                     } else {
@@ -546,7 +566,7 @@ Item {
                 p = sel.toString()
             }
             p = String(p).replace(/^(file:\/{2,3})/i, "")
-            console.log("[export] onAccepted path=" + p)
+            console.info("[export] onAccepted path=" + p)
             root._doExport(p)
         }
         onRejected: { /* 用户取消选择：不导出 */ }

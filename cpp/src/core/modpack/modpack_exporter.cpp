@@ -200,6 +200,7 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
 {
     if (m_busy) return;
     if (versionId.isEmpty() || outPath.isEmpty()) {
+        qCInfo(logMod) << QStringLiteral("[整合包] 导出参数不完整 versionId=%1 outPath=%2").arg(versionId, outPath);
         emit finished(false, outPath, tr("参数不完整"));
         return;
     }
@@ -208,6 +209,7 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
     m_lookupContinue.storeRelaxed(1);   // 重置联网失败确认状态
     setProgress(0.0, tr("准备导出..."));
     emit busyChanged();
+    qCInfo(logMod) << QStringLiteral("[整合包] 导出开始 %1 → %2").arg(displayName, outPath);
 
     const QString gameDir = m_gameDir;
     const QString cfKey = m_cfApiKey;
@@ -219,6 +221,8 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
                        includeResourcepacks, includeShaderpacks,
                        modrinthUploadMode, hostedAssetsOnly, includeJava, outPath]() {
         auto finish = [this, outPath](bool ok, const QString& err) {
+            qCInfo(logMod) << QStringLiteral("[整合包] 导出结束 %1 %2 %3")
+                                  .arg(ok ? QStringLiteral("成功") : QStringLiteral("失败"), outPath, err);
             const QString out = outPath;
             QMetaObject::invokeMethod(this, [this, ok, out, err]() {
                 m_busy = false;
