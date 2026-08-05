@@ -148,6 +148,8 @@ Item {
             width: exportScroll.availableWidth
             // 高度自适应：内容矮时不滚动（撑满），内容高时随 Flickable 滚动
             height: Math.max(exportScroll.availableHeight, implicitHeight)
+            // 显式同步 Flickable contentHeight，防滚动区高度不同步把底部按钮裁在视口外
+            Binding { target: exportScroll.contentItem; property: "contentHeight"; value: parent.height }
             spacing: 12
 
         // ── 标题 ──
@@ -459,7 +461,9 @@ Item {
             ShadowButton {
                 text: root._busy ? qsTr("取消导出") : qsTr("导出")
                 btnWidth: 140
+                z: 10
                 onClicked: {
+                    console.log("[export] btn clicked, busy=" + root._busy)
                     if (root._busy) {
                         if (backend && backend.modpackExporter) backend.modpackExporter.cancel()
                     } else {
