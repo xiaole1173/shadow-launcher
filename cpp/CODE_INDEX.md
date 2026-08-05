@@ -342,6 +342,7 @@
 
 | 日期 | 说明 |
 |---|---|
+| 2026-08-05 | 整合包导出完全对齐 主流启动器：双平台在线来源查询（Modrinth sha1 + CF MurmurHash2 指纹）、hosted→files[]/未托管→overrides 直装、CF zip 格式、ModrinthUploadMode、存档子项（modpack_exporter.{h,cpp} + ExportModpackSection.qml） |
 | 2026-08-05 | 导出整合包改为版本设置独立分区 Section 7（ExportModpackSection.qml 取代浮层）：侧边栏入口、通用组件、worker 线程零阻塞 |
 | 2026-08-05 | 整合包导出 .mrpack（P0 收官）：ModpackExporter + ZipArchive 写入 + ExportModpackOverlay 浮层 + 工具分区入口 + ModpackExportTest 回归测试 |
 | 2026-08-05 | 缓存命中失效修复：山海经 appendTasks 加预检查（assets 不再全量重下 578MB）、夸父后台预检加 fallback 复制（merged/跨版本命中）、AssetDownloader 增加 m_minecraftDir（asset_downloader.{h,cpp}、version_downloader.cpp） |
