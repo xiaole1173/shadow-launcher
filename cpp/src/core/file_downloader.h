@@ -170,6 +170,7 @@ private:
     QAtomicInt m_completedFiles{0};
     QAtomicInt m_failedFiles{0};
     QAtomicInt m_cacheHits{0};   // 缓存命中数（addFile 阶段累计，start 时统一入账）
+    int m_cacheHitLogCtr = 0;    // 命中日志节流计数（2026-08-05）
     QAtomicInteger<qint64> m_downloadedBytes{0};  // 仅真实网络收发字节（缓存命中不累加）
     QAtomicInteger<qint64> m_cacheBytes{0};  // 保留字段：缓存命中分支已不累加，恒为 0（不参与速度）
     QAtomicInteger<qint64> m_totalBytes{0};

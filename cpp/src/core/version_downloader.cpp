@@ -379,6 +379,13 @@ void VersionDownloader::downloadVersion(const QJsonObject& versionJson,
                 // 命中者计入完成（不读盘不排队）
                 for (const auto& ch : cacheHits)
                     m_downloader->notifyCacheHit(ch.first, ch.second);
+                // ── 预检汇总（2026-08-05 补）：缓存复用可见 ──
+                if (!cacheHits.isEmpty()) {
+                    emit logMessage(QStringLiteral("[盘古] 缓存预检: %1 个文件命中直接复用，%2 个待下载")
+                                        .arg(cacheHits.size()).arg(toDownload.size()));
+                    qCInfo(logDownload) << QStringLiteral("[盘古] 缓存预检: %1 个文件命中直接复用，%2 个待下载")
+                        .arg(cacheHits.size()).arg(toDownload.size());
+                }
 
                 // 未命中者分流：大文件（>1MB）→ 夸父（分片加速）；
                 // 小文件（≤1MB）→ 山海经（独立并发引擎，双引擎并行）。

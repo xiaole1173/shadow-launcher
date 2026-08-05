@@ -170,6 +170,15 @@ void FileDownloader::notifyCacheHit(const QString& localPath, qint64 size)
     // （如“下载支持库”）不含缓存文件，进度到 42% 突然跳完成。
     m_cacheHits.fetchAndAddRelaxed(1);
     m_cacheBytes.fetchAndAddRelaxed(size);
+    // ── 命中日志（2026-08-05 补）──
+    // 后台预检命中走本路径；旧实现无任何日志，用户无法确认缓存复用是否生效
+    //（addFile 同步分支的“缓存命中”日志因 skipCacheCheck=true 已不再执行）。
+    // 节流：每 20 个打一条明细，避免几千个文件刷屏。
+    const int hitTotal = m_cacheHits.loadRelaxed();
+    if ((++m_cacheHitLogCtr % 20) == 1 || hitTotal <= 1) {
+        qCInfo(logDownload) << QStringLiteral("[夸父] 缓存命中｜文件名:%1 大小:%2KB（累计 %3 个）")
+            .arg(localPath.section(QLatin1Char('/'), -1)).arg(size / 1024).arg(hitTotal);
+    }
     const QString name = localPath.section(QLatin1Char('/'), -1);
     emit fileProgress(localPath, name, size, size, localPath);
     emit fileFinished(localPath, true);
@@ -1443,10 +1452,18 @@ void FileDownloader::updateStats()
         m_speedTimer2->stop();
         m_state = Idle;
         const qint64 totalDl = m_totalBytes.loadRelaxed();
-        emit logMessage(QString::fromUtf8("[夸父] [完成] 下载完成: %1/%2 文件, %3, 速度 %4 MB/s")
+        // 完成汇总带缓存命中数（2026-08-05 补：缓存复用可见）
+        const int cacheHits = m_cacheHits.loadRelaxed();
+        emit logMessage(QString::fromUtf8("[夸父] [完成] 下载完成: %1/%2 文件, %3, 速度 %4 MB/s, 缓存命中 %5")
                             .arg(done).arg(total)
                             .arg(formatSize(totalDl))
-                            .arg(m_emaMbps, 0, 'f', 1));
+                            .arg(m_emaMbps, 0, 'f', 1)
+                            .arg(cacheHits));
+        qCInfo(logDownload) << QStringLiteral("[夸父] [完成] 下载完成: %1/%2 文件, %3, 速度 %4 MB/s, 缓存命中 %5")
+            .arg(done).arg(total)
+            .arg(formatSize(totalDl))
+            .arg(m_emaMbps, 0, 'f', 1)
+            .arg(cacheHits);
         emit allFinished();
     }
 }
