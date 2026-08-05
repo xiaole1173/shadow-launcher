@@ -68,3 +68,6 @@ _*.cs
 _*.toml
 _yidao_server*/
 build-test/
+
+# 本地慢速测试服务器数据
+_slow_server/
