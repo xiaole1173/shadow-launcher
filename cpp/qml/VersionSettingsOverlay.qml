@@ -1297,6 +1297,20 @@ Rectangle {
                     }
                 }
             }
+
+            // Section 7: 导出整合包
+            ExportModpackSection {
+                anchors.fill: parent
+                anchors.margins: 24
+                opacity: settingsNav.currentIndex === 7 ? 1 : 0
+                visible: opacity > 0
+                Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+                backend: versionSettingsOverlay.backend
+                toastManager: versionSettingsOverlay.toastManager
+                versionId: currentSelectedVersion || ""
+                versionName: currentSelectedVersion || ""
+            }
+
         }
     }
     }
@@ -1475,19 +1489,6 @@ function _showToast(msg) {
         onRejected: {
             if (backend) backend.logUiMsg("[export] onRejected fired")
         }
-    }
-
-    // ── 导出整合包浮层（工具分区入口，2026-08-05）──
-    property bool _exportOpen: false
-    ExportModpackOverlay {
-        anchors.fill: parent
-        z: 60
-        opened: versionSettingsOverlay._exportOpen
-        backend: versionSettingsOverlay.backend
-        toastManager: versionSettingsOverlay.toastManager
-        versionId: currentSelectedVersion || ""
-        versionName: currentSelectedVersion || ""
-        onClosed: versionSettingsOverlay._exportOpen = false
     }
 
 }
