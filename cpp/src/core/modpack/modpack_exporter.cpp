@@ -389,19 +389,25 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
         // ── 5. 双平台查询在线来源（同主流启动器；hostedAssetsOnly 时跳过全部联网）──
         int modrinthHits = 0, cfHits = 0;
         if (!mods.isEmpty() && !hostedAssetsOnly) {
-            // 5a. Modrinth：批量 sha1 查询
-            QJsonArray shaArr;
-            for (const auto& m : mods)
-                shaArr.append(QString::fromLatin1(m.sha1.toHex()));
-            QJsonObject bodyObj;
-            bodyObj.insert(QStringLiteral("hashes"), shaArr);
-            bodyObj.insert(QStringLiteral("algorithm"), QStringLiteral("sha1"));
-            const QByteArray body = QJsonDocument(bodyObj).toJson(QJsonDocument::Compact);
+            // 5a. Modrinth：批量 sha1 查询（分块 500/批，大整合包防 API 上限）
             setProgress(0.22, tr("查询 Modrinth 在线来源..."));
-            const QByteArray resp = postJson(QUrl(QStringLiteral("https://api.modrinth.com/v2/version_files")), body);
-            if (!resp.isEmpty()) {
+            bool modrinthFailed = false;
+            constexpr int kMrBatch = 500;
+            for (int b = 0; b < mods.size() && !modrinthFailed; b += kMrBatch) {
+                QJsonArray shaArr;
+                const int end = qMin(b + kMrBatch, mods.size());
+                for (int i = b; i < end; ++i)
+                    shaArr.append(QString::fromLatin1(mods[i].sha1.toHex()));
+                QJsonObject bodyObj;
+                bodyObj.insert(QStringLiteral("hashes"), shaArr);
+                bodyObj.insert(QStringLiteral("algorithm"), QStringLiteral("sha1"));
+                const QByteArray body = QJsonDocument(bodyObj).toJson(QJsonDocument::Compact);
+                const QByteArray resp = postJson(
+                    QUrl(QStringLiteral("https://api.modrinth.com/v2/version_files")), body);
+                if (resp.isEmpty()) { modrinthFailed = true; break; }
                 const QJsonObject root = QJsonDocument::fromJson(resp).object();
-                for (auto& m : mods) {
+                for (int i = b; i < end; ++i) {
+                    auto& m = mods[i];
                     const QString shaHex = QString::fromLatin1(m.sha1.toHex());
                     const QJsonObject entry = root.value(shaHex).toObject();
                     if (entry.isEmpty()) continue;
@@ -417,7 +423,8 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
                         modrinthHits++;
                     }
                 }
-            } else {
+            }
+            if (modrinthFailed) {
                 // 查询失败 → 主流启动器 弹窗询问是否继续（未查到文件将直接打包）
                 qCWarning(logMod) << "[导出] Modrinth 查询失败";
                 if (!waitLookupDecision(0, tr("Modrinth 在线来源查询失败，无法获取信息的文件将直接打包。是否继续？"))) {
@@ -437,17 +444,22 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
                         return;
                     }
                 } else {
-                    QJsonArray fpArr;
-                    for (const auto& m : mods)
-                        fpArr.append(static_cast<double>(m.cfHash));
-                    QJsonObject cfBodyObj;
-                    cfBodyObj.insert(QStringLiteral("fingerprints"), fpArr);
-                    const QByteArray cfBody = QJsonDocument(cfBodyObj).toJson(QJsonDocument::Compact);
+                    // 分块 500 fingerprints/批（CF API 批量上限，大整合包防截断）
                     setProgress(0.55, tr("查询 CurseForge 在线来源..."));
-                    const QByteArray cfResp = postJson(
-                        QUrl(QStringLiteral("https://api.curseforge.com/v1/fingerprints/432/")), cfBody,
-                        {{"x-api-key", cfKey.toUtf8()}});
-                    if (!cfResp.isEmpty()) {
+                    bool cfFailed = false;
+                    constexpr int kCfBatch = 500;
+                    for (int b = 0; b < mods.size() && !cfFailed; b += kCfBatch) {
+                        QJsonArray fpArr;
+                        const int end = qMin(b + kCfBatch, mods.size());
+                        for (int i = b; i < end; ++i)
+                            fpArr.append(static_cast<double>(mods[i].cfHash));
+                        QJsonObject cfBodyObj;
+                        cfBodyObj.insert(QStringLiteral("fingerprints"), fpArr);
+                        const QByteArray cfBody = QJsonDocument(cfBodyObj).toJson(QJsonDocument::Compact);
+                        const QByteArray cfResp = postJson(
+                            QUrl(QStringLiteral("https://api.curseforge.com/v1/fingerprints/432/")), cfBody,
+                            {{"x-api-key", cfKey.toUtf8()}});
+                        if (cfResp.isEmpty()) { cfFailed = true; break; }
                         const QJsonObject data = QJsonDocument::fromJson(cfResp).object()
                                                      .value(QStringLiteral("data")).toObject();
                         const QJsonArray matches = data.value(QStringLiteral("exactMatches")).toArray();
@@ -458,7 +470,8 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
                             const QJsonObject file = match.value(QStringLiteral("file")).toObject();
                             const QString dlUrl = file.value(QStringLiteral("downloadUrl")).toString();
                             if (dlUrl.isEmpty()) continue;
-                            for (auto& m : mods) {
+                            for (int i = b; i < end; ++i) {
+                                auto& m = mods[i];
                                 if (m.cfHash != fp) continue;
                                 m.cfProjectId = match.value(QStringLiteral("projectId")).toInt();
                                 m.cfFileId = match.value(QStringLiteral("id")).toInt();
@@ -472,7 +485,8 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
                                 break;
                             }
                         }
-                    } else {
+                    }
+                    if (cfFailed) {
                         qCWarning(logMod) << "[导出] CurseForge 查询失败";
                         if (!waitLookupDecision(1, tr("CurseForge 在线来源查询失败，无法获取信息的文件将直接打包。是否继续？"))) {
                             finish(false, tr("已取消"));

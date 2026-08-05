@@ -45,6 +45,12 @@ Item {
         _resetSavePath()
     }
 
+    // 切换版本：重载存档列表、清空勾选（版本变了存档列表随之变化）
+    onVersionIdChanged: {
+        _loadSaves()
+        _selectedSaves = []
+    }
+
     function _resetSavePath() {
         var dlDir = Qt.StandardPaths.writableLocation(Qt.StandardPaths.DownloadLocation)
         if (!dlDir) dlDir = Qt.StandardPaths.writableLocation(Qt.StandardPaths.DocumentsLocation)
@@ -113,8 +119,15 @@ Item {
                         _modrinthOnly, _hostedAssetsOnly, _includeJava, fmt, path)
     }
 
-    ColumnLayout {
+    // 内容可滚动：分区高度有限，存档子项展开/矮窗口时避免裁切
+    ScrollView {
+        id: exportScroll
         anchors.fill: parent
+        clip: true
+        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+        ScrollBar.vertical.policy: ScrollBar.AsNeeded
+        ColumnLayout {
+            width: exportScroll.availableWidth
         spacing: 12
 
         // ── 标题 ──
@@ -173,8 +186,12 @@ Item {
                     currentValue: root._format
                     enabled: !root._busy
                     onValueSelected: function(v) {
+                        var ext = v === "curseforge" ? ".zip" : ".mrpack"
+                        if (root._savePath) {
+                            // 保留目录，只换后缀（用户已选过路径时不重置）
+                            root._savePath = root._savePath.replace(/\.(mrpack|zip)$/i, "") + ext
+                        }
                         root._format = v
-                        root._resetSavePath()
                     }
                 }
             }
@@ -504,24 +521,6 @@ Item {
             }
         }
     }
-
-    // ── 联网查询失败确认（主流启动器 弹窗询问是否继续）──
-    ConfirmDialog {
-        title: qsTr("联网获取文件信息失败")
-        message: root._lookupMessage
-        opened: root._lookupOpen
-        onAccept: {
-            // ConfirmDialog 确认按钮会先置 opened=false（触发 closed）再调 onAccept——
-            // 必须用标志区分，否则 onClosed 的 false 会覆盖这里的 true
-            root._lookupAccepted = true
-            if (backend && backend.modpackExporter) backend.modpackExporter.continueAfterLookupFailure(true)
-        }
-        onClosed: {
-            root._lookupOpen = false
-            if (!root._lookupAccepted && backend && backend.modpackExporter)
-                backend.modpackExporter.continueAfterLookupFailure(false)
-            root._lookupAccepted = false
-        }
     }
 
     // ── 保存位置选择 ──

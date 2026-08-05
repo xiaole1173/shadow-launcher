@@ -1300,6 +1300,7 @@ Rectangle {
 
             // Section 7: 导出整合包
             ExportModpackSection {
+                id: exportSection
                 anchors.fill: parent
                 anchors.margins: 24
                 opacity: settingsNav.currentIndex === 7 ? 1 : 0
@@ -1491,4 +1492,25 @@ function _showToast(msg) {
         }
     }
 
+
+    // ── 导出联网失败确认（全屏弹窗，同主流启动器；确认按钮先置 opened=false 触发
+    //    closed 再调 onAccept，用 _lookupAccepted 标志区分，防 false 覆盖 true）──
+    ConfirmDialog {
+        id: exportLookupDialog
+        title: qsTr("联网获取文件信息失败")
+        message: exportSection ? exportSection._lookupMessage : ""
+        opened: exportSection ? exportSection._lookupOpen : false
+        onAccept: {
+            if (exportSection) exportSection._lookupAccepted = true
+            if (exportSection && exportSection.backend && exportSection.backend.modpackExporter)
+                exportSection.backend.modpackExporter.continueAfterLookupFailure(true)
+        }
+        onClosed: {
+            if (exportSection) exportSection._lookupOpen = false
+            if (exportSection && !exportSection._lookupAccepted
+                && exportSection.backend && exportSection.backend.modpackExporter)
+                exportSection.backend.modpackExporter.continueAfterLookupFailure(false)
+            if (exportSection) exportSection._lookupAccepted = false
+        }
+    }
 }
