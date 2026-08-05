@@ -2097,6 +2097,15 @@ void VersionBackend::onVersionDownloadFinished(bool success,
 
     startNextFromQueue();
 
+    // ── 纯 MC 收尾：清理 installing 标志（2026-08-05 修复）──
+    // 旧代码只在取消/merged 路径 setInstalling(false)，纯 MC 下载完成后
+    // m_installing 永久 true → isInstalling() 恒 true → 整合包导入被拒
+    // 「已有版本安装任务正在进行」，且后续重复失败被 fail() 的 phase 守卫静默吞掉。
+    // merged 场景 m_activeIds 空但 mergedContexts 非空 → isInstalling 仍 true，安全。
+    if (m_activeIds.isEmpty())
+
+        setInstalling(false);
+
     qCDebug(logLaunch) << "[DOWNLOAD] finished=" << finishedId << " active=" << m_activeCount << "/" << MAX_CONCURRENT << " queue=" << m_installQueue.size();
 
 }

@@ -103,6 +103,9 @@ void ModpackInstallTask::configure(VersionBackend* vb, VersionIsolation* iso,
 void ModpackInstallTask::start(const QString& zipPath, const QString& versionName, bool includeOptional, const QString& iconUrl)
 {
     if (m_busy) return;
+    // 任务复用：先重置 phase（2026-08-05）——否则上次失败残留 Error/Done 时，
+    // 下面 isInstalling 命中再调 fail() 会被 fail() 的 phase 守卫静默吞掉（无日志无动作）
+    m_phase = Phase::Idle;
     if (m_vb->isInstalling()) {
         fail(tr("已有版本安装任务正在进行，请等待完成后再导入整合包"));
         return;
