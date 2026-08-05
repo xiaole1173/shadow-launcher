@@ -25,6 +25,8 @@
 #include <QNetworkReply>
 #include <QEventLoop>
 #include <QTimer>
+#include <QThread>
+#include <QCoreApplication>
 #include <QUrl>
 #include <QtConcurrent>
 
@@ -65,9 +67,28 @@ void ModpackExporter::setProgress(qreal p, const QString& text)
     });
 }
 
+bool ModpackExporter::waitLookupDecision(int platform, const QString& detail)
+{
+    // worker 线程内：发信号让主线程 QML 弹窗（QueuedConnection 自动排队），
+    // 轮询等待 continueAfterLookupFailure 写入结果（主流启动器 弹窗询问语义）。
+    m_lookupContinue.storeRelaxed(-1);
+    emit lookupFailed(platform, detail);
+    while (m_lookupContinue.loadRelaxed() < 0) {
+        if (m_cancel.loadRelaxed()) return false;
+        QThread::msleep(50);
+    }
+    return m_lookupContinue.loadRelaxed() == 1;
+}
+
 void ModpackExporter::cancel()
 {
     m_cancel.storeRelaxed(1);
+    m_lookupContinue.storeRelaxed(1);   // 取消等待中的用户确认
+}
+
+void ModpackExporter::continueAfterLookupFailure(bool cont)
+{
+    m_lookupContinue.storeRelaxed(cont ? 1 : 0);
 }
 
 QStringList ModpackExporter::listSaves(const QString& versionId) const
@@ -173,7 +194,8 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
                                     const QString& packVersion, bool includeConfig,
                                     const QVariantList& selectedSaves,
                                     bool includeResourcepacks, bool includeShaderpacks,
-                                    bool modrinthUploadMode, int format,
+                                    bool modrinthUploadMode, bool hostedAssetsOnly,
+                                    bool includeJava, int format,
                                     const QString& outPath)
 {
     if (m_busy) return;
@@ -183,6 +205,7 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
     }
     m_busy = true;
     m_cancel.storeRelaxed(0);
+    m_lookupContinue.storeRelaxed(1);   // 重置联网失败确认状态
     setProgress(0.0, tr("准备导出..."));
     emit busyChanged();
 
@@ -194,7 +217,7 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
                        versionId, displayName, packVersion,
                        includeConfig, selectedSaves,
                        includeResourcepacks, includeShaderpacks,
-                       modrinthUploadMode, outPath]() {
+                       modrinthUploadMode, hostedAssetsOnly, includeJava, outPath]() {
         auto finish = [this, outPath](bool ok, const QString& err) {
             const QString out = outPath;
             QMetaObject::invokeMethod(this, [this, ok, out, err]() {
@@ -269,17 +292,31 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
             }
         }
 
-        // ── 3. overrides 文件清单（saves 按勾选子项）──
+        // ── 3. overrides 文件清单（saves 按勾选子项；跳过垃圾目录，同主流启动器）──
         struct OvFile { QString diskPath; QString relPath; };
         QList<OvFile> ovFiles;
+        // 主流启动器 黑名单：structureCacheV1/.fabric/.git/avatar-cache/cosmetic-cache
+        static const QStringList kSkipDirs = {
+            QStringLiteral("structureCacheV1"), QStringLiteral(".fabric"), QStringLiteral(".git"),
+            QStringLiteral("avatar-cache"), QStringLiteral("cosmetic-cache")};
+        std::function<void(const QString&, const QString&)> addDirRec;
+        addDirRec = [&](const QString& absDir, const QString& relPrefix) {
+            QDir d(absDir);
+            const auto subDirs = d.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+            for (const auto& sd : subDirs) {
+                if (kSkipDirs.contains(sd)) continue;   // 跳过垃圾目录
+                addDirRec(d.filePath(sd), relPrefix.isEmpty() ? sd : relPrefix + QStringLiteral("/") + sd);
+            }
+            const auto files = d.entryList(QDir::Files, QDir::Name);
+            for (const auto& fn : files) {
+                const QString rel = relPrefix.isEmpty() ? fn : relPrefix + QStringLiteral("/") + fn;
+                ovFiles.append({d.filePath(fn), rel});
+            }
+        };
         auto addDir = [&](const QString& sub) {
             const QString d = gameDir + QStringLiteral("/") + sub;
             if (!QDir(d).exists()) return;
-            QDirIterator it(d, QDir::Files, QDirIterator::Subdirectories);
-            while (it.hasNext()) {
-                const QString p = it.next();
-                ovFiles.append({p, QDir(gameDir).relativeFilePath(p)});
-            }
+            addDirRec(d, sub);
         };
         auto addFile = [&](const QString& name) {
             const QString p = gameDir + QStringLiteral("/") + name;
@@ -300,11 +337,35 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
                 for (const auto& s : wantSaves) {
                     const QString d = savesRoot + QStringLiteral("/") + s;
                     if (!QDir(d).exists()) continue;
-                    QDirIterator it(d, QDir::Files, QDirIterator::Subdirectories);
-                    while (it.hasNext()) {
-                        const QString p = it.next();
-                        ovFiles.append({p, QStringLiteral("saves/") + s + QStringLiteral("/") + QDir(d).relativeFilePath(p)});
-                    }
+                    addDirRec(d, QStringLiteral("saves/") + s);
+                }
+            }
+        }
+
+        // ── 3b. IncludeJava：打包便携 Java 运行时（java_cache 中匹配 major 的 JRE，同主流启动器）──
+        if (includeJava) {
+            // 从版本 JSON 读需要的 Java major（缺省 8）
+            int needMajor = 8;
+            {
+                QFile f(jsonPath);
+                if (f.open(QIODevice::ReadOnly)) {
+                    const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
+                    needMajor = root.value(QStringLiteral("javaVersion")).toObject()
+                                    .value(QStringLiteral("majorVersion")).toInt(8);
+                }
+            }
+            const QDir javaRoot(QCoreApplication::applicationDirPath() + QStringLiteral("/java_cache"));
+            if (javaRoot.exists()) {
+                QString javaDir;
+                const auto majors = javaRoot.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+                for (const auto& m : majors) {
+                    if (m == QString::number(needMajor)) { javaDir = m; break; }
+                }
+                if (javaDir.isEmpty() && !majors.isEmpty())
+                    javaDir = majors.first();   // 无精确匹配取第一个可用
+                if (!javaDir.isEmpty()) {
+                    addDirRec(javaRoot.filePath(javaDir), QStringLiteral("java/") + javaDir);
+                    qCInfo(logMod) << QStringLiteral("[导出] 打包 Java %1 → overrides/java/%1").arg(javaDir);
                 }
             }
         }
@@ -325,9 +386,9 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
                         tr("计算模组哈希 %1/%2").arg(i + 1).arg(modTotal));
         }
 
-        // ── 5. 双平台查询在线来源（同主流启动器）──
+        // ── 5. 双平台查询在线来源（同主流启动器；hostedAssetsOnly 时跳过全部联网）──
         int modrinthHits = 0, cfHits = 0;
-        if (!mods.isEmpty()) {
+        if (!mods.isEmpty() && !hostedAssetsOnly) {
             // 5a. Modrinth：批量 sha1 查询
             QJsonArray shaArr;
             for (const auto& m : mods)
@@ -357,54 +418,72 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
                     }
                 }
             } else {
-                qCWarning(logMod) << "[导出] Modrinth 查询失败，相关文件将直接打包";
+                // 查询失败 → 主流启动器 弹窗询问是否继续（未查到文件将直接打包）
+                qCWarning(logMod) << "[导出] Modrinth 查询失败";
+                if (!waitLookupDecision(0, tr("Modrinth 在线来源查询失败，无法获取信息的文件将直接打包。是否继续？"))) {
+                    finish(false, tr("已取消"));
+                    return;
+                }
             }
             setProgress(0.5, tr("Modrinth 查询完成（命中 %1）").arg(modrinthHits));
 
             // 5b. CurseForge：批量 fingerprint 查询（ModrinthUploadMode 跳过）
-            if (!modrinthUploadMode && !cfKey.isEmpty()) {
-                QJsonArray fpArr;
-                for (const auto& m : mods)
-                    fpArr.append(static_cast<double>(m.cfHash));
-                QJsonObject cfBodyObj;
-                cfBodyObj.insert(QStringLiteral("fingerprints"), fpArr);
-                const QByteArray cfBody = QJsonDocument(cfBodyObj).toJson(QJsonDocument::Compact);
-                setProgress(0.55, tr("查询 CurseForge 在线来源..."));
-                const QByteArray cfResp = postJson(
-                    QUrl(QStringLiteral("https://api.curseforge.com/v1/fingerprints/432/")), cfBody,
-                    {{"x-api-key", cfKey.toUtf8()}});
-                if (!cfResp.isEmpty()) {
-                    const QJsonObject data = QJsonDocument::fromJson(cfResp).object()
-                                                 .value(QStringLiteral("data")).toObject();
-                    const QJsonArray matches = data.value(QStringLiteral("exactMatches")).toArray();
-                    for (const auto& mv : matches) {
-                        const QJsonObject match = mv.toObject();
-                        const quint32 fp = static_cast<quint32>(
-                            match.value(QStringLiteral("fileFingerprint")).toDouble());
-                        const QJsonObject file = match.value(QStringLiteral("file")).toObject();
-                        const QString dlUrl = file.value(QStringLiteral("downloadUrl")).toString();
-                        if (dlUrl.isEmpty()) continue;
-                        for (auto& m : mods) {
-                            if (m.cfHash != fp) continue;
-                            m.cfProjectId = match.value(QStringLiteral("projectId")).toInt();
-                            m.cfFileId = match.value(QStringLiteral("id")).toInt();
-                            // 域名变体展开（同主流启动器）
-                            const auto urls = expandCfDownloadUrls(dlUrl);
-                            for (const auto& u : urls)
-                                if (!m.downloads.contains(u))
-                                    m.downloads.append(u);
-                            m.hosted = true;
-                            cfHits++;
-                            break;
-                        }
+            if (!modrinthUploadMode) {
+                if (cfKey.isEmpty()) {
+                    // 主流启动器 内置 CF Key；我们未配置 → 提示后继续（同失败弹窗语义）
+                    qCWarning(logMod) << "[导出] 未配置 CurseForge API Key";
+                    if (!waitLookupDecision(1, tr("未配置 CurseForge API Key，CurseForge 在线来源不可用。是否继续？"))) {
+                        finish(false, tr("已取消"));
+                        return;
                     }
                 } else {
-                    qCWarning(logMod) << "[导出] CurseForge 查询失败，相关文件将直接打包";
+                    QJsonArray fpArr;
+                    for (const auto& m : mods)
+                        fpArr.append(static_cast<double>(m.cfHash));
+                    QJsonObject cfBodyObj;
+                    cfBodyObj.insert(QStringLiteral("fingerprints"), fpArr);
+                    const QByteArray cfBody = QJsonDocument(cfBodyObj).toJson(QJsonDocument::Compact);
+                    setProgress(0.55, tr("查询 CurseForge 在线来源..."));
+                    const QByteArray cfResp = postJson(
+                        QUrl(QStringLiteral("https://api.curseforge.com/v1/fingerprints/432/")), cfBody,
+                        {{"x-api-key", cfKey.toUtf8()}});
+                    if (!cfResp.isEmpty()) {
+                        const QJsonObject data = QJsonDocument::fromJson(cfResp).object()
+                                                     .value(QStringLiteral("data")).toObject();
+                        const QJsonArray matches = data.value(QStringLiteral("exactMatches")).toArray();
+                        for (const auto& mv : matches) {
+                            const QJsonObject match = mv.toObject();
+                            const quint32 fp = static_cast<quint32>(
+                                match.value(QStringLiteral("fileFingerprint")).toDouble());
+                            const QJsonObject file = match.value(QStringLiteral("file")).toObject();
+                            const QString dlUrl = file.value(QStringLiteral("downloadUrl")).toString();
+                            if (dlUrl.isEmpty()) continue;
+                            for (auto& m : mods) {
+                                if (m.cfHash != fp) continue;
+                                m.cfProjectId = match.value(QStringLiteral("projectId")).toInt();
+                                m.cfFileId = match.value(QStringLiteral("id")).toInt();
+                                // 域名变体展开（同主流启动器）
+                                const auto urls = expandCfDownloadUrls(dlUrl);
+                                for (const auto& u : urls)
+                                    if (!m.downloads.contains(u))
+                                        m.downloads.append(u);
+                                m.hosted = true;
+                                cfHits++;
+                                break;
+                            }
+                        }
+                    } else {
+                        qCWarning(logMod) << "[导出] CurseForge 查询失败";
+                        if (!waitLookupDecision(1, tr("CurseForge 在线来源查询失败，无法获取信息的文件将直接打包。是否继续？"))) {
+                            finish(false, tr("已取消"));
+                            return;
+                        }
+                    }
                 }
                 setProgress(0.78, tr("CurseForge 查询完成（命中 %1）").arg(cfHits));
-            } else if (!modrinthUploadMode) {
-                qCWarning(logMod) << "[导出] 未配置 CurseForge API Key，CF 在线来源跳过（文件将直接打包）";
             }
+        } else if (!mods.isEmpty()) {
+            setProgress(0.5, tr("仅打包包内资源，跳过联网查询"));
         }
 
         if (m_cancel.loadRelaxed()) { finish(false, tr("已取消")); return; }
@@ -432,6 +511,10 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
         int done = 0;
 
         // 6a. 清单（Modrinth index.json / CurseForge manifest.json）
+        // summary：版本描述（主流启动器 McVersion.Info 同款：MC 版本 + 加载器）
+        QString summary = QStringLiteral("Minecraft ") + mcVersion;
+        for (auto it = deps.begin(); it != deps.end(); ++it)
+            summary += QStringLiteral(" + %1 %2").arg(it.key(), it.value());
         if (cfFormat) {
             QJsonObject manifest;
             manifest.insert(QStringLiteral("manifestType"), QStringLiteral("minecraftModpack"));
@@ -463,17 +546,20 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
             manifest.insert(QStringLiteral("minecraft"), mc);
             if (!zip.addData(QStringLiteral("manifest.json"),
                              QJsonDocument(manifest).toJson(QJsonDocument::Indented))) {
+                zip.closeWrite();
+                QFile::remove(outPath);
                 finish(false, zip.error());
                 return;
             }
         } else {
             QJsonObject index;
             index.insert(QStringLiteral("formatVersion"), 1);
-            index.insert(QStringLiteral("game"), mcVersion);
+            // mrpack 规范 + 主流启动器：game 固定 "minecraft"（非版本号）、versionId=打包版本号
+            index.insert(QStringLiteral("game"), QStringLiteral("minecraft"));
             index.insert(QStringLiteral("versionId"),
-                         packVersion.isEmpty() ? displayName : displayName + QStringLiteral("-") + packVersion);
+                         packVersion.isEmpty() ? displayName : packVersion);
             index.insert(QStringLiteral("name"), displayName);
-            index.insert(QStringLiteral("summary"), QString());
+            index.insert(QStringLiteral("summary"), summary);
             QJsonArray filesArr;
             for (const auto& m : mods) {
                 if (!m.hosted) continue;
@@ -504,6 +590,8 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
             index.insert(QStringLiteral("dependencies"), depsObj);
             if (!zip.addData(QStringLiteral("modrinth.index.json"),
                              QJsonDocument(index).toJson(QJsonDocument::Indented))) {
+                zip.closeWrite();
+                QFile::remove(outPath);
                 finish(false, zip.error());
                 return;
             }
@@ -516,6 +604,8 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
             if (m.hosted) continue;
             if (m_cancel.loadRelaxed()) { zip.closeWrite(); QFile::remove(outPath); finish(false, tr("已取消")); return; }
             if (!zip.addFile(m.diskPath, QStringLiteral("overrides/mods/") + m.relPath)) {
+                zip.closeWrite();
+                QFile::remove(outPath);
                 finish(false, zip.error());
                 return;
             }
@@ -527,6 +617,8 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
         for (const auto& o : ovFiles) {
             if (m_cancel.loadRelaxed()) { zip.closeWrite(); QFile::remove(outPath); finish(false, tr("已取消")); return; }
             if (!zip.addFile(o.diskPath, QStringLiteral("overrides/") + o.relPath)) {
+                zip.closeWrite();
+                QFile::remove(outPath);
                 finish(false, zip.error());
                 return;
             }

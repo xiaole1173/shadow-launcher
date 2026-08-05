@@ -36,6 +36,10 @@ int main(int argc, char** argv)
     auto* exporter = new ModpackExporter(&app);
     exporter->setGameDir(gameDir);
 
+    // 测试自动继续联网失败（真实 UI 有 ConfirmDialog 询问；测试直接降级直装）
+    QObject::connect(exporter, &ModpackExporter::lookupFailed, &app,
+        [exporter](int, const QString&) { exporter->continueAfterLookupFailure(true); });
+
     QObject::connect(exporter, &ModpackExporter::finished, &app,
         [&](bool ok, const QString& out, const QString& err) {
             if (!ok) {
@@ -85,6 +89,6 @@ int main(int argc, char** argv)
         for (const auto& s : list) saves.append(s);
     }
     exporter->exportVersion(versionId, versionId + "-export-test", QStringLiteral("1.0.0"),
-                            true, saves, true, true, false, format, outPath);
+                            true, saves, true, true, false, false, false, format, outPath);
     return app.exec();
 }

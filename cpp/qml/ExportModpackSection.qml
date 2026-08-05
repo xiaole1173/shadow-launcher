@@ -23,6 +23,8 @@ Item {
     property string _packVersion: "1.0.0"
     property string _format: "modrinth"       // modrinth | curseforge
     property bool _modrinthOnly: false        // ModrinthUploadMode（同主流启动器）
+    property bool _hostedAssetsOnly: false    // 仅打包包内资源（不联网查询，主流启动器 CheckAdvancedInclude）
+    property bool _includeJava: false         // 打包便携 Java（主流启动器 IncludeJava）
     property bool _includeConfig: true
     property bool _includeSaves: false
     property bool _includeResourcepacks: true
@@ -34,6 +36,9 @@ Item {
     property real _progress: 0
     property string _statusText: ""
     property bool _done: false
+    property string _lookupMessage: ""
+    property bool _lookupOpen: false
+    property bool _lookupAccepted: false
 
     onVersionNameChanged: {
         if (!_packName.length) _packName = versionName
@@ -76,6 +81,11 @@ Item {
                     if (root.toastManager) root.toastManager.show(qsTr("导出失败: ") + (err || qsTr("未知错误")), 5000)
                 }
             })
+            // ── 联网查询失败 → 弹窗询问是否继续（同主流启动器）──
+            e.lookupFailed.connect(function(platform, detail) {
+                root._lookupMessage = detail
+                root._lookupOpen = true
+            })
         }
         _loadSaves()
     }
@@ -100,7 +110,7 @@ Item {
         e.exportVersion(versionId, _packName.trim(), _packVersion.trim(),
                         _includeConfig, _selectedSaves,
                         _includeResourcepacks, _includeShaderpacks,
-                        _modrinthOnly, fmt, path)
+                        _modrinthOnly, _hostedAssetsOnly, _includeJava, fmt, path)
     }
 
     ColumnLayout {
@@ -355,7 +365,7 @@ Item {
             }
             ShadowSwitch {
                 checked: root._modrinthOnly
-                enabled: !root._busy
+                enabled: !root._busy && !root._hostedAssetsOnly
                 onToggled: {
                     root._modrinthOnly = checked
                     if (checked) {
@@ -363,6 +373,40 @@ Item {
                         root._resetSavePath()
                     }
                 }
+            }
+        }
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 30
+            Text {
+                text: qsTr("仅打包包内资源（跳过联网查询）")
+                color: StyleTokens.textSecondary
+                font.pixelSize: StyleTokens.fontSizeSm
+                Layout.fillWidth: true
+            }
+            ShadowSwitch {
+                checked: root._hostedAssetsOnly
+                enabled: !root._busy
+                onToggled: {
+                    root._hostedAssetsOnly = checked
+                    // 与 主流启动器 一致：勾选后禁止 Modrinth 上传模式
+                    if (checked) root._modrinthOnly = false
+                }
+            }
+        }
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 30
+            Text {
+                text: qsTr("包含 Java 运行时")
+                color: StyleTokens.textSecondary
+                font.pixelSize: StyleTokens.fontSizeSm
+                Layout.fillWidth: true
+            }
+            ShadowSwitch {
+                checked: root._includeJava
+                enabled: !root._busy
+                onToggled: root._includeJava = checked
             }
         }
 
@@ -458,6 +502,25 @@ Item {
                 font.pixelSize: StyleTokens.fontSizeXs
                 elide: Text.ElideRight
             }
+        }
+    }
+
+    // ── 联网查询失败确认（主流启动器 弹窗询问是否继续）──
+    ConfirmDialog {
+        title: qsTr("联网获取文件信息失败")
+        message: root._lookupMessage
+        opened: root._lookupOpen
+        onAccept: {
+            // ConfirmDialog 确认按钮会先置 opened=false（触发 closed）再调 onAccept——
+            // 必须用标志区分，否则 onClosed 的 false 会覆盖这里的 true
+            root._lookupAccepted = true
+            if (backend && backend.modpackExporter) backend.modpackExporter.continueAfterLookupFailure(true)
+        }
+        onClosed: {
+            root._lookupOpen = false
+            if (!root._lookupAccepted && backend && backend.modpackExporter)
+                backend.modpackExporter.continueAfterLookupFailure(false)
+            root._lookupAccepted = false
         }
     }
 

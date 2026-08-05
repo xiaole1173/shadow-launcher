@@ -44,29 +44,38 @@ public:
     /// 列出版本下所有存档名（saves/ 子目录），供导出内容列表勾选（同步快操作）
     Q_INVOKABLE QStringList listSaves(const QString& versionId) const;
 
-    /// 导出已安装版本为整合包。
+    /// 导出已安装版本为整合包（完全对齐主流启动器实现 PageInstanceExport）。
     ///   format: 0=Modrinth(.mrpack) 1=CurseForge(.zip)
-    ///   selectedSaves: 勾选的存档名列表（includeSaves 语义由非空列表表达）
-    ///   modrinthUploadMode: 仅查 Modrinth（跳过 CurseForge），同主流启动器
+    ///   selectedSaves: 勾选的存档名列表
+    ///   modrinthUploadMode: 仅查 Modrinth（跳过 CurseForge）
+    ///   hostedAssetsOnly: 仅打包包内资源（跳过全部联网查询，主流启动器 CheckAdvancedInclude）
+    ///   includeJava: 打包便携 Java 运行时（java_cache 中匹配的 JRE）
     Q_INVOKABLE void exportVersion(const QString& versionId, const QString& displayName,
                                    const QString& packVersion, bool includeConfig,
                                    const QVariantList& selectedSaves,
                                    bool includeResourcepacks, bool includeShaderpacks,
-                                   bool modrinthUploadMode, int format,
-                                   const QString& outPath);
+                                   bool modrinthUploadMode, bool hostedAssetsOnly,
+                                   bool includeJava, int format, const QString& outPath);
     Q_INVOKABLE void cancel();
+    /// 联网查询失败后用户选择：true=继续导出（未查到文件直装）false=取消
+    Q_INVOKABLE void continueAfterLookupFailure(bool cont);
 
 signals:
     void busyChanged();
     void progressChanged();
     void finished(bool success, const QString& outPath, const QString& error);
+    /// 联网查询失败（主流启动器 弹窗询问是否继续）：platform 0=Modrinth 1=CurseForge 2=全部
+    void lookupFailed(int platform, const QString& detail);
 
 private:
     void setProgress(qreal p, const QString& text);
+    /// worker 线程内：emit lookupFailed 并轮询等待用户选择（主流启动器 弹窗语义）
+    bool waitLookupDecision(int platform, const QString& detail);
 
     QString m_gameDir;
     QString m_cfApiKey;
     QAtomicInteger<int> m_cancel{0};
+    QAtomicInteger<int> m_lookupContinue{1};   // 联网失败后用户选择（1=继续 0=取消），worker 等待
     bool m_busy = false;
     qreal m_progress = 0.0;
     QString m_statusText;
