@@ -104,6 +104,53 @@ QStringList ModpackExporter::listSaves(const QString& versionId) const
     return out;
 }
 
+QVariantMap ModpackExporter::exportContext(const QString& versionId) const
+{
+    QVariantMap ctx;
+    const QString versionDir = m_gameDir + QStringLiteral("/versions/") + versionId;
+    const QString jsonPath = versionDir + QStringLiteral("/") + versionId + QStringLiteral(".json");
+    const bool versionExists = QFileInfo::exists(jsonPath);
+    ctx.insert(QStringLiteral("versionExists"), versionExists);
+
+    // 模组加载器 / OptiFine（读版本 JSON libraries，主流启动器 Modable/HasOptiFine 同款）
+    bool modable = false;
+    bool hasOptiFine = false;
+    if (versionExists) {
+        QFile f(jsonPath);
+        if (f.open(QIODevice::ReadOnly)) {
+            const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
+            const QJsonArray libs = root.value(QStringLiteral("libraries")).toArray();
+            for (const auto& lv : libs) {
+                const QString name = lv.toObject().value(QStringLiteral("name")).toString();
+                if (name.startsWith(QStringLiteral("net.minecraftforge:forge:"))
+                    || name.startsWith(QStringLiteral("net.neoforged:neoforge:"))
+                    || name.contains(QStringLiteral("fabric-loader"))
+                    || name.contains(QStringLiteral("quilt-loader")))
+                    modable = true;
+                if (name.contains(QStringLiteral("optifine"), Qt::CaseInsensitive))
+                    hasOptiFine = true;
+            }
+        }
+    }
+    ctx.insert(QStringLiteral("modable"), modable);
+    ctx.insert(QStringLiteral("hasOptiFine"), hasOptiFine);
+
+    // 目录存在且非空（主流启动器 ShowRules 语义：空目录/不存在 → 隐藏对应选项）
+    auto hasContent = [](const QString& dir) {
+        const QDir d(dir);
+        if (!d.exists()) return false;
+        return d.entryInfoList(QDir::AllEntries | QDir::NoDotAndDotDot).count() > 0;
+    };
+    ctx.insert(QStringLiteral("hasMods"), hasContent(m_gameDir + QStringLiteral("/mods")));
+    ctx.insert(QStringLiteral("hasConfig"), hasContent(m_gameDir + QStringLiteral("/config")));
+    ctx.insert(QStringLiteral("hasShaderpacks"), hasContent(m_gameDir + QStringLiteral("/shaderpacks")));
+    ctx.insert(QStringLiteral("hasResourcepacks"), hasContent(m_gameDir + QStringLiteral("/resourcepacks")));
+    ctx.insert(QStringLiteral("hasSaves"), hasContent(m_gameDir + QStringLiteral("/saves")));
+    ctx.insert(QStringLiteral("hasScreenshots"), hasContent(m_gameDir + QStringLiteral("/screenshots")));
+    ctx.insert(QStringLiteral("hasServersDat"), QFileInfo::exists(m_gameDir + QStringLiteral("/servers.dat")));
+    return ctx;
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 // CurseForge fingerprint：MurmurHash2 32 位，种子 1，计算前剔除 \t\n\r 空格
 // （主流启动器 LocalResourceFile.CurseForgeHash 同款，CF 官方指纹算法）

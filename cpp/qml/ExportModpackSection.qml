@@ -44,11 +44,20 @@ Item {
     // backend/toastManager 由 MainWindow 在 Loader onLoaded 时注入（晚于本组件 onCompleted），
     // 注入完成前 _loadSaves 会挂起，这里补执行
     property bool _pendingSavesLoad: false
+    // 导出上下文：当前版本的实际情况（modable/hasMods/hasConfig/...），驱动选项动态显隐（同主流启动器 ShowRules）
+    property var _ctx: ({})
     onBackendChanged: {
-        if (backend && backend.modpackExporter && _pendingSavesLoad) {
-            _pendingSavesLoad = false
-            _loadSaves()
+        if (backend && backend.modpackExporter) {
+            if (_pendingSavesLoad) {
+                _pendingSavesLoad = false
+                _loadSaves()
+            }
+            _loadCtx()
         }
+    }
+    // 每次进入导出分区刷新上下文（外部可能增删了 mods/config 等目录）
+    onVisibleChanged: {
+        if (visible) _loadCtx()
     }
 
     onVersionNameChanged: {
@@ -60,6 +69,7 @@ Item {
     onVersionIdChanged: {
         _loadSaves()
         _selectedSaves = []
+        _loadCtx()
     }
 
     function _resetSavePath() {
@@ -77,6 +87,15 @@ Item {
         _pendingSavesLoad = false
         _saves = backend.modpackExporter.listSaves(versionId) || []
         _selectedSaves = []
+    }
+
+    // 拉取当前版本导出上下文（同步快操作：版本 JSON + 目录存在性）
+    function _loadCtx() {
+        if (backend && backend.modpackExporter && versionId) {
+            _ctx = backend.modpackExporter.exportContext(versionId) || {}
+        } else {
+            _ctx = {}
+        }
     }
 
     // ── 后端信号（声明式 Connections）──
@@ -268,10 +287,11 @@ Item {
             Layout.fillWidth: true
             spacing: 8
 
-            // 模组：必含（只读）
+            // 模组：必含（只读）——仅当版本可装 Mod（有 Forge/Fabric/NeoForge/Quilt）且 mods 目录非空时显示（原版隐藏）
             Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 38
+                visible: _ctx && _ctx.modable && _ctx.hasMods
                 radius: StyleTokens.radiusMd
                 color: StyleTokens.bgCard
                 border.color: StyleTokens.bgElevated
@@ -299,10 +319,11 @@ Item {
                 }
             }
 
-            // config
+            // config（目录不存在/为空时隐藏——原版没有 config 目录）
             RowLayout {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 30
+                visible: _ctx && _ctx.hasConfig
                 Text {
                     text: qsTr("配置文件 (config/)")
                     color: StyleTokens.textSecondary
@@ -315,10 +336,11 @@ Item {
                     onToggled: root._includeConfig = checked
                 }
             }
-            // 存档（含子项展开）
+            // 存档（含子项展开）——saves 目录为空时隐藏
             RowLayout {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 30
+                visible: _ctx && _ctx.hasSaves
                 Text {
                     text: qsTr("存档 (saves/)")
                     color: StyleTokens.textSecondary
@@ -342,7 +364,7 @@ Item {
                 radius: StyleTokens.radiusMd
                 color: StyleTokens.bgCard
                 border.color: StyleTokens.bgElevated
-                visible: root._includeSaves
+                visible: root._includeSaves && _ctx && _ctx.hasSaves
                 clip: true
                 ColumnLayout {
                     anchors.fill: parent
@@ -386,10 +408,11 @@ Item {
                     }
                 }
             }
-            // 资源包
+            // 资源包（目录不存在/为空时隐藏）
             RowLayout {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 30
+                visible: _ctx && _ctx.hasResourcepacks
                 Text {
                     text: qsTr("资源包 (resourcepacks/)")
                     color: StyleTokens.textSecondary
@@ -402,10 +425,11 @@ Item {
                     onToggled: root._includeResourcepacks = checked
                 }
             }
-            // 光影
+            // 光影（无 Mod 加载器且无 OptiFine 时隐藏——原版不适用）
             RowLayout {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 30
+                visible: _ctx && _ctx.hasShaderpacks && (_ctx.modable || _ctx.hasOptiFine)
                 Text {
                     text: qsTr("光影 (shaderpacks/)")
                     color: StyleTokens.textSecondary

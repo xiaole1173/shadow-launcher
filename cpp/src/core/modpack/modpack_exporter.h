@@ -44,6 +44,11 @@ public:
     /// 列出版本下所有存档名（saves/ 子目录），供导出内容列表勾选（同步快操作）
     Q_INVOKABLE QStringList listSaves(const QString& versionId) const;
 
+    /// 导出上下文：按版本实际情况返回可导出内容（供导出界面动态显示/隐藏选项，同主流启动器 ShowRules）：
+    ///   versionExists/modable/hasOptiFine/hasMods/hasConfig/hasShaderpacks/
+    ///   hasResourcepacks/hasSaves/hasScreenshots/hasServersDat
+    Q_INVOKABLE QVariantMap exportContext(const QString& versionId) const;
+
     /// 导出已安装版本为整合包（完全对齐主流启动器实现 PageInstanceExport）。
     ///   format: 0=Modrinth(.mrpack) 1=CurseForge(.zip)
     ///   selectedSaves: 勾选的存档名列表
