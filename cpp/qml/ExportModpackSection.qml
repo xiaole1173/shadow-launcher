@@ -77,10 +77,12 @@ Item {
     }
 
     function _resetSavePath() {
-        var dlDir = Platform.StandardPaths.writableLocation(Platform.StandardPaths.DownloadLocation)
-        if (!dlDir) dlDir = Platform.StandardPaths.writableLocation(Platform.StandardPaths.DocumentsLocation)
+        // writableLocation 返回 QUrl（file:/// 前缀）；_savePath 需要纯本地路径
+        var dl = String(Platform.StandardPaths.writableLocation(Platform.StandardPaths.DownloadLocation) || "")
+        if (dl.length === 0) dl = String(Platform.StandardPaths.writableLocation(Platform.StandardPaths.DocumentsLocation) || "")
+        dl = dl.replace(/^file:\/{2,3}/i, "")
         var ext = _format === "curseforge" ? ".zip" : ".mrpack"
-        _savePath = (dlDir ? dlDir + "/" : "") + (versionName || "modpack") + ext
+        _savePath = (dl ? dl + "/" : "") + (versionName || "modpack") + ext
     }
 
     function _loadSaves() {
@@ -204,9 +206,11 @@ Item {
         if (_modrinthOnly) _format = "modrinth"
         // 初始位置：下载目录（SaveFile 模式 currentFile 要求文件已存在，预填不存在的
         // 默认文件会被 Qt 拒绝导致对话框状态异常/selectedFile 为空——改用 currentFolder）
-        var dlDir = Platform.StandardPaths.writableLocation(Platform.StandardPaths.DownloadLocation)
-        if (!dlDir) dlDir = Platform.StandardPaths.writableLocation(Platform.StandardPaths.DocumentsLocation)
-        if (dlDir) exportFileDialog.currentFolder = "file:///" + dlDir.replace(/\\/g, "/")
+        // 注意：writableLocation 返回 QUrl，currentFolder 也是 url 类型，直接赋值
+        var dlUrl = Platform.StandardPaths.writableLocation(Platform.StandardPaths.DownloadLocation)
+        if (!dlUrl || String(dlUrl).length === 0)
+            dlUrl = Platform.StandardPaths.writableLocation(Platform.StandardPaths.DocumentsLocation)
+        if (dlUrl) exportFileDialog.currentFolder = dlUrl
         exportFileDialog.open()
     }
 
@@ -246,9 +250,10 @@ Item {
     function _saveConfig() {
         var e = backend ? backend.modpackExporter : null
         if (!e) return
-        var dlDir = Platform.StandardPaths.writableLocation(Platform.StandardPaths.DownloadLocation)
-        if (!dlDir) dlDir = Platform.StandardPaths.writableLocation(Platform.StandardPaths.DocumentsLocation)
-        if (dlDir) configSaveDialog.currentFolder = "file:///" + dlDir.replace(/\\/g, "/")
+        var dlUrl = Platform.StandardPaths.writableLocation(Platform.StandardPaths.DownloadLocation)
+        if (!dlUrl || String(dlUrl).length === 0)
+            dlUrl = Platform.StandardPaths.writableLocation(Platform.StandardPaths.DocumentsLocation)
+        if (dlUrl) configSaveDialog.currentFolder = dlUrl
         configSaveDialog.open()
     }
     // 清除配置影响（主流启动器 ResetConfigOverrides）：恢复界面勾选模式
