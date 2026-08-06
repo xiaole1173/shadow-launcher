@@ -1581,6 +1581,7 @@ void ModLoaderInstaller::forgeStepLibs(const QByteArray& jarData)
         }
     };
     if (tasks.isEmpty()) { finishLibs(); return; }
+    emit installerLibsFileProgress(0, tasks.size());   // 初始：剩余全部文件
 
     auto pump = std::make_shared<std::function<void()>>();
     *pump = [this, st, tasks, pump, finishLibs]() {
@@ -1592,7 +1593,7 @@ void ModLoaderInstaller::forgeStepLibs(const QByteArray& jarData)
             const QString savePath = tasks[idx].savePath;
             QDir().mkpath(QFileInfo(savePath).absolutePath());
             auto tryMirror = std::make_shared<std::function<void(int)>>();
-            *tryMirror = [this, idx, urls, savePath, st, pump, tryMirror](int ui) {
+            *tryMirror = [this, idx, urls, savePath, st, pump, tryMirror, tasks](int ui) {
                 if (m_cancelled) { st->active--; (*pump)(); return; }
                 if (ui >= urls.size()) {
                     st->active--;
@@ -1603,12 +1604,13 @@ void ModLoaderInstaller::forgeStepLibs(const QByteArray& jarData)
                 }
                 qCInfo(logLoader) << QStringLiteral("[安装] 下载安装器库: %1").arg(urls[ui]);
                 downloadToFile(urls[ui], savePath,
-                    [this, idx, savePath, st, pump, tryMirror, ui](bool ok, const QString& err) {
+                    [this, idx, savePath, st, pump, tryMirror, ui, tasks](bool ok, const QString& err) {
                         if (ok) {
                             st->doneBytes += QFileInfo(savePath).size();
                             st->inflightRecv.remove(idx);
                             st->done++;
                             st->active--;
+                            emit installerLibsFileProgress(st->done, tasks.size());
                             (*pump)();
                         } else {
                             st->inflightRecv.remove(idx);

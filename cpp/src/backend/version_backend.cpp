@@ -1969,19 +1969,25 @@ void VersionBackend::onVersionDownloadFinished(bool success,
 
                                     : error;
 
-            qCInfo(logVersion) << QStringLiteral("安装失败，启动自动修复 版本=%1 详情=%2").arg(finishedId, errDetail);
-
-            emit logMessage(
-
-                tr("[重试] %1 安装失败 (%2)，正在尝试自动修复损坏文件...")
-
-                    .arg(finishedId, errDetail));
-
-            // 自动修复：重新下载失败的文件
-
-            m_autoRepairVersionId = finishedId;
-
-            repairVersion(finishedId);
+            // merged 安装的 MC 下载失败：版本在 tempDir，共享根 auto-repair 找不到
+            // JSON 会走“缓存为空”死路 → 标记 merged ctx 失败，交给下方 merged 循环收尾
+            bool mergedMc = false;
+            for (auto it = m_mergedContexts.begin(); it != m_mergedContexts.end(); ++it) {
+                if (it.value()->mcVersion == finishedId && !it.value()->mcDownloadDone) {
+                    it.value()->failed = true;
+                    mergedMc = true;
+                }
+            }
+            if (!mergedMc) {
+                qCInfo(logVersion) << QStringLiteral("安装失败，启动自动修复 版本=%1 详情=%2").arg(finishedId, errDetail);
+                emit logMessage(
+                    tr("[重试] %1 安装失败 (%2)，正在尝试自动修复损坏文件...")
+                        .arg(finishedId, errDetail));
+                m_autoRepairVersionId = finishedId;
+                repairVersion(finishedId);
+                return;  // repairVersion 完成后会通过 verifyFinished -> installFinished 发射结果
+            }
+            // merged：落下去 emit installFinished(false) -> Phase1 merged 循环失败收尾
 
             return;  // repairVersion 完成后会通过 verifyFinished → installFinished 发射结果
 
@@ -2040,6 +2046,10 @@ void VersionBackend::onVersionDownloadFinished(bool success,
                     qDebug() << "[install] MC done, loader ready — proceeding to install";
                     proceedToLoaderInstall(ctx->installId);
                 }
+            } else if (ctx->failed) {
+                // MC 下载失败且 loader 未就绪：也必须失败收尾（否则卡片卡死无响应）
+                qDebug() << "[install] MC failed, loader not ready, finalizing as failed" << ctx->installId;
+                finishInstall(ctx->installId);
             }
         }
     }
@@ -5893,7 +5903,9 @@ ModLoaderInstaller* VersionBackend::createLoaderInstaller(const QString& install
             for (int i = 0; i < ds->steps.size(); i++) {
                 auto st = ds->steps[i].toMap();
                 QString name = st.value(QStringLiteral("name")).toString();
-                if (name.contains(QStringLiteral("loader"), Qt::CaseInsensitive) ||
+                if (name.contains(QStringLiteral("\u5b89\u88c5\u5668\u5e93")) ||   // 安装器库
+                    name.contains(QStringLiteral("\u4f9d\u8d56\u5e93")) ||         // 依赖库(fabric)
+                    name.contains(QStringLiteral("loader"), Qt::CaseInsensitive) ||
                     name.contains(QStringLiteral("\u52a0\u8f7d\u5668"), Qt::CaseInsensitive) ||
                     name.contains(QStringLiteral("\u4e3b\u6587\u4ef6"), Qt::CaseInsensitive) ) {
                     stepIdx = i;
@@ -6055,6 +6067,7 @@ void VersionBackend::updateCardFromSession(const QString& installId, const QStri
                 case StepStatus::Skipped:   s["status"] = QStringLiteral("skipped"); break;
             }
             s["percentage"] = node->percentage();
+            s["detail"] = node->detail();
             s["show"] = !node->isHidden();
             steps.append(s);
         }
@@ -8299,6 +8312,7 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
             for (int i = 0; i < ds->steps.size(); ++i) {
                 if (ds->steps[i].toMap().value(QStringLiteral("name")).toString()
                         .contains(QStringLiteral("安装器库"))) {
+                    ds->loaderStepIdx = i;   // byteProgress 落到安装器库步骤（不再污染主文件步骤）
                     updateStep(installId, i, QStringLiteral("active"), 0);
                     break;
                 }
@@ -8312,6 +8326,25 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
                 if (ds->steps[i].toMap().value(QStringLiteral("name")).toString()
                         .contains(QStringLiteral("安装器库"))) {
                     updateStep(installId, i, QStringLiteral("completed"), 100);
+                    break;
+                }
+            }
+        });
+    connect(ctx->installer, &ModLoaderInstaller::installerLibsFileProgress, this,
+        [this, installId](int done, int total) {
+            auto* ds = dlSession(installId);
+            if (!ds) return;
+            const int remain = qMax(0, total - done);
+            for (int i = 0; i < ds->steps.size(); ++i) {
+                if (ds->steps[i].toMap().value(QStringLiteral("name")).toString()
+                        .contains(QStringLiteral("安装器库"))) {
+                    auto* node = ds->pipeline()->stepNode(i);
+                    if (node) {
+                        node->setDetail(remain > 0
+                            ? QStringLiteral("剩余 %1 个文件").arg(remain)
+                            : QString());
+                        if (total > 0) node->setPercentage(done * 100 / total);
+                    }
                     break;
                 }
             }

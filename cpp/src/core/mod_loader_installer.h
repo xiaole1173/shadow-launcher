@@ -92,6 +92,8 @@ signals:
     // 安装器库下载开始/完成（供版本后端联动步骤状态）
     void installerLibsStarted();
     void installerLibsDone();
+    // 安装器库文件级进度（done/total）——步骤右侧显示“剩余 x 个文件”
+    void installerLibsFileProgress(int done, int total);
 
 private:
     // Download helpers

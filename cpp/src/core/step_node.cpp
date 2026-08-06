@@ -58,4 +58,10 @@ void StepNode::setHidden(bool h) {
     emit hiddenChanged();
 }
 
+void StepNode::setDetail(const QString& d) {
+    if (m_detail == d) return;
+    m_detail = d;
+    emit detailChanged();
+}
+
 } // namespace ShadowLauncher

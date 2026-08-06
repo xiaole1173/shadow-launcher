@@ -24,6 +24,7 @@ class StepNode : public QObject {
     Q_OBJECT
     Q_PROPERTY(QString key READ key CONSTANT)
     Q_PROPERTY(QString name READ name CONSTANT)
+    Q_PROPERTY(QString detail READ detail NOTIFY detailChanged)
     Q_PROPERTY(int statusInt READ statusInt NOTIFY statusChanged)
     Q_PROPERTY(int percentage READ percentage NOTIFY progressChanged)
     Q_PROPERTY(qint64 bytesRecv READ bytesRecv NOTIFY progressChanged)
@@ -62,6 +63,10 @@ public:
 
     QString errorMessage() const { return m_errorMsg; }
 
+    // 步骤详情文字（如“剩余 x 个文件”），QML 步骤行右侧显示
+    QString detail() const { return m_detail; }
+    void setDetail(const QString& d);
+
     // ── 取消 ──
     virtual void cancel() {}
 
@@ -69,10 +74,12 @@ signals:
     void statusChanged();
     void progressChanged();
     void hiddenChanged();
+    void detailChanged();
 
 private:
     QString m_key;
     QString m_name;
+    QString m_detail;
     qreal m_weight = 1.0;
     StepStatus m_status = StepStatus::Pending;
     int m_percentage = 0;

@@ -287,6 +287,13 @@ Rectangle {
                     color: StyleTokens.textMuted
                     visible: modelData.status === "active" && stepSmoothPct > 0
                 }
+                // Detail text（如“剩余 x 个文件”）
+                Text {
+                    text: modelData.detail || ""
+                    font.pixelSize: StyleTokens.fontSizeXs
+                    color: StyleTokens.textMuted
+                    visible: !!modelData.detail && modelData.status === "active"
+                }
                 // Breathing dots animation for loader install steps (active at 0%)
                 Row {
                     visible: modelData.status === "active" && stepSmoothPct === 0
