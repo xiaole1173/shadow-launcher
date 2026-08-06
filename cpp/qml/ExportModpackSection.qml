@@ -92,7 +92,10 @@ Item {
         }
         _pendingSavesLoad = false
         _saves = backend.modpackExporter.listSaves(versionId) || []
-        _selectedSaves = []
+        // 同主流启动器：存档子项默认全勾（勾选主选项即导出全部存档，可单独取消）
+        var all = []
+        for (var i = 0; i < _saves.length; i++) all.push(_saves[i].name)
+        _selectedSaves = all
     }
 
     // 拉取当前版本导出上下文（同步快操作：版本 JSON + 目录存在性 + 选项可见性）
