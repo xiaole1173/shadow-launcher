@@ -348,19 +348,11 @@ Item {
         anchors.fill: parent
         clip: true
         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-        // 显式实例化滚动条（拿 id 供内容区留白）：overlay 模式浮在内容上会遮挡右侧
-        ScrollBar.vertical: ScrollBar {
-            id: exportVBar
-            policy: ScrollBar.AsNeeded
-            // 内容不溢出时彻底隐藏（防残留灰色小点/残留 thumb）
-            visible: exportScroll.contentItem
-                     && exportScroll.contentItem.contentHeight > exportScroll.contentItem.height
-        }
+        // 完全隐藏滚动条（保留滚动功能）——显式实例化滚动条会留残留，直接 AlwaysOff
+        ScrollBar.vertical.policy: ScrollBar.AlwaysOff
         ColumnLayout {
             id: exportCol
-            // 滚动条可见才让出宽度；隐藏时全宽（避免内容无谓变窄）
             width: exportScroll.availableWidth
-                   - (exportVBar.visible ? exportVBar.width : 0)
             height: Math.max(exportScroll.availableHeight, exportCol.implicitHeight)
             // contentHeight 绑「实际布局高度」（childrenRect）——implicitHeight 会漏显式 height 子项
             Binding {
@@ -460,187 +452,198 @@ Item {
             }
 
             // 动态选项（C++ exportContext 按版本实际可见性过滤；子项随父选项勾选显隐，同主流启动器）
+            // 子项面板内联在父选项行下方（保证“资源包→资源包列表→光影包→光影包列表”顺序）
             Repeater {
                 model: _ctx.options || []
-                delegate: RowLayout {
+                delegate: ColumnLayout {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 30
-                    spacing: 8
+                    spacing: 4
                     visible: {
                         if (modelData.parent)
                             return root._checked[modelData.parent] === true
                         return true
                     }
-                    Text {
-                        text: (modelData.parent ? "     " : "") + modelData.title
-                        color: StyleTokens.textSecondary
-                        font.pixelSize: StyleTokens.fontSizeSm
+                    RowLayout {
                         Layout.fillWidth: true
-                    }
-                    Text {
-                        text: modelData.description
-                        color: StyleTokens.textTertiary
-                        font.pixelSize: StyleTokens.fontSizeXs
-                        visible: modelData.description && modelData.description.length > 0
-                    }
-                    Text {
-                        text: qsTr("默认不导出")
-                        color: "#b8860b"
-                        font.pixelSize: StyleTokens.fontSizeXs
-                        visible: modelData.privacy === true
-                    }
-                    ShadowSwitch {
-                        checked: root._checked[modelData.id] !== undefined ? root._checked[modelData.id] : modelData.defaultChecked
-                        enabled: !root._busy
-                        onToggled: {
-                            // 整体赋值：JS 对象属性突变不触发 QML 绑定更新（子项面板/子项随父显隐依赖它）
-                            var next = {}
-                            for (var k in root._checked) next[k] = root._checked[k]
-                            next[modelData.id] = checked
-                            root._checked = next
-                            // 取消勾选存档/资源包/光影时清空对应子项选择
-                            if (!checked && modelData.id === "saves") root._selectedSaves = []
-                            if (!checked && modelData.id === "resourcepacks") root._selectedRp = {}
-                            if (!checked && modelData.id === "shaderpacks") root._selectedShaders = {}
+                        Layout.preferredHeight: 30
+                        spacing: 8
+                        Text {
+                            text: (modelData.parent ? "     " : "") + modelData.title
+                            color: StyleTokens.textSecondary
+                            font.pixelSize: StyleTokens.fontSizeSm
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
+                        }
+                        Text {
+                            text: modelData.description
+                            color: StyleTokens.textTertiary
+                            font.pixelSize: StyleTokens.fontSizeXs
+                            elide: Text.ElideRight
+                            Layout.maximumWidth: 200
+                            visible: modelData.description && modelData.description.length > 0
+                        }
+                        Text {
+                            text: qsTr("默认不导出")
+                            color: "#b8860b"
+                            font.pixelSize: StyleTokens.fontSizeXs
+                            visible: modelData.privacy === true
+                        }
+                        ShadowSwitch {
+                            checked: root._checked[modelData.id] !== undefined ? root._checked[modelData.id] : modelData.defaultChecked
+                            enabled: !root._busy
+                            onToggled: {
+                                // 整体赋值：JS 对象属性突变不触发 QML 绑定更新（子项面板/子项随父显隐依赖它）
+                                var next = {}
+                                for (var k in root._checked) next[k] = root._checked[k]
+                                next[modelData.id] = checked
+                                root._checked = next
+                                // 取消勾选存档/资源包/光影时清空对应子项选择
+                                if (!checked && modelData.id === "saves") root._selectedSaves = []
+                                if (!checked && modelData.id === "resourcepacks") root._selectedRp = {}
+                                if (!checked && modelData.id === "shaderpacks") root._selectedShaders = {}
+                            }
                         }
                     }
-                }
-            }
 
-            // ── 存档子项（勾选 saves 时展开；同主流启动器 ReloadSubOptions，显示修改时间）──
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: savesSub.count > 0 ? Math.min(savesSub.count * 28 + 12, 140) : 0
-                radius: StyleTokens.radiusMd
-                color: StyleTokens.bgCard
-                border.color: StyleTokens.bgElevated
-                visible: root._checked["saves"] === true && !!_ctx.hasSaves
-                clip: true
-                ColumnLayout {
-                    anchors.fill: parent
-                    anchors.margins: 6
-                    spacing: 2
-                    Text {
-                        visible: root._saves.length === 0
-                        text: qsTr("该版本暂无存档")
-                        color: StyleTokens.textMuted
-                        font.pixelSize: StyleTokens.fontSizeXs
+                    // ── 存档子项（勾选 saves 时展开；同主流启动器 ReloadSubOptions，显示修改时间）──
+                    Rectangle {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 24
-                        verticalAlignment: Text.AlignVCenter
-                    }
-                    Repeater {
-                        id: savesSub
-                        model: root._saves
-                        delegate: RowLayout {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 26
-                            spacing: 8
+                        Layout.preferredHeight: savesSub.count > 0 ? Math.min(savesSub.count * 28 + 12, 140) : 0
+                        radius: StyleTokens.radiusMd
+                        color: StyleTokens.bgCard
+                        border.color: StyleTokens.bgElevated
+                        visible: modelData.id === "saves"
+                                 && root._checked["saves"] === true && !!_ctx.hasSaves
+                        clip: true
+                        ColumnLayout {
+                            anchors.fill: parent
+                            anchors.margins: 6
+                            spacing: 2
                             Text {
-                                text: modelData.name
-                                color: StyleTokens.textSecondary
-                                font.pixelSize: StyleTokens.fontSizeSm
-                                elide: Text.ElideMiddle
-                                Layout.fillWidth: true
-                            }
-                            Text {
-                                text: modelData.modified
-                                color: StyleTokens.textTertiary
+                                visible: root._saves.length === 0
+                                text: qsTr("该版本暂无存档")
+                                color: StyleTokens.textMuted
                                 font.pixelSize: StyleTokens.fontSizeXs
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 24
+                                verticalAlignment: Text.AlignVCenter
                             }
-                            ShadowSwitch {
-                                checked: root._selectedSaves.indexOf(modelData.name) >= 0
-                                enabled: !root._busy
-                                onToggled: {
-                                    var arr = root._selectedSaves.slice()
-                                    var idx = arr.indexOf(modelData.name)
-                                    if (checked && idx < 0) arr.push(modelData.name)
-                                    if (!checked && idx >= 0) arr.splice(idx, 1)
-                                    root._selectedSaves = arr
+                            Repeater {
+                                id: savesSub
+                                model: root._saves
+                                delegate: RowLayout {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 26
+                                    spacing: 8
+                                    Text {
+                                        text: modelData.name
+                                        color: StyleTokens.textSecondary
+                                        font.pixelSize: StyleTokens.fontSizeSm
+                                        elide: Text.ElideMiddle
+                                        Layout.fillWidth: true
+                                    }
+                                    Text {
+                                        text: modelData.modified
+                                        color: StyleTokens.textTertiary
+                                        font.pixelSize: StyleTokens.fontSizeXs
+                                    }
+                                    ShadowSwitch {
+                                        checked: root._selectedSaves.indexOf(modelData.name) >= 0
+                                        enabled: !root._busy
+                                        onToggled: {
+                                            var arr = root._selectedSaves.slice()
+                                            var idx = arr.indexOf(modelData.name)
+                                            if (checked && idx < 0) arr.push(modelData.name)
+                                            if (!checked && idx >= 0) arr.splice(idx, 1)
+                                            root._selectedSaves = arr
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
-                }
-            }
 
-            // ── 资源包子项 ──
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: rpSub.count > 0 ? Math.min(rpSub.count * 26 + 12, 140) : 0
-                radius: StyleTokens.radiusMd
-                color: StyleTokens.bgCard
-                border.color: StyleTokens.bgElevated
-                visible: root._checked["resourcepacks"] === true && (_ctx.rpItems || []).length > 0
-                clip: true
-                ColumnLayout {
-                    anchors.fill: parent
-                    anchors.margins: 6
-                    spacing: 2
-                    Repeater {
-                        id: rpSub
-                        model: _ctx.rpItems || []
-                        delegate: RowLayout {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 24
-                            spacing: 8
-                            Text {
-                                text: (modelData.type === "dir" ? "📁 " : "🗜 ") + modelData.name
-                                color: StyleTokens.textSecondary
-                                font.pixelSize: StyleTokens.fontSizeSm
-                                elide: Text.ElideMiddle
-                                Layout.fillWidth: true
-                            }
-                            ShadowSwitch {
-                                checked: root._selectedRp[modelData.name] !== false
-                                enabled: !root._busy
-                                onToggled: {
-                                    var next = {}
-                                    for (var k in root._selectedRp) next[k] = root._selectedRp[k]
-                                    next[modelData.name] = checked
-                                    root._selectedRp = next
+                    // ── 资源包子项 ──
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: rpSub.count > 0 ? Math.min(rpSub.count * 26 + 12, 140) : 0
+                        radius: StyleTokens.radiusMd
+                        color: StyleTokens.bgCard
+                        border.color: StyleTokens.bgElevated
+                        visible: modelData.id === "resourcepacks"
+                                 && root._checked["resourcepacks"] === true && (_ctx.rpItems || []).length > 0
+                        clip: true
+                        ColumnLayout {
+                            anchors.fill: parent
+                            anchors.margins: 6
+                            spacing: 2
+                            Repeater {
+                                id: rpSub
+                                model: _ctx.rpItems || []
+                                delegate: RowLayout {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 24
+                                    spacing: 8
+                                    Text {
+                                        text: modelData.name
+                                        color: StyleTokens.textSecondary
+                                        font.pixelSize: StyleTokens.fontSizeSm
+                                        elide: Text.ElideMiddle
+                                        Layout.fillWidth: true
+                                    }
+                                    ShadowSwitch {
+                                        checked: root._selectedRp[modelData.name] !== false
+                                        enabled: !root._busy
+                                        onToggled: {
+                                            var next = {}
+                                            for (var k in root._selectedRp) next[k] = root._selectedRp[k]
+                                            next[modelData.name] = checked
+                                            root._selectedRp = next
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
-                }
-            }
 
-            // ── 光影子项 ──
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: shaderSub.count > 0 ? Math.min(shaderSub.count * 26 + 12, 140) : 0
-                radius: StyleTokens.radiusMd
-                color: StyleTokens.bgCard
-                border.color: StyleTokens.bgElevated
-                visible: root._checked["shaderpacks"] === true && (_ctx.shaderItems || []).length > 0
-                clip: true
-                ColumnLayout {
-                    anchors.fill: parent
-                    anchors.margins: 6
-                    spacing: 2
-                    Repeater {
-                        id: shaderSub
-                        model: _ctx.shaderItems || []
-                        delegate: RowLayout {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 24
-                            spacing: 8
-                            Text {
-                                text: (modelData.type === "dir" ? "📁 " : "🗜 ") + modelData.name
-                                color: StyleTokens.textSecondary
-                                font.pixelSize: StyleTokens.fontSizeSm
-                                elide: Text.ElideMiddle
-                                Layout.fillWidth: true
-                            }
-                            ShadowSwitch {
-                                checked: root._selectedShaders[modelData.name] !== false
-                                enabled: !root._busy
-                                onToggled: {
-                                    var next = {}
-                                    for (var k in root._selectedShaders) next[k] = root._selectedShaders[k]
-                                    next[modelData.name] = checked
-                                    root._selectedShaders = next
+                    // ── 光影子项 ──
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: shaderSub.count > 0 ? Math.min(shaderSub.count * 26 + 12, 140) : 0
+                        radius: StyleTokens.radiusMd
+                        color: StyleTokens.bgCard
+                        border.color: StyleTokens.bgElevated
+                        visible: modelData.id === "shaderpacks"
+                                 && root._checked["shaderpacks"] === true && (_ctx.shaderItems || []).length > 0
+                        clip: true
+                        ColumnLayout {
+                            anchors.fill: parent
+                            anchors.margins: 6
+                            spacing: 2
+                            Repeater {
+                                id: shaderSub
+                                model: _ctx.shaderItems || []
+                                delegate: RowLayout {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 24
+                                    spacing: 8
+                                    Text {
+                                        text: modelData.name
+                                        color: StyleTokens.textSecondary
+                                        font.pixelSize: StyleTokens.fontSizeSm
+                                        elide: Text.ElideMiddle
+                                        Layout.fillWidth: true
+                                    }
+                                    ShadowSwitch {
+                                        checked: root._selectedShaders[modelData.name] !== false
+                                        enabled: !root._busy
+                                        onToggled: {
+                                            var next = {}
+                                            for (var k in root._selectedShaders) next[k] = root._selectedShaders[k]
+                                            next[modelData.name] = checked
+                                            root._selectedShaders = next
+                                        }
+                                    }
                                 }
                             }
                         }
