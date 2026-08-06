@@ -51,11 +51,11 @@ public:
         bool requireModLoader = false;          // 需 Mod 加载器（Forge/Fabric/NeoForge/Quilt）
         bool requireOptiFine = false;           // 需 OptiFine
         bool requireModLoaderOrOptiFine = false;// 两者其一
-        QStringList showRules;      // 可见性规则（为空=恒可见；匹配版本目录内容才显示，主流启动器 ShowRules）
+        QStringList showRules;      // 可见性规则（为空=恒可见；匹配版本目录实际内容才显示，主流启动器 ShowRules）
+        QString parent;             // 子项所属父选项（主流启动器 子项面板绑定父 CheckBox）
     };
     /// 全部选项定义（静态表）
     static const QList<ExportOptionDef>& optionDefs();
-
     /// 列出版本下所有存档名（saves/ 子目录）及修改时间，供导出内容列表勾选
     Q_INVOKABLE QVariantList listSaves(const QString& versionId) const;
 
@@ -85,7 +85,8 @@ public:
                                    const QVariantList& selectedSaves,
                                    bool modrinthUploadMode, bool hostedAssetsOnly,
                                    bool includeJava, int format, const QString& outPath,
-                                   const QVariantList& extraFiles = {});
+                                   const QVariantList& extraFiles = {},
+                                   const QVariantList& rulesOverride = {});
     Q_INVOKABLE void cancel();
     /// 联网查询失败后用户选择：true=继续导出（未查到文件直装）false=取消
     Q_INVOKABLE void continueAfterLookupFailure(bool cont);

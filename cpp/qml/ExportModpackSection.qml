@@ -31,6 +31,7 @@ Item {
     property var _selectedRp: ({})            // 资源包子项勾选 {name: bool}
     property var _selectedShaders: ({})      // 光影子项勾选 {name: bool}
     property var _extraFiles: []              // 追加内容绝对路径（配置读取）
+    property var _rulesOverride: []           // 配置读取的自定义规则（主流启动器 RulesOverrides 覆盖模式）
     property string _savePath: ""
     property bool _busy: false
     property real _progress: 0
@@ -69,6 +70,7 @@ Item {
     onVersionIdChanged: {
         _loadSaves()
         _selectedSaves = []
+        _rulesOverride = []
         _loadCtx()
         _initChecked(true)
     }
@@ -159,9 +161,13 @@ Item {
                 if (root.toastManager) root.toastManager.show(qsTr("导出失败: ") + (error || qsTr("未知错误")), 5000)
             }
         }
-        // ── 联网查询失败 → 通知顶层弹窗询问是否继续（同主流启动器）──
         function onLookupFailed(platform, detail) {
-            root.lookupDecisionRequested(detail)
+            // 导出分区不可见（用户已关闭浮层）时无法弹确认框 → 自动继续（未托管直装），防止 worker 死等
+            if (root.visible) {
+                root.lookupDecisionRequested(detail)
+            } else if (backend && backend.modpackExporter) {
+                backend.modpackExporter.continueAfterLookupFailure(true)
+            }
         }
     }
 
@@ -209,7 +215,7 @@ Item {
         console.info("[export] start: " + path)
         e.exportVersion(versionId, _packName.trim(), _packVersion.trim(),
                         _buildCheckedOptions(), _selectedSaves,
-                        _modrinthOnly, _hostedAssetsOnly, _includeJava, fmt, path, _extraFiles)
+                        _modrinthOnly, _hostedAssetsOnly, _includeJava, fmt, path, _extraFiles, _rulesOverride)
     }
 
     // ── 配置保存/读取（主流启动器 export_config.txt 语义）──
@@ -264,7 +270,14 @@ Item {
             if (next[opts[j].id] === undefined) next[opts[j].id] = opts[j].defaultChecked
         _checked = next
         _extraFiles = cfg.extraFiles || []
-        if (root.toastManager) root.toastManager.show(qsTr("已读取导出配置"))
+        // 自定义规则覆盖模式（主流启动器 RulesOverrides：手工编辑的规则整体生效）
+        if (cfg.rawRules && cfg.rawRules.length > 0) {
+            _rulesOverride = cfg.rawRules
+            if (root.toastManager) root.toastManager.show(qsTr("已读取导出配置（自定义规则生效）"))
+        } else {
+            _rulesOverride = []
+            if (root.toastManager) root.toastManager.show(qsTr("已读取导出配置"))
+        }
     }
 
     // 内容可滚动：分区高度有限，存档子项展开/矮窗口时避免裁切
@@ -369,15 +382,20 @@ Item {
             Layout.fillWidth: true
             spacing: 6
 
-            // 动态选项（C++ exportContext 按版本实际可见性过滤）
+            // 动态选项（C++ exportContext 按版本实际可见性过滤；子项随父选项勾选显隐，同主流启动器）
             Repeater {
                 model: _ctx.options || []
                 delegate: RowLayout {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 30
                     spacing: 8
+                    visible: {
+                        if (modelData.parent)
+                            return root._checked[modelData.parent] === true
+                        return true
+                    }
                     Text {
-                        text: modelData.title
+                        text: (modelData.parent ? "     " : "") + modelData.title
                         color: StyleTokens.textSecondary
                         font.pixelSize: StyleTokens.fontSizeSm
                         Layout.fillWidth: true

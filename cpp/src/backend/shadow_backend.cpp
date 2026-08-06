@@ -165,6 +165,11 @@ ShadowBackend::ShadowBackend(QObject* parent)
     m_modpackImporter = new ModpackImporter(this);
     m_modpackExporter = new ModpackExporter(this);
     {
+        auto* exporter = qobject_cast<ModpackExporter*>(m_modpackExporter);
+        if (exporter)
+            exporter->setGameDir(m_app->gameDir());   // 初始化（否则 m_gameDir 为空，导出全路径失效）
+    }
+    {
         auto* importer = qobject_cast<ModpackImporter*>(m_modpackImporter);
         if (importer) {
             importer->setVersionBackend(m_version);

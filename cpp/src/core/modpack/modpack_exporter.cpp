@@ -96,9 +96,12 @@ void ModpackExporter::continueAfterLookupFailure(bool cont)
 
 QVariantList ModpackExporter::listSaves(const QString& versionId) const
 {
-    Q_UNUSED(versionId)
+    // 隔离版本：存档在 versions/{id}/game/saves/
+    const QString versionDir = m_gameDir + QStringLiteral("/versions/") + versionId;
+    const QString savesRoot = QDir(versionDir + QStringLiteral("/game")).exists()
+        ? versionDir + QStringLiteral("/game/saves") : m_gameDir + QStringLiteral("/saves");
     QVariantList out;
-    const QDir savesDir(m_gameDir + QStringLiteral("/saves"));
+    const QDir savesDir(savesRoot);
     if (savesDir.exists()) {
         const auto infos = savesDir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
         for (const auto& fi : infos) {
@@ -117,20 +120,32 @@ QVariantList ModpackExporter::listSaves(const QString& versionId) const
 // 隐私敏感项（个人信息/地图/JEI/EMI/帕秋莉/服务器列表）默认不勾选
 // ═════════════════════════════════════════════════════════════════════════════
 
+// 资源包/光影子项黑名单（同主流启动器 SubOptionBlackList：UI 不列 + 收集时兜底排除）
+static const QStringList kSubBlacklist = {
+    QStringLiteral("Quark Programmer Art.zip"),
+    QStringLiteral("+ EuphoriaPatches_"),
+    QStringLiteral("PCL2 Skin.zip")};
+
 const QList<ModpackExporter::ExportOptionDef>& ModpackExporter::optionDefs()
 {
     static const QList<ExportOptionDef> defs = {
+        // —— 基础 ——
         {"options", "游戏本体设置", "按键、音量、视频设置等",
-         {"options.txt", "configureddefaults/"}, true, false, false, false, {}},
+         {"options.txt", "configureddefaults/"}, true, false, false, false,
+         {"options.txt", "configureddefaults/"}, {}},
         {"personal", "游戏本体个人信息", "命令历史、已保存的快捷栏（默认不导出）",
-         {"hotbar.nbt", "command_history.txt"}, false, false, false, false, {}},
+         {"hotbar.nbt", "command_history.txt"}, false, false, false, false,
+         {"hotbar.nbt", "command_history.txt"}, {}},
         {"optifine", "OptiFine 设置", "",
-         {"optionsof.txt", "optionsshaders.txt"}, true, false, true, false, {}},
+         {"optionsof.txt", "optionsshaders.txt"}, true, false, true, false,
+         {"optionsof.txt", "optionsshaders.txt"}, {}},
+        // —— Mod 及其子项（主流启动器 子项面板绑定父选项勾选）——
         {"mod", "模组 (mods/)", "模组本体，含 coremods/lib（原版隐藏）",
          {"mods/", "coremods/", "lib/", "!mods/*.disabled", "!mods/*.old", "!mods/.connector/"},
-         true, true, false, false, {"mods/", "coremods/", "lib/"}},
+         true, true, false, false, {"mods/", "coremods/", "lib/"}, {}},
         {"mod-disabled", "已禁用的 Mod", "打包 .disabled/.old 文件（默认排除）",
-         {"mods/*.disabled", "mods/*.old"}, false, true, false, false, {}},
+         {"mods/*.disabled", "mods/*.old"}, false, true, false, false,
+         {"mods/*.disabled", "mods/*.old"}, QStringLiteral("mod")},
         {"packdata", "整合包重要数据", "脚本、内置资源包、数据包等",
          {"hotai/", "bansoukou/", "addons/", "multiblocked/", "modpack-update-checker/",
           "global_packs/", "global_resource_packs/", "global_data_packs/", "optional_data_packs/",
@@ -140,7 +155,9 @@ const QList<ModpackExporter::ExportOptionDef>& ModpackExporter::optionDefs()
           "openloader/", "worldshape/", "resources/", "scripts/", "structures/", "fontfiles/",
           "oresources/", "packmenu/", "craftpresence/", "pointblanks/", "template*/",
           "!template*/playerdata/", "!template*/stats/"},
-         true, true, false, false, {}},
+         true, true, false, false,
+         {"global_packs/", "datapacks/", "kubejs*/", "scripts/", "resources/", "openloader/",
+          "maps/", "icon.png", "hotai/"}, QStringLiteral("mod")},
         {"config", "Mod 设置 (config/)", "模组配置文件（排除账号/隐私文件）",
          {"config/", "!config/jei/world/", "!config/worldedit/", "config/worldedit/worldedit.properties",
           "!config/spark/", "config/spark/config.json", "defaultconfigs/", "journeymap/config/",
@@ -150,33 +167,44 @@ const QList<ModpackExporter::ExportOptionDef>& ModpackExporter::optionDefs()
           "local/ftbl.json", "local/client/sidebar_buttons.json", "local/client/ftbutilities.cfg",
           "local/client/ftblib.cfg", "local/client/xencraft.cfg", "liteloader.properties",
           "default_reference.xml", "CustomSkinLoader/CustomSkinLoader.json"},
-         true, true, false, false, {"config/", "defaultconfigs/"}},
+         true, true, false, false, {"config/", "defaultconfigs/"}, QStringLiteral("mod")},
         {"tacz", "TaCZ 枪包", "",
-         {"tacz/", "config/tacz/custom/"}, true, true, false, false, {}},
+         {"tacz/", "config/tacz/custom/"}, true, true, false, false,
+         {"tacz/", "config/tacz/custom/"}, QStringLiteral("mod")},
+        {"immersive", "已上传的沉浸画", "immersive_paintings 目录",
+         {"immersive_paintings/"}, true, true, false, false,
+         {"immersive_paintings/"}, QStringLiteral("mod")},
         {"mapdata", "已绘制的地图", "地图类 Mod 的世界/服务器地图、路标点（默认不导出）",
-         {"journeymap/data/", "xaero/", "XaeroWaypoints/", "XaeroWorldMap/"}, false, true, false, false, {}},
+         {"journeymap/data/", "xaero/", "XaeroWaypoints/", "XaeroWorldMap/"}, false, true, false, false,
+         {"journeymap/data/", "xaero/"}, QStringLiteral("mod")},
         {"jei", "JEI 个人信息", "物品收藏夹等（默认不导出）",
-         {"config/jei/world/"}, false, true, false, false, {}},
+         {"config/jei/world/"}, false, true, false, false,
+         {"config/jei/world/"}, QStringLiteral("mod")},
         {"emi", "EMI 个人信息", "物品收藏夹、默认配方、合成历史（默认不导出）",
-         {"emi.json"}, false, true, false, false, {}},
+         {"emi.json"}, false, true, false, false,
+         {"emi.json"}, QStringLiteral("mod")},
         {"patchouli", "帕秋莉手册个人信息", "教程书已读记录、书签（默认不导出）",
-         {"patchouli_data.json"}, false, true, false, false, {}},
+         {"patchouli_data.json"}, false, true, false, false,
+         {"patchouli_data.json"}, QStringLiteral("mod")},
+        // —— 资源/光影 ——
         {"resourcepacks", "资源包 (resourcepacks/)", "纹理包、材质包",
-         {"resourcepacks/", "texturepacks/"}, true, false, false, false, {"resourcepacks/", "texturepacks/"}},
+         {"resourcepacks/", "texturepacks/"}, true, false, false, false, {"resourcepacks/", "texturepacks/"}, {}},
         {"shaderpacks", "光影包 (shaderpacks/)", "需 Mod 或 OptiFine（原版隐藏）",
-         {"shaderpacks/"}, true, false, false, true, {"shaderpacks/"}},
+         {"shaderpacks/"}, true, false, false, true, {"shaderpacks/"}, {}},
+        // —— 附加（默认不导出）——
         {"screenshots", "截图", "screenshots/ 目录（默认不导出）",
-         {"screenshots/"}, false, false, false, false, {}},
+         {"screenshots/"}, false, false, false, false, {"screenshots/"}, {}},
         {"schematics", "导出的结构", "schematics 文件（默认不导出）",
-         {"schematics/"}, false, false, false, false, {}},
+         {"schematics/"}, false, false, false, false, {"schematics/"}, {}},
         {"replay", "录像回放", "Replay Mod 的录像文件（默认不导出）",
-         {"replay_recordings/", "replay_videos/"}, false, true, false, false, {}},
+         {"replay_recordings/", "replay_videos/"}, false, true, false, false,
+         {"replay_recordings/", "replay_videos/"}, {}},
         {"saves", "单机游戏存档", "世界/地图（按存档子项勾选）",
-         {"saves/"}, false, false, false, false, {"saves/"}},
+         {"saves/"}, false, false, false, false, {"saves/"}, {}},
         {"license", "协议", "Licence 文件",
-         {"LICEN*"}, true, false, false, false, {}},
+         {"LICEN*"}, true, false, false, false, {"LICEN*"}, {}},
         {"servers", "多人游戏服务器列表", "servers.dat（默认不导出）",
-         {"servers.dat"}, false, false, false, false, {}},
+         {"servers.dat"}, false, false, false, false, {"servers.dat"}, {}},
     };
     return defs;
 }
@@ -249,6 +277,9 @@ QVariantMap ModpackExporter::exportContext(const QString& versionId) const
     const QString jsonPath = versionDir + QStringLiteral("/") + versionId + QStringLiteral(".json");
     const bool versionExists = QFileInfo::exists(jsonPath);
     ctx.insert(QStringLiteral("versionExists"), versionExists);
+    // 隔离版本：内容根在 versions/{id}/game/（模组/存档/配置等都在其下）
+    const QString contentRoot = QDir(versionDir + QStringLiteral("/game")).exists()
+        ? versionDir + QStringLiteral("/game") : m_gameDir;
 
     // 模组加载器 / OptiFine（读版本 JSON libraries，主流启动器 Modable/HasOptiFine 同款）
     bool modable = false;
@@ -279,35 +310,21 @@ QVariantMap ModpackExporter::exportContext(const QString& versionId) const
         if (!d.exists()) return false;
         return d.entryInfoList(QDir::AllEntries | QDir::NoDotAndDotDot).count() > 0;
     };
-    ctx.insert(QStringLiteral("hasMods"), hasContent(m_gameDir + QStringLiteral("/mods")));
-    ctx.insert(QStringLiteral("hasConfig"), hasContent(m_gameDir + QStringLiteral("/config")));
-    ctx.insert(QStringLiteral("hasShaderpacks"), hasContent(m_gameDir + QStringLiteral("/shaderpacks")));
-    ctx.insert(QStringLiteral("hasResourcepacks"), hasContent(m_gameDir + QStringLiteral("/resourcepacks")));
-    ctx.insert(QStringLiteral("hasSaves"), hasContent(m_gameDir + QStringLiteral("/saves")));
-    ctx.insert(QStringLiteral("hasScreenshots"), hasContent(m_gameDir + QStringLiteral("/screenshots")));
-    ctx.insert(QStringLiteral("hasServersDat"), QFileInfo::exists(m_gameDir + QStringLiteral("/servers.dat")));
+    ctx.insert(QStringLiteral("hasMods"), hasContent(contentRoot + QStringLiteral("/mods")));
+    ctx.insert(QStringLiteral("hasConfig"), hasContent(contentRoot + QStringLiteral("/config")));
+    ctx.insert(QStringLiteral("hasShaderpacks"), hasContent(contentRoot + QStringLiteral("/shaderpacks")));
+    ctx.insert(QStringLiteral("hasResourcepacks"), hasContent(contentRoot + QStringLiteral("/resourcepacks")));
+    ctx.insert(QStringLiteral("hasSaves"), hasContent(contentRoot + QStringLiteral("/saves")));
+    ctx.insert(QStringLiteral("hasScreenshots"), hasContent(contentRoot + QStringLiteral("/screenshots")));
+    ctx.insert(QStringLiteral("hasServersDat"), QFileInfo::exists(contentRoot + QStringLiteral("/servers.dat")));
 
     // Java 可用性（java_cache 有任一 JRE）——同主流启动器 RefreshJavaInfo：无 Java 时隐藏/禁用
     const QDir javaRoot(QCoreApplication::applicationDirPath() + QStringLiteral("/java_cache"));
     ctx.insert(QStringLiteral("javaAvailable"),
                javaRoot.exists() && !javaRoot.entryList(QDir::Dirs | QDir::NoDotAndDotDot).isEmpty());
 
-    // 版本目录顶层文件/文件夹清单（两级，供 ShowRules 判定）
-    QStringList topEntries;    // 一级条目（文件名 或 目录名+\）
-    {
-        const QDir root(m_gameDir);
-        if (root.exists()) {
-            const auto files = root.entryInfoList(QDir::Files, QDir::Name);
-            for (const auto& fi : files) topEntries.append(fi.fileName());
-            const auto dirs = root.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
-            for (const auto& di : dirs) topEntries.append(di.fileName() + QStringLiteral("/"));
-        }
-    }
-
-    // 选项可见性（同主流启动器 RefreshAllOptionsUI）
+    // 选项可见性（同主流启动器 RefreshAllOptionsUI）：Require* 门槛 + ShowRules 匹配实际内容
     QVariantList optList;
-    const QStringList checked = {};   // 默认值在 QML 侧维护，这里只给 visible/defaultChecked
-    Q_UNUSED(checked)
     const auto& defs = optionDefs();
     for (const auto& d : defs) {
         bool visible = true;
@@ -315,14 +332,23 @@ QVariantMap ModpackExporter::exportContext(const QString& versionId) const
         if (d.requireOptiFine && !hasOptiFine) visible = false;
         if (d.requireModLoaderOrOptiFine && !modable && !hasOptiFine) visible = false;
         if (visible && !d.showRules.isEmpty()) {
+            // ShowRules：文件规则（无 /）→ 精确文件存在；路径规则 → 首段目录存在且非空（近似 主流启动器 两级匹配）
             visible = false;
             for (const auto& r : d.showRules) {
-                QString rr = r;
-                if (rr.endsWith(QLatin1Char('/'))) rr += QLatin1Char('*');
-                for (const auto& e : topEntries) {
-                    if (likeMatch(rr, e)) { visible = true; break; }
+                const int slash = r.indexOf(QLatin1Char('/'));
+                if (slash <= 0) {
+                    if (QFileInfo::exists(contentRoot + QLatin1Char('/') + r)) { visible = true; break; }
+                    continue;
                 }
-                if (visible) break;
+                QString top = r.left(slash);
+                if (top.endsWith(QLatin1Char('*'))) top.chop(1);
+                if (top.isEmpty()) continue;
+                const QDir d2(contentRoot + QLatin1Char('/') + top);
+                if (d2.exists()
+                    && !d2.entryInfoList(QDir::AllEntries | QDir::NoDotAndDotDot).isEmpty()) {
+                    visible = true;
+                    break;
+                }
             }
         }
         if (!visible) continue;
@@ -332,11 +358,12 @@ QVariantMap ModpackExporter::exportContext(const QString& versionId) const
         om.insert(QStringLiteral("description"), d.description);
         om.insert(QStringLiteral("defaultChecked"), d.defaultChecked);
         om.insert(QStringLiteral("privacy"), !d.defaultChecked);
+        om.insert(QStringLiteral("parent"), d.parent);
         optList.append(om);
     }
     ctx.insert(QStringLiteral("options"), optList);
 
-    // 资源包/光影子项（zip/rar/文件夹，同主流启动器 ReloadSubOptions）
+    // 资源包/光影子项（zip/rar/文件夹，同主流启动器 ReloadSubOptions + 子项黑名单）
     auto subItems = [](const QString& dir) {
         QVariantList out;
         const QDir d(dir);
@@ -344,6 +371,10 @@ QVariantMap ModpackExporter::exportContext(const QString& versionId) const
         const auto files = d.entryInfoList(QStringList() << QStringLiteral("*.zip") << QStringLiteral("*.rar"),
                                            QDir::Files, QDir::Name);
         for (const auto& fi : files) {
+            bool black = false;
+            for (const auto& b : kSubBlacklist)
+                if (fi.fileName().contains(b)) { black = true; break; }
+            if (black) continue;
             QVariantMap m;
             m.insert(QStringLiteral("name"), fi.fileName());
             m.insert(QStringLiteral("type"), QStringLiteral("file"));
@@ -362,8 +393,8 @@ QVariantMap ModpackExporter::exportContext(const QString& versionId) const
         }
         return out;
     };
-    ctx.insert(QStringLiteral("rpItems"), subItems(m_gameDir + QStringLiteral("/resourcepacks")));
-    ctx.insert(QStringLiteral("shaderItems"), subItems(m_gameDir + QStringLiteral("/shaderpacks")));
+    ctx.insert(QStringLiteral("rpItems"), subItems(contentRoot + QStringLiteral("/resourcepacks")));
+    ctx.insert(QStringLiteral("shaderItems"), subItems(contentRoot + QStringLiteral("/shaderpacks")));
     return ctx;
 }
 
@@ -458,7 +489,8 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
                                     const QVariantList& selectedSaves,
                                     bool modrinthUploadMode, bool hostedAssetsOnly,
                                     bool includeJava, int format,
-                                    const QString& outPath, const QVariantList& extraFiles)
+                                    const QString& outPath, const QVariantList& extraFiles,
+                                    const QVariantList& rulesOverride)
 {
     if (m_busy) return;
     if (versionId.isEmpty() || outPath.isEmpty()) {
@@ -480,7 +512,8 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
     QtConcurrent::run([this, gameDir, cfKey, cfFormat,
                        versionId, displayName, packVersion,
                        checkedOptions, selectedSaves,
-                       modrinthUploadMode, hostedAssetsOnly, includeJava, outPath, extraFiles]() {
+                       modrinthUploadMode, hostedAssetsOnly, includeJava, outPath, extraFiles,
+                       rulesOverride]() {
         auto finish = [this, outPath](bool ok, const QString& err) {
             qCInfo(logMod) << QStringLiteral("[整合包] 导出结束 %1 %2 %3")
                                   .arg(ok ? QStringLiteral("成功") : QStringLiteral("失败"), outPath, err);
@@ -528,11 +561,18 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
             return;
         }
 
-        // ── 2. 勾选选项 → 规则列表（同主流启动器 GetAllRules：勾选选项 rules + 全局排除）──
+        // ── 2. 规则列表（同主流启动器 GetAllRules）──
         QSet<QString> checked;
         for (const auto& v : checkedOptions) checked.insert(v.toString());
         QStringList rules;
-        {
+        if (!rulesOverride.isEmpty()) {
+            // 配置读取的规则覆盖模式（主流启动器 RulesOverrides：手工规则整体生效，忽略选项勾选）
+            for (const auto& v : rulesOverride) {
+                QString r = v.toString();
+                if (r.isEmpty()) continue;
+                rules.append(r.replace(QLatin1Char('\\'), QLatin1Char('/')));
+            }
+        } else {
             const auto& defs = optionDefs();
             for (const auto& d : defs)
                 if (checked.contains(d.id))
@@ -545,10 +585,6 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
                 for (const auto& s : wantSaves)
                     rules.append(QStringLiteral("saves/") + s + QStringLiteral("/"));
             }
-            // 全局排除（同主流启动器：日志/临时/启动器配置文件不进包）
-            rules << QStringLiteral("!*.log") << QStringLiteral("!*.dat_old")
-                  << QStringLiteral("!*.BakaCoreInfo") << QStringLiteral("!hmclversion.cfg")
-                  << QStringLiteral("!log4j2.xml");
             // 资源包/光影子项（QML 传 id:name 文件 / id:dir:name 文件夹）：
             // 有勾选子项时用精确规则替换整目录规则（同主流启动器 ReloadSubOptions）
             auto applySubItemRules = [&](const QString& optId, const QStringList& dirRules) {
@@ -572,10 +608,29 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
             applySubItemRules(QStringLiteral("shaderpacks"),
                               {QStringLiteral("shaderpacks/")});
         }
-        const bool includeMods = checked.contains(QStringLiteral("mod"));
-        const bool includeDisabled = checked.contains(QStringLiteral("mod-disabled"));
+        // 全局排除（同主流启动器：日志/临时/启动器配置文件不进包）——覆盖模式同样生效
+        rules << QStringLiteral("!*.log") << QStringLiteral("!*.dat_old")
+              << QStringLiteral("!*.BakaCoreInfo") << QStringLiteral("!hmclversion.cfg")
+              << QStringLiteral("!log4j2.xml");
+        // mods jar 收集开关：普通模式看勾选；覆盖模式从规则反推（含 mods/ 正向目录规则即收集）
+        bool includeMods = false, includeDisabled = false;
+        if (rulesOverride.isEmpty()) {
+            includeMods = checked.contains(QStringLiteral("mod"));
+            includeDisabled = checked.contains(QStringLiteral("mod-disabled"));
+        } else {
+            for (const auto& r : rules) {
+                const bool neg = r.startsWith(QLatin1Char('!'));
+                const QString rr = neg ? r.mid(1) : r;
+                if (rr == QStringLiteral("mods/")) { if (!neg) includeMods = true; else includeMods = false; }
+                if (!neg && (rr.contains(QStringLiteral("*.disabled")) || rr.contains(QStringLiteral("*.old"))))
+                    includeDisabled = true;
+            }
+        }
 
         // ── 3. 收集 mods（走哈希/在线查询；排除 .disabled/.old/.connector，除非勾选“已禁用的 Mod”）──
+        // 隔离版本：内容根在 versions/{id}/game/（模组/存档/配置等都在其下）
+        const QString contentRoot = QDir(versionDir + QStringLiteral("/game")).exists()
+            ? versionDir + QStringLiteral("/game") : gameDir;
         struct ModFile {
             QString diskPath;
             QString relPath;
@@ -590,7 +645,7 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
         };
         QList<ModFile> mods;
         if (includeMods) {
-            QDir modsDir(gameDir + QStringLiteral("/mods"));
+            QDir modsDir(contentRoot + QStringLiteral("/mods"));
             if (modsDir.exists()) {
                 QDirIterator it(modsDir.absolutePath(), QStringList() << QStringLiteral("*.jar"),
                                 QDir::Files, QDirIterator::Subdirectories);
@@ -644,10 +699,15 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
                     && rel.endsWith(QStringLiteral(".jar"), Qt::CaseInsensitive))
                     continue;
                 if (!shouldKeep(rel)) continue;
+                // 子项黑名单兜底（主流启动器 SubOptionBlackList：这些文件永不打包）
+                bool black = false;
+                for (const auto& b : kSubBlacklist)
+                    if (rel.contains(b)) { black = true; break; }
+                if (black) continue;
                 ovFiles.append({d.filePath(fn), rel});
             }
         };
-        scanDir(gameDir, QString());
+        scanDir(contentRoot, QString());
 
         // 追加内容（主流启动器 GetExtraFileLines：文件夹→包根/名，文件→包根）
         for (const auto& ef : extraFiles) {
@@ -1085,7 +1145,7 @@ QVariantMap ModpackExporter::loadExportConfig(const QString& path) const
         }
     }
 
-    // 规则段 → 尝试反推勾选选项；解析失败则原样保留 rules 覆盖
+    // 规则段 → 尝试反推勾选选项；rawRules 原样保留（QML 侧检测到自定义规则时走覆盖模式）
     QStringList ruleLines;
     if (segments.size() > 1) {
         for (const auto& l : segments[1].split(QLatin1Char('\n'))) {
@@ -1106,6 +1166,22 @@ QVariantMap ModpackExporter::loadExportConfig(const QString& path) const
         if (has && !hasNeg) checked.append(d.id);
     }
     cfg.insert(QStringLiteral("options"), checked);
+    // 规则覆盖模式：反推的选项无法覆盖所有规则行（用户手工编辑过）→ 整体作为覆盖规则
+    QVariantList rawRules;
+    bool allCovered = !ruleLines.isEmpty();
+    for (const auto& rl : ruleLines) {
+        bool covered = rl.startsWith(QLatin1Char('!'));   // 全局排除行视为已覆盖
+        if (!covered) {
+            const QString rr = QString(rl).replace(QLatin1Char('\\'), QLatin1Char('/'));
+            for (const auto& d : defs) {
+                if (d.rules.contains(rr)) { covered = true; break; }
+            }
+        }
+        if (!covered) allCovered = false;
+        rawRules.append(rl);
+    }
+    if (!allCovered)
+        cfg.insert(QStringLiteral("rawRules"), rawRules);
     // 追加内容段
     QVariantList extras;
     if (segments.size() > 2) {
