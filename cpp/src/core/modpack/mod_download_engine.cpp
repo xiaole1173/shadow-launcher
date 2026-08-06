@@ -13,6 +13,7 @@
 #include <QUuid>
 #include <QUrl>
 #include <QDebug>
+#include <algorithm>
 
 #include "../../utils/logger.h"
 
@@ -322,7 +323,11 @@ void ModDownloadEngine::onReplyFinished(std::shared_ptr<Item> it)
     const bool httpOk = err == QNetworkReply::NoError;
     if (!httpOk) {
         reply->deleteLater();
-        sourceFailed(it, reply->errorString());
+        // 看门狗换源的 abort：用准确文案（避免 “Operation canceled” 误导最终失败原因）
+        QString why = reply->errorString();
+        if (err == QNetworkReply::OperationCanceledError && it->slowSwitchCount > 0)
+            why = QStringLiteral("慢速源已切换");
+        sourceFailed(it, why);
         return;
     }
 
@@ -495,6 +500,9 @@ void ModDownloadEngine::watchTick()
     for (auto& it : m_items) {
         if (it->state != 1 || !it->reply) continue;
 
+        // 换源中（abort 已发出，等 onReplyFinished → sourceFailed → launchRequest 重置）
+        if (it->slowSinceMs < 0) continue;
+
         // 首包前不检测（连接建立期由 idle 超时兜底）
         if (it->firstByteMs == 0) {
             it->lastWatchBytes = it->received;
@@ -545,7 +553,7 @@ void ModDownloadEngine::watchTick()
         }
 
         it->slowSwitchCount++;
-        it->slowSinceMs = 0;
+        it->slowSinceMs = -1;   // 换源中标记：onReplyFinished 到达前不再触发（abort 异步窗口）
         it->lastWatchBytes = it->received;
         emit logMessage(QStringLiteral("[精卫] [慢速换源] 文件=%1 第%2次 当前源速度过慢 → 切换")
                             .arg(it->localName).arg(it->slowSwitchCount));
