@@ -1,11 +1,11 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+﻿// SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import QtQuick.Dialogs
-import Qt.labs.platform
+import Qt.labs.platform as Platform
 
 /// 整合包导出（版本设置独立分区，Section 7）——完全对齐主流启动器实现 PageInstanceExport：
 /// 规则驱动选项（C++ exportContext 动态渲染，按版本实际情况显隐）、子项勾选、
@@ -77,8 +77,8 @@ Item {
     }
 
     function _resetSavePath() {
-        var dlDir = StandardPaths.writableLocation(StandardPaths.DownloadLocation)
-        if (!dlDir) dlDir = StandardPaths.writableLocation(StandardPaths.DocumentsLocation)
+        var dlDir = Platform.StandardPaths.writableLocation(Platform.StandardPaths.DownloadLocation)
+        if (!dlDir) dlDir = Platform.StandardPaths.writableLocation(Platform.StandardPaths.DocumentsLocation)
         var ext = _format === "curseforge" ? ".zip" : ".mrpack"
         _savePath = (dlDir ? dlDir + "/" : "") + (versionName || "modpack") + ext
     }
@@ -202,11 +202,11 @@ Item {
         }
         // ModrinthUploadMode 强制 Modrinth 格式（同主流启动器）
         if (_modrinthOnly) _format = "modrinth"
-        var ext = _format === "curseforge" ? ".zip" : ".mrpack"
-        var dlDir = StandardPaths.writableLocation(StandardPaths.DownloadLocation)
-        if (!dlDir) dlDir = StandardPaths.writableLocation(StandardPaths.DocumentsLocation)
-        var defaultPath = (dlDir ? dlDir + "/" : "") + (_packName.trim() || "modpack") + ext
-        exportFileDialog.currentFile = "file:///" + defaultPath.replace(/\\/g, "/")
+        // 初始位置：下载目录（SaveFile 模式 currentFile 要求文件已存在，预填不存在的
+        // 默认文件会被 Qt 拒绝导致对话框状态异常/selectedFile 为空——改用 currentFolder）
+        var dlDir = Platform.StandardPaths.writableLocation(Platform.StandardPaths.DownloadLocation)
+        if (!dlDir) dlDir = Platform.StandardPaths.writableLocation(Platform.StandardPaths.DocumentsLocation)
+        if (dlDir) exportFileDialog.currentFolder = "file:///" + dlDir.replace(/\\/g, "/")
         exportFileDialog.open()
     }
 
@@ -216,6 +216,17 @@ Item {
         if (!e) {
             if (root.toastManager) root.toastManager.show(qsTr("导出模块未就绪，请稍后重试"), 3000)
             console.info("[export] _doExport: modpackExporter is null")
+            return
+        }
+        if (!path || path.length === 0) {
+            if (root.toastManager) root.toastManager.show(qsTr("保存路径无效，请重新选择"), 3000)
+            console.info("[export] _doExport: empty path")
+            return
+        }
+        // 相对路径防御：用户选择的路径必须是绝对路径（防落到启动器根目录）
+        if (!path.includes(":/") && !path.startsWith("//")) {
+            if (root.toastManager) root.toastManager.show(qsTr("保存路径无效，请选择完整路径"), 3000)
+            console.info("[export] _doExport: relative path rejected: " + path)
             return
         }
         var ext = _format === "curseforge" ? ".zip" : ".mrpack"
@@ -235,9 +246,9 @@ Item {
     function _saveConfig() {
         var e = backend ? backend.modpackExporter : null
         if (!e) return
-        var dlDir = StandardPaths.writableLocation(StandardPaths.DownloadLocation)
-        if (!dlDir) dlDir = StandardPaths.writableLocation(StandardPaths.DocumentsLocation)
-        configSaveDialog.currentFile = "file:///" + ((dlDir ? dlDir + "/" : "") + "export_config.txt").replace(/\\/g, "/")
+        var dlDir = Platform.StandardPaths.writableLocation(Platform.StandardPaths.DownloadLocation)
+        if (!dlDir) dlDir = Platform.StandardPaths.writableLocation(Platform.StandardPaths.DocumentsLocation)
+        if (dlDir) configSaveDialog.currentFolder = "file:///" + dlDir.replace(/\\/g, "/")
         configSaveDialog.open()
     }
     // 清除配置影响（主流启动器 ResetConfigOverrides）：恢复界面勾选模式
@@ -802,8 +813,16 @@ Item {
             ? [qsTr("CurseForge 整合包 (*.zip)"), qsTr("所有文件 (*.*)")]
             : [qsTr("Modrinth 整合包 (*.mrpack)"), qsTr("所有文件 (*.*)")]
         onAccepted: {
-            // 防御式路径转换（selectedFile 可能是 QUrl 或带 file:/// 前缀的字符串）
+            // 防御式路径转换：selectedFile 可能是 QUrl/字符串/空——空则依次回退
+            // selectedFiles[0] → currentFile；全空则拒绝导出（防落到相对路径 .mrpack）
             var sel = exportFileDialog.selectedFile
+            if (!sel || String(sel).length === 0) {
+                var sfs = exportFileDialog.selectedFiles
+                if (sfs && sfs.length > 0) sel = sfs[0]
+            }
+            if (!sel || String(sel).length === 0) {
+                sel = exportFileDialog.currentFile
+            }
             var p = ""
             if (typeof sel === "string") {
                 p = sel
@@ -811,7 +830,11 @@ Item {
                 p = sel.toString()
             }
             p = String(p).replace(/^(file:\/{2,3})/i, "")
-            console.info("[export] onAccepted path=" + p)
+            console.info("[export] onAccepted path=" + p + " (selType=" + typeof sel + ")")
+            if (!p || p.length === 0) {
+                if (root.toastManager) root.toastManager.show(qsTr("未能获取保存路径，请重试"), 3000)
+                return
+            }
             root._doExport(p)
         }
         onRejected: { /* 用户取消选择：不导出 */ }
