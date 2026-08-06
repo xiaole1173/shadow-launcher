@@ -95,12 +95,43 @@ void ModpackExporter::continueAfterLookupFailure(bool cont)
     m_lookupContinue.storeRelaxed(cont ? 1 : 0);
 }
 
+// ═════════════════════════════════════════════════════════════════════════════
+// 版本内容根：隔离子目录 game/ > 版本内目录（versions/{id}/ 直接含游戏文件，如
+// 26.2-forge-65.1.0 的 mods/config/saves 就在版本文件夹内）> 共享 .minecraft 根
+static QString versionContentRoot(const QString& gameDir, const QString& versionId)
+{
+    const QString versionDir = gameDir + QStringLiteral("/versions/") + versionId;
+    if (QDir(versionDir + QStringLiteral("/game")).exists())
+        return versionDir + QStringLiteral("/game");
+    const QDir vd(versionDir);
+    if (vd.exists()) {
+        const bool hasGameContent =
+            vd.exists(QStringLiteral("mods")) || vd.exists(QStringLiteral("config"))
+            || vd.exists(QStringLiteral("saves")) || vd.exists(QStringLiteral("resourcepacks"))
+            || vd.exists(QStringLiteral("shaderpacks")) || vd.exists(QStringLiteral("options.txt"))
+            || vd.exists(QStringLiteral("logs"));
+        if (hasGameContent) return versionDir;
+    }
+    return gameDir;
+}
+
+// 目录存在且非空（选项可见性“有内容才出现”语义）
+static bool dirHasContent(const QString& dir)
+{
+    const QDir d(dir);
+    return d.exists() && !d.entryInfoList(QDir::AllEntries | QDir::NoDotAndDotDot).isEmpty();
+}
+
+// 资源包/光影子项黑名单（同主流启动器 SubOptionBlackList：UI 不列 + 收集时兜底排除）
+static const QStringList kSubBlacklist = {
+    QStringLiteral("Quark Programmer Art.zip"),
+    QStringLiteral("+ EuphoriaPatches_"),
+    QStringLiteral("PCL2 Skin.zip")};
+
 QVariantList ModpackExporter::listSaves(const QString& versionId) const
 {
-    // 隔离版本：存档在 versions/{id}/game/saves/
-    const QString versionDir = m_gameDir + QStringLiteral("/versions/") + versionId;
-    const QString savesRoot = QDir(versionDir + QStringLiteral("/game")).exists()
-        ? versionDir + QStringLiteral("/game/saves") : m_gameDir + QStringLiteral("/saves");
+    // 版本内容根（隔离子目录 game/ > 版本内目录 > 共享根）
+    const QString savesRoot = versionContentRoot(m_gameDir, versionId) + QStringLiteral("/saves");
     QVariantList out;
     const QDir savesDir(savesRoot);
     if (savesDir.exists()) {
@@ -121,12 +152,6 @@ QVariantList ModpackExporter::listSaves(const QString& versionId) const
 // 导出选项表（完全对齐主流启动器实现 PageInstanceExport.xaml 的 ExportOption 集合）
 // 隐私敏感项（个人信息/地图/JEI/EMI/帕秋莉/服务器列表）默认不勾选
 // ═════════════════════════════════════════════════════════════════════════════
-
-// 资源包/光影子项黑名单（同主流启动器 SubOptionBlackList：UI 不列 + 收集时兜底排除）
-static const QStringList kSubBlacklist = {
-    QStringLiteral("Quark Programmer Art.zip"),
-    QStringLiteral("+ EuphoriaPatches_"),
-    QStringLiteral("PCL2 Skin.zip")};
 
 const QList<ModpackExporter::ExportOptionDef>& ModpackExporter::optionDefs()
 {
@@ -279,9 +304,8 @@ QVariantMap ModpackExporter::exportContext(const QString& versionId) const
     const QString jsonPath = versionDir + QStringLiteral("/") + versionId + QStringLiteral(".json");
     const bool versionExists = QFileInfo::exists(jsonPath);
     ctx.insert(QStringLiteral("versionExists"), versionExists);
-    // 隔离版本：内容根在 versions/{id}/game/（模组/存档/配置等都在其下）
-    const QString contentRoot = QDir(versionDir + QStringLiteral("/game")).exists()
-        ? versionDir + QStringLiteral("/game") : m_gameDir;
+    // 版本内容根：隔离子目录 game/ > 版本内目录 > 共享根
+    const QString contentRoot = versionContentRoot(m_gameDir, versionId);
 
     // 模组加载器 / OptiFine（读版本 JSON libraries，主流启动器 Modable/HasOptiFine 同款）
     bool modable = false;
@@ -306,18 +330,12 @@ QVariantMap ModpackExporter::exportContext(const QString& versionId) const
     ctx.insert(QStringLiteral("modable"), modable);
     ctx.insert(QStringLiteral("hasOptiFine"), hasOptiFine);
 
-    // 目录存在且非空（主流启动器 ShowRules 语义：空目录/不存在 → 隐藏对应选项）
-    auto hasContent = [](const QString& dir) {
-        const QDir d(dir);
-        if (!d.exists()) return false;
-        return d.entryInfoList(QDir::AllEntries | QDir::NoDotAndDotDot).count() > 0;
-    };
-    ctx.insert(QStringLiteral("hasMods"), hasContent(contentRoot + QStringLiteral("/mods")));
-    ctx.insert(QStringLiteral("hasConfig"), hasContent(contentRoot + QStringLiteral("/config")));
-    ctx.insert(QStringLiteral("hasShaderpacks"), hasContent(contentRoot + QStringLiteral("/shaderpacks")));
-    ctx.insert(QStringLiteral("hasResourcepacks"), hasContent(contentRoot + QStringLiteral("/resourcepacks")));
-    ctx.insert(QStringLiteral("hasSaves"), hasContent(contentRoot + QStringLiteral("/saves")));
-    ctx.insert(QStringLiteral("hasScreenshots"), hasContent(contentRoot + QStringLiteral("/screenshots")));
+    ctx.insert(QStringLiteral("hasMods"), dirHasContent(contentRoot + QStringLiteral("/mods")));
+    ctx.insert(QStringLiteral("hasConfig"), dirHasContent(contentRoot + QStringLiteral("/config")));
+    ctx.insert(QStringLiteral("hasShaderpacks"), dirHasContent(contentRoot + QStringLiteral("/shaderpacks")));
+    ctx.insert(QStringLiteral("hasResourcepacks"), dirHasContent(contentRoot + QStringLiteral("/resourcepacks")));
+    ctx.insert(QStringLiteral("hasSaves"), dirHasContent(contentRoot + QStringLiteral("/saves")));
+    ctx.insert(QStringLiteral("hasScreenshots"), dirHasContent(contentRoot + QStringLiteral("/screenshots")));
     ctx.insert(QStringLiteral("hasServersDat"), QFileInfo::exists(contentRoot + QStringLiteral("/servers.dat")));
 
     // Java 可用性（java_cache 有任一 JRE）——同主流启动器 RefreshJavaInfo：无 Java 时隐藏/禁用
@@ -363,10 +381,11 @@ QVariantMap ModpackExporter::exportContext(const QString& versionId) const
                         if (!root.exists()) return false;
                         const auto dirs = root.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
                         for (const auto& d : dirs)
-                            if (likeMatch(top, d)) return true;
+                            if (likeMatch(top, d) && dirHasContent(root.filePath(d))) return true;
                         return false;
                     }
-                    return QDir(contentRoot + QLatin1Char('/') + top).exists();
+                    // 一级目录：有内容才显示（用户语义“有得导才出现”；空目录不产生选项）
+                    return dirHasContent(contentRoot + QLatin1Char('/') + top);
                 }
                 // 二级及以上：精确检查（主流启动器 三级精确 IsValidDirectory / 文件存在）
                 const QString path = contentRoot + QLatin1Char('/') + rule;
@@ -669,9 +688,8 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
                     includeDisabled = true;
             }
         }
-        // 隔离版本：内容根在 versions/{id}/game/（模组/存档/配置等都在其下）
-        const QString contentRoot = QDir(versionDir + QStringLiteral("/game")).exists()
-            ? versionDir + QStringLiteral("/game") : gameDir;
+        // 版本内容根（隔离子目录 game/ > 版本内目录 > 共享根）
+        const QString contentRoot = versionContentRoot(gameDir, versionId);
 
         // ── 3. 收集哈希对象（主流启动器 CheckHostedAssets 语义：mods/packs/resource 路径下的
         //     压缩包类文件尝试在线匹配）：mods/ 下 *.jar/*.zip/*.rar（.disabled/.old 仅当

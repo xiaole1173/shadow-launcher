@@ -420,6 +420,16 @@ Item {
             Layout.fillWidth: true
             spacing: 6
 
+            // 空状态：该版本没有任何可导出内容时给出提示（避免一片空白）
+            Text {
+                visible: (_ctx.options || []).length === 0
+                text: qsTr("该版本暂无内容可导出（mods/config/存档等目录均为空）")
+                color: StyleTokens.textMuted
+                font.pixelSize: StyleTokens.fontSizeSm
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+            }
+
             // 动态选项（C++ exportContext 按版本实际可见性过滤；子项随父选项勾选显隐，同主流启动器）
             Repeater {
                 model: _ctx.options || []
