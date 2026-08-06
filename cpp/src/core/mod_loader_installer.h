@@ -131,12 +131,30 @@ private:
     /// Resolve a version ID to its actual directory path (handles name mismatch)
     QString findVersionDir(const QString& versionId) const;
 
+    // ── 后台安装任务（安装收尾重活块搬离主线程，治 UI 卡顿/冻结）──
+    /// 在后台线程执行纯文件/网络/进程重活，完成后回主线程执行 onDone（继续流程/emit）
+    void runInstallTask(std::function<void()> task, std::function<void()> onDone = {});
+    bool installWorkerBusy() const { return m_installWorkerRunning.load(); }
+    QFutureWatcher<void>* m_installWorker = nullptr;
+    std::atomic<bool> m_installWorkerRunning{false};
+    std::atomic<bool> m_installWorkerFailed{false};   // worker 内失败标志（onDone 前检查，中止流程）
+    std::function<void()> m_pendingInstallOnDone;   // worker 完成后主线程继续流程的回调
+
+    /// 后台线程：写安装器 JAR（剥离签名）+ client jar 复制 + mappings 预下载/TSRG 转换
+    void bootstrapperPrepare(const QByteArray& jarData, QString installerJarPath,
+                             const QString& javaPath, bool isNeoForge);
+    /// 主线程：launcher_profiles.json + 启动 bootstrapper（QProcess 本体已 QtConcurrent 异步）
+    void runBootstrapperLaunch(const QString& installerJarPath, const QString& javaPath,
+                               bool isNeoForge);
+
     void forgeStep1_downloadInstaller();
     void forgeStep2_verify(const QByteArray& jarData);
     void neoStep1_downloadInstaller();
     void neoStep2_verify(const QByteArray& jarData);
     // Extract & install — four-way branch (Legacy3 / Legacy2 / Legacy1 / Bootstrapper)
     void forgeStep3_install(const QByteArray& jarData);
+    void forgeStep3_prepareImpl(const QByteArray& jarData, const QString& mavenVer);  // worker 内执行
+    void forgeStep3_route(const QByteArray& jarData);                                  // 主线程：决策四分支
     // Legacy 3: no install_profile.json → universal/client zip IS the game JAR
     // For MC < 1.5 (Forge 3.x~6.x) where the "installer" is a complete forge-patched client
     void installLegacy3(const QByteArray& jarData);
@@ -190,6 +208,7 @@ private:
     void fabricStep1_downloadProfile();
     void fabricStep2_downloadLibraries(const QByteArray& profileData);
     void fabricStep3_writeVersion(const QByteArray& profileData);
+    void fabricStep3_writeVersionImpl(const QByteArray& profileData);   // worker 内执行
 
 public:
     // OptiFine: 通过 adloadx 解析官方下载地址

@@ -83,6 +83,47 @@ void ModLoaderInstaller::cancel() {
     }
 }
 
+// ════════════════════════════════════════════════════════════════════════
+// 后台安装任务：把安装收尾的重活块（解压/复制/网络/Java 转换）搬离主线程
+// worker 内只读已固定的成员；emit 信号跨线程自动 Queued；取消在 onDone 前检查
+// ════════════════════════════════════════════════════════════════════════
+void ModLoaderInstaller::runInstallTask(std::function<void()> task, std::function<void()> onDone) {
+    if (m_installWorkerRunning.load() || m_cancelled) {
+        qCWarning(logLoader) << "[安装] runInstallTask 被忽略（worker 忙或已取消）";
+        return;
+    }
+    m_installWorkerRunning.store(true);
+    m_installWorkerFailed.store(false);
+    if (!m_installWorker) {
+        m_installWorker = new QFutureWatcher<void>(this);
+        connect(m_installWorker, &QFutureWatcher<void>::finished, this,
+                [this]() {
+                    m_installWorkerRunning.store(false);
+                    if (m_cancelled) {
+                        qCInfo(logLoader) << "[安装] 后台任务完成但已取消，中止流程";
+                        emit finished(false, QStringLiteral("用户取消"));
+                        m_running = false;
+                        return;
+                    }
+                    if (m_installWorkerFailed.load()) {
+                        qCInfo(logLoader) << "[安装] 后台任务失败，中止流程";
+                        emit finished(false, QStringLiteral("安装准备失败"));
+                        m_running = false;
+                        return;
+                    }
+                    if (m_pendingInstallOnDone) {
+                        auto cb = m_pendingInstallOnDone;
+                        m_pendingInstallOnDone = nullptr;
+                        cb();
+                    }
+                });
+    }
+    m_pendingInstallOnDone = std::move(onDone);
+    m_installWorker->setFuture(QtConcurrent::run([task = std::move(task)]() {
+        task();
+    }));
+}
+
 QString ModLoaderInstaller::computeSha1(const QByteArray& data) { return sha1Hex(data); }
 
 void ModLoaderInstaller::emitByteProgress(const QString& name, qint64 received, qint64 total) {
@@ -1635,63 +1676,16 @@ void ModLoaderInstaller::forgeStepLibs(const QByteArray& jarData)
     (*pump)();
 }
 
-void ModLoaderInstaller::forgeStep3_install(const QByteArray& jarData) {
-    if (m_cancelled) return;
-
-    // 0. Check if this is a genuine installer JAR or a self-contained universal/client zip
-    //    For MC < 1.5 Forge (Leagcy 3), the file IS the game JAR, not an installer.
-    QBuffer buffer;
-    buffer.setData(jarData);
-    if (!buffer.open(QIODevice::ReadOnly)) {
-        emit finished(false, "无法打开安装程序文件");
-        m_running = false;
+/// 后台线程：client_mappings 下载 + maven jars 解压（forgeStep3 的重活部分）
+void ModLoaderInstaller::forgeStep3_prepareImpl(const QByteArray& jarData, const QString& mavenVer) {
+    QBuffer buffer2b;
+    buffer2b.setData(jarData);
+    if (!buffer2b.open(QIODevice::ReadOnly)) {
+        m_installWorkerFailed.store(true);
         return;
     }
-    QZipReader reader(&buffer);
-    QByteArray profileData = reader.fileData(QStringLiteral("install_profile.json"));
-    if (profileData.isEmpty()) {
-        // No install_profile.json → not an installer JAR → universal/client zip (Legacy 3)
-        qCInfo(logLoader) << QStringLiteral("[安装] 使用 Legacy 3 安装模式（自包含 JAR）");
-        reader.close();
-        installLegacy3(jarData);
-        return;
-    }
-    reader.close();
-
-    // ── Here onward: genuine installer JAR with install_profile.json ──
-
-    // Reopen for the real processing
-    QBuffer buffer2;
-    buffer2.setData(jarData);
-    if (!buffer2.open(QIODevice::ReadOnly)) {
-        emit finished(false, "无法打开安装程序文件");
-        m_running = false;
-        return;
-    }
-    QZipReader reader2(&buffer2);
-
-    // 2. Extract Maven version from install_profile.json data section
-    //    (e.g. "1.18.2-20220404.173914" from [net.minecraft:client:1.18.2-20220404.173914:mappings@txt])
-    QString mavenVer = m_mcVersion;
-    {
-        QJsonDocument profileDoc = QJsonDocument::fromJson(profileData);
-        if (!profileDoc.isNull()) {
-            QJsonObject data = profileDoc.object().value(QStringLiteral("data")).toObject();
-            for (const QString& key : {QStringLiteral("MOJMAPS"), QStringLiteral("MAPPINGS")}) {
-                QJsonObject entry = data.value(key).toObject();
-                QString clientRef = entry.value(QStringLiteral("client")).toString();
-                if (!clientRef.isEmpty()) {
-                    QRegularExpression re(QStringLiteral("\\[[^:]+:[^:]+:([^:\\]]+):mappings@txt\\]"));
-                    QRegularExpressionMatch match = re.match(clientRef);
-                    if (match.hasMatch()) {
-                        mavenVer = match.captured(1);
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
+    QZipReader reader2b(&buffer2b);
+    QZipReader reader2(&buffer2b);   // 段内 reader2.xxx 对象调用
     // 3. Ensure client_mappings is on disk before bootstrapper runs
     //    (Forge 1.19+ ChainMappings.process needs it for JAR remapping)
     {
@@ -1771,12 +1765,95 @@ void ModLoaderInstaller::forgeStep3_install(const QByteArray& jarData) {
     }
     qCInfo(logLoader) << QStringLiteral("[安装] 已从安装程序解压 %1 个库文件").arg(extractedCount);
 
+
+}
+
+void ModLoaderInstaller::forgeStep3_install(const QByteArray& jarData) {
+    if (m_cancelled) return;
+
+    // 0. Check if this is a genuine installer JAR or a self-contained universal/client zip
+    //    For MC < 1.5 Forge (Leagcy 3), the file IS the game JAR, not an installer.
+    QBuffer buffer;
+    buffer.setData(jarData);
+    if (!buffer.open(QIODevice::ReadOnly)) {
+        emit finished(false, "无法打开安装程序文件");
+        m_running = false;
+        return;
+    }
+    QZipReader reader(&buffer);
+    QByteArray profileData = reader.fileData(QStringLiteral("install_profile.json"));
+    if (profileData.isEmpty()) {
+        // No install_profile.json → not an installer JAR → universal/client zip (Legacy 3)
+        qCInfo(logLoader) << QStringLiteral("[安装] 使用 Legacy 3 安装模式（自包含 JAR）");
+        reader.close();
+        installLegacy3(jarData);
+        return;
+    }
+    reader.close();
+
+    // ── Here onward: genuine installer JAR with install_profile.json ──
+
+    // Reopen for the real processing
+    QBuffer buffer2;
+    buffer2.setData(jarData);
+    if (!buffer2.open(QIODevice::ReadOnly)) {
+        emit finished(false, "无法打开安装程序文件");
+        m_running = false;
+        return;
+    }
+    QZipReader reader2(&buffer2);
+
+    // 2. Extract Maven version from install_profile.json data section
+    //    (e.g. "1.18.2-20220404.173914" from [net.minecraft:client:1.18.2-20220404.173914:mappings@txt])
+    QString mavenVer = m_mcVersion;
+    {
+        QJsonDocument profileDoc = QJsonDocument::fromJson(profileData);
+        if (!profileDoc.isNull()) {
+            QJsonObject data = profileDoc.object().value(QStringLiteral("data")).toObject();
+            for (const QString& key : {QStringLiteral("MOJMAPS"), QStringLiteral("MAPPINGS")}) {
+                QJsonObject entry = data.value(key).toObject();
+                QString clientRef = entry.value(QStringLiteral("client")).toString();
+                if (!clientRef.isEmpty()) {
+                    QRegularExpression re(QStringLiteral("\\[[^:]+:[^:]+:([^:\\]]+):mappings@txt\\]"));
+                    QRegularExpressionMatch match = re.match(clientRef);
+                    if (match.hasMatch()) {
+                        mavenVer = match.captured(1);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    // 重活（client_mappings 下载 + maven jars 解压）搬到后台线程，主线程不再阻塞
+    runInstallTask([this, jarData, mavenVer]() {
+        forgeStep3_prepareImpl(jarData, mavenVer);
+    }, [this, jarData]() {
+        // 主线程继续：步骤状态 + profile 决策 + 四分支
+        m_currentStep = 3;
+        emit progressChanged(3, m_totalSteps, QStringLiteral("正在准备安装..."));
+        forgeStep3_route(jarData);
+    });
+    return;
+}
+/// 主线程：读 install_profile 决策四分支（Legacy2 / Legacy1 / Bootstrapper）
+void ModLoaderInstaller::forgeStep3_route(const QByteArray& jarData) {
+    if (m_cancelled) return;
+    QBuffer buffer2c;
+    buffer2c.setData(jarData);
+    if (!buffer2c.open(QIODevice::ReadOnly)) {
+        emit finished(false, "无法打开安装程序文件");
+        m_running = false;
+        return;
+    }
+    QZipReader reader2c(&buffer2c);
+    QZipReader reader2(&buffer2c);   // 段内 reader2.xxx 对象调用
     // 3. Read install_profile.json (re-read for routing)
     QByteArray profileData2 = reader2.fileData(QStringLiteral("install_profile.json"));
     QJsonDocument profileDoc = QJsonDocument::fromJson(profileData2);
     if (!profileDoc.isObject()) {
         qCWarning(logLoader) << QStringLiteral("[安装] install_profile.json 无效，改用 Bootstrapper");
-        reader2.close();
+        reader2c.close();
         runBootstrapperProcess(jarData);
         return;
     }
@@ -1792,7 +1869,7 @@ void ModLoaderInstaller::forgeStep3_install(const QByteArray& jarData) {
     //
     // Branch A: has "install" → Legacy 2 (universal JAR + inheritsFrom)
     if (hasInstall) {
-        reader2.close();
+        reader2c.close();
         qCInfo(logLoader) << QStringLiteral("[安装] 使用 Legacy 2 安装模式");
         installLegacy2(jarData, profileObj);
         return;
@@ -1800,14 +1877,14 @@ void ModLoaderInstaller::forgeStep3_install(const QByteArray& jarData) {
 
     // Branch B: has "json" AND no processors AND spec <= 0 → Legacy 1
     if (hasJson && procCount == 0 && spec <= 0) {
-        reader2.close();
+        reader2c.close();
         qCInfo(logLoader) << QStringLiteral("[安装] 使用 Legacy 1 安装模式");
         installLegacy1(jarData, profileObj);
         return;
     }
 
     // Branch C: has processors OR spec >= 1 → Bootstrapper
-    reader2.close();
+    reader2c.close();
     qCInfo(logLoader) << QStringLiteral("[安装] 使用 Bootstrapper 安装模式");
     runBootstrapperProcess(jarData);
 }
@@ -1819,6 +1896,7 @@ void ModLoaderInstaller::forgeStep3_install(const QByteArray& jarData) {
 // The downloaded file IS the game JAR — copy it as-is and create
 // a self-contained version JSON with inheritsFrom for libraries.
 // ═══════════════════════════════════════════════════════════════
+
 void ModLoaderInstaller::installLegacy3(const QByteArray& jarData) {
     emit progressChanged(3, m_totalSteps, QStringLiteral("安装旧版 Forge（Legacy 3：自包含 JAR）..."));
 
@@ -1980,7 +2058,8 @@ void ModLoaderInstaller::installLegacy2(const QByteArray& jarData, const QJsonOb
     {
         QJsonArray libs = vInfo.value(QStringLiteral("libraries")).toArray();
         if (!libs.isEmpty()) {
-            QNetworkAccessManager* nam = HttpClient::instance().manager();
+            QNetworkAccessManager localNam;   // worker 线程用局部 NAM（共享单例跨线程有竞态）
+            QNetworkAccessManager* nam = &localNam;
             int downloaded = 0;
             for (const auto& lv : libs) {
                 if (!lv.isObject()) continue;
@@ -2526,42 +2605,10 @@ static int minJavaForMcInstaller(const QString& mcVersion) {
 }
 
 
-void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
-    const bool isNeoForge = (m_loaderType == QStringLiteral("neoforge"));
-    emit progressChanged(3, m_totalSteps, isNeoForge
-        ? QStringLiteral("正在通过 Bootstrapper 安装 NeoForge...")
-        : QStringLiteral("正在通过 Bootstrapper 安装 Forge..."));
-
-    // 1. Find Java — minimum version depends on MC version
-    //    MC 1.18+ Forge installers need Java 17+ for their post-processors (FART, srgutils)
-    int minJava = minJavaForMcInstaller(m_mcVersion);
-    QString javaPath = findJavaPath(minJava);
-    if (javaPath.isEmpty()) {
-        qCInfo(logLoader) << QStringLiteral("[安装] 未找到 Java %1+，尝试自动下载...").arg(minJava);
-        emit progressChanged(3, m_totalSteps, QStringLiteral("未找到 Java %1+，正在自动下载...").arg(minJava));
-        emit toastMessage(QStringLiteral("%1 安装需要 Java %2，正在下载...")
-                              .arg(isNeoForge ? QStringLiteral("NeoForge") : QStringLiteral("Forge"), QString::number(minJava)));
-        javaPath = downloadAndExtractJava(minJava);
-        if (javaPath.isEmpty()) {
-            emit finished(false, QStringLiteral("未找到 Java %1+，且自动下载失败。请先在「设置 → Java」中下载 Java。").arg(minJava));
-            m_running = false;
-            return;
-        }
-        qCInfo(logLoader) << QStringLiteral("[安装] 自动下载 Java 完成: %1").arg(javaPath);
-        emit toastMessage(QStringLiteral("Java %1 安装完成，继续 %2 安装流程...")
-                              .arg(QString::number(minJava), isNeoForge ? QStringLiteral("NeoForge") : QStringLiteral("Forge")));
-    }
-
-    // 2. 提取 bootstrapper JAR（Forge 和 NeoForge 共用同一份）
-    QString bootstrapperJar = extractBootstrapperPath();
-    if (bootstrapperJar.isEmpty()) {
-        emit finished(false, "无法释放 Bootstrapper JAR");
-        m_running = false;
-        return;
-    }
-
-    QString installerJarPath;
-
+/// 后台线程执行：写安装器 JAR（剥离签名）+ client jar 复制 + mappings 预下载/TSRG 转换
+void ModLoaderInstaller::bootstrapperPrepare(const QByteArray& jarData,
+                                               QString installerJarPath,
+                                               const QString& javaPath, bool isNeoForge) {
     // 3. Write installer JAR to temp
     //    不修补 --skipIfExists on DOWNLOAD_MOJMAPS。
     //    The DOWNLOAD_MOJMAPS processor natively checks whether the .txt mapping exists
@@ -2575,8 +2622,8 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
         QBuffer buf;
         buf.setData(jarData);
         if (!buf.open(QIODevice::ReadOnly)) {
-            emit finished(false, "无法打开安装程序");
-            m_running = false; return;
+            m_installWorkerFailed.store(true);
+            return;
         }
         QZipReader reader(&buf);
 
@@ -2638,7 +2685,8 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
         QString tsrgPath = tsrgDir + QStringLiteral("/client-") + m_mcVersion + QStringLiteral("-mappings.tsrg");
         if (!QFile::exists(tsrgPath)) {
             qCInfo(logLoader) << QStringLiteral("[安装] 预下载 mappings.tsrg: %1").arg(m_mcVersion);
-            QNetworkAccessManager* nam = HttpClient::instance().manager();
+            QNetworkAccessManager localNam;   // worker 线程用局部 NAM（共享单例跨线程有竞态）
+            QNetworkAccessManager* nam = &localNam;
 
             // Helper: download URL with timeout
             auto downloadUrl = [&](const QString& url, int timeoutMs) -> QByteArray {
@@ -2898,6 +2946,69 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
         }
     }
 
+
+}
+
+void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
+    const bool isNeoForge = (m_loaderType == QStringLiteral("neoforge"));
+    emit progressChanged(3, m_totalSteps, isNeoForge
+        ? QStringLiteral("正在通过 Bootstrapper 安装 NeoForge...")
+        : QStringLiteral("正在通过 Bootstrapper 安装 Forge..."));
+
+    // 1. Find Java — minimum version depends on MC version
+    //    MC 1.18+ Forge installers need Java 17+ for their post-processors (FART, srgutils)
+    int minJava = minJavaForMcInstaller(m_mcVersion);
+    QString javaPath = findJavaPath(minJava);
+    if (javaPath.isEmpty()) {
+        qCInfo(logLoader) << QStringLiteral("[安装] 未找到 Java %1+，尝试自动下载...").arg(minJava);
+        emit progressChanged(3, m_totalSteps, QStringLiteral("未找到 Java %1+，正在自动下载...").arg(minJava));
+        emit toastMessage(QStringLiteral("%1 安装需要 Java %2，正在下载...")
+                              .arg(isNeoForge ? QStringLiteral("NeoForge") : QStringLiteral("Forge"), QString::number(minJava)));
+        javaPath = downloadAndExtractJava(minJava);
+        if (javaPath.isEmpty()) {
+            emit finished(false, QStringLiteral("未找到 Java %1+，且自动下载失败。请先在「设置 → Java」中下载 Java。").arg(minJava));
+            m_running = false;
+            return;
+        }
+        qCInfo(logLoader) << QStringLiteral("[安装] 自动下载 Java 完成: %1").arg(javaPath);
+        emit toastMessage(QStringLiteral("Java %1 安装完成，继续 %2 安装流程...")
+                              .arg(QString::number(minJava), isNeoForge ? QStringLiteral("NeoForge") : QStringLiteral("Forge")));
+    }
+
+    // 2. 提取 bootstrapper JAR（Forge 和 NeoForge 共用同一份）
+    QString bootstrapperJar = extractBootstrapperPath();
+    if (bootstrapperJar.isEmpty()) {
+        emit finished(false, "无法释放 Bootstrapper JAR");
+        m_running = false;
+        return;
+    }
+
+    QString installerJarPath;
+
+    const QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
+    // 重活（JAR 重写/复制/映射下载/TSRG 转换）搬到后台线程，主线程不再阻塞
+    QString preparedJarPath = tempDir + QStringLiteral("/") + (isNeoForge ? QStringLiteral("neoforge-") : QStringLiteral("forge-"))
+                                    + QStringLiteral("installer-") + m_installName + QStringLiteral(".jar");
+    const QByteArray jarDataCopy = jarData;
+    const QString javaPathCopy = javaPath;
+    const bool isNeoCopy = isNeoForge;
+    runInstallTask([this, jarDataCopy, preparedJarPath, javaPathCopy, isNeoCopy]() {
+        bootstrapperPrepare(jarDataCopy, preparedJarPath, javaPathCopy, isNeoCopy);
+    }, [this, preparedJarPath, javaPathCopy, isNeoCopy]() {
+        // 主线程继续：launcher_profiles + 启动 bootstrapper
+        runBootstrapperLaunch(preparedJarPath, javaPathCopy, isNeoCopy);
+    });
+    return;
+}
+/// 主线程：launcher_profiles.json + 启动 bootstrapper（QProcess 本体已 QtConcurrent 异步）
+void ModLoaderInstaller::runBootstrapperLaunch(const QString& installerJarPath,
+                                                const QString& javaPath, bool isNeoForge) {
+    const QString bootstrapperJar = extractBootstrapperPath();
+    if (bootstrapperJar.isEmpty()) {
+        emit finished(false, "无法释放 Bootstrapper JAR");
+        m_running = false;
+        return;
+    }
     // 4. Ensure launcher_profiles.json exists
     QString profilesPath = m_gameDir + QStringLiteral("/launcher_profiles.json");
     if (!QFile::exists(profilesPath)) {
@@ -3013,6 +3124,7 @@ void ModLoaderInstaller::runBootstrapperProcess(const QByteArray& jarData) {
 // Async bootstrapper: run Java installer process off the main thread
 // Returns BootstrapperResult struct with success/failure details.
 // ═══════════════════════════════════════════════════════════════
+
 ModLoaderInstaller::BootstrapperResult
 ModLoaderInstaller::runBootstrapperSync(
     const QString& javaPath, const QStringList& launchArgs,
@@ -3559,6 +3671,25 @@ void ModLoaderInstaller::fabricStep3_writeVersion(const QByteArray& profileData)
     m_currentStep = 3;
     emit progressChanged(3, m_totalSteps, "正在创建版本配置...");
 
+    // JSON 合法性检查留在主线程（轻量）
+    QJsonDocument docCheck = QJsonDocument::fromJson(profileData);
+    if (docCheck.isNull()) { emit finished(false, "Fabric 配置 JSON 格式无效"); m_running = false; return; }
+
+    // 重活（JSON 合并/文件写盘/大文件复制）搬到后台线程，避免主线程卡死/崩溃
+    const QByteArray data = profileData;
+    runInstallTask([this, data]() {
+        fabricStep3_writeVersionImpl(data);
+    }, [this]() {
+        qCInfo(logLoader) << QStringLiteral("[安装] Fabric 版本 JSON: %1")
+            .arg(m_gameDir + QStringLiteral("/versions/") + m_installName);
+        emit progressChanged(3, m_totalSteps, "Fabric 安装完成");
+        emit finished(true, QString());
+        m_running = false;
+    });
+}
+
+void ModLoaderInstaller::fabricStep3_writeVersionImpl(const QByteArray& profileData) {
+    qCInfo(logLoader) << QStringLiteral("[TRACE-f] fabricStep3 impl enter");
     QJsonDocument doc = QJsonDocument::fromJson(profileData);
     if (doc.isNull()) { emit finished(false, "Fabric 配置 JSON 格式无效"); m_running = false; return; }
 
@@ -3713,10 +3844,7 @@ void ModLoaderInstaller::fabricStep3_writeVersion(const QByteArray& profileData)
     }
 
     // Vanilla MC cleanup deferred to VersionBackend (avoids race with other installs)
-    qCInfo(logLoader) << QStringLiteral("[安装] Fabric 版本 JSON: %1").arg(jsonPath);
-    emit progressChanged(3, m_totalSteps, "Fabric 安装完成");
-    emit finished(true, QString());
-    m_running = false;
+    qCInfo(logLoader) << QStringLiteral("[TRACE-f] fabricStep3 impl done: %1").arg(jsonPath);
 }
 
 // ============================================================
