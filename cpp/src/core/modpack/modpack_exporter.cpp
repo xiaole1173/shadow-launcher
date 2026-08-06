@@ -334,7 +334,8 @@ QVariantMap ModpackExporter::exportContext(const QString& versionId) const
         if (d.requireOptiFine && !hasOptiFine) visible = false;
         if (d.requireModLoaderOrOptiFine && !modable && !hasOptiFine) visible = false;
         if (visible && !d.showRules.isEmpty()) {
-            // ShowRules：文件规则（无 /）→ 精确文件存在；路径规则 → 首段目录存在且非空（近似 主流启动器 两级匹配）
+            // ShowRules：文件规则（无 /）→ 精确文件存在；路径规则 → 首段目录存在
+            // （主流启动器语义：一级条目存在即显示——空目录也显示选项，导出时无文件自然不打包）
             visible = false;
             for (const auto& r : d.showRules) {
                 const int slash = r.indexOf(QLatin1Char('/'));
@@ -346,11 +347,7 @@ QVariantMap ModpackExporter::exportContext(const QString& versionId) const
                 if (top.endsWith(QLatin1Char('*'))) top.chop(1);
                 if (top.isEmpty()) continue;
                 const QDir d2(contentRoot + QLatin1Char('/') + top);
-                if (d2.exists()
-                    && !d2.entryInfoList(QDir::AllEntries | QDir::NoDotAndDotDot).isEmpty()) {
-                    visible = true;
-                    break;
-                }
+                if (d2.exists()) { visible = true; break; }
             }
         }
         if (!visible) continue;
