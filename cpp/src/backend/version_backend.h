@@ -199,6 +199,10 @@ public:
 
     Q_INVOKABLE void verifyVersion(const QString& versionId);
     Q_INVOKABLE void cancelVerify();
+    // 校验/修复的根目录：merged 安装中 MC 版本在 tempDir，修复须在 tempDir 上进行
+    QString repairRootFor(const QString& versionId) const;
+    // auto-repair 成功后驱动 merged 继续（mcDownloadDone → loader 流程）
+    void driveMergedAfterRepair(const QString& versionId);
     void cancelActiveDownload(const QString& versionId);
     // On cancel/fail: delete the entire version folder,
     // with a safety guard — skip if saves/ already exists (user has played).

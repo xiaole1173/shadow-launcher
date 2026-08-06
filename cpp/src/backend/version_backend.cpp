@@ -218,7 +218,9 @@ VersionBackend::VersionBackend(QObject* parent)
                 qCInfo(logVersion) << QStringLiteral("自动修复无需修复 版本=%1").arg(m_autoRepairVersionId);
 
                 m_autoRepairVersionId.clear();
+                QString ver = m_autoRepairVersionId;
 
+                driveMergedAfterRepair(ver);   // merged：驱动继续（loader 流程）
                 emit installFinished(true);
 
             } else if (!m_failedPathsCache.isEmpty()) {
@@ -236,7 +238,16 @@ VersionBackend::VersionBackend(QObject* parent)
                 qCInfo(logVersion) << QStringLiteral("自动修复verify失败但缓存为空 版本=%1").arg(m_autoRepairVersionId);
 
                 m_autoRepairVersionId.clear();
+                QString ver = m_autoRepairVersionId;
 
+                for (auto it = m_mergedContexts.begin(); it != m_mergedContexts.end(); ++it) {
+                    auto* ctx = it.value();
+                    if (ctx->mcVersion == ver && !ctx->mcDownloadDone) {
+                        ctx->failed = true;
+                        ctx->mcDownloadDone = true;
+                        finishInstall(ctx->installId);   // 失败收尾（不卡死）
+                    }
+                }
                 emit installFinished(false);
 
             }
@@ -251,6 +262,19 @@ VersionBackend::VersionBackend(QObject* parent)
 
             qCInfo(logVersion) << QStringLiteral("自动修复%1 版本=%2").arg(allPassed ? QStringLiteral("成功") : QStringLiteral("失败"), ver);
 
+                if (allPassed)
+                    driveMergedAfterRepair(ver);   // merged：修复成功 → 驱动继续
+                else {
+                    // 修复仍失败：merged 失败收尾（不卡死）
+                    for (auto it = m_mergedContexts.begin(); it != m_mergedContexts.end(); ++it) {
+                        auto* ctx = it.value();
+                        if (ctx->mcVersion == ver && !ctx->mcDownloadDone) {
+                            ctx->failed = true;
+                            ctx->mcDownloadDone = true;
+                            finishInstall(ctx->installId);
+                        }
+                    }
+                }
             emit installFinished(allPassed);
 
         }
@@ -1969,27 +1993,15 @@ void VersionBackend::onVersionDownloadFinished(bool success,
 
                                     : error;
 
-            // merged 安装的 MC 下载失败：版本在 tempDir，共享根 auto-repair 找不到
-            // JSON 会走“缓存为空”死路 → 标记 merged ctx 失败，交给下方 merged 循环收尾
-            bool mergedMc = false;
-            for (auto it = m_mergedContexts.begin(); it != m_mergedContexts.end(); ++it) {
-                if (it.value()->mcVersion == finishedId && !it.value()->mcDownloadDone) {
-                    it.value()->failed = true;
-                    mergedMc = true;
-                }
-            }
-            if (!mergedMc) {
-                qCInfo(logVersion) << QStringLiteral("安装失败，启动自动修复 版本=%1 详情=%2").arg(finishedId, errDetail);
-                emit logMessage(
-                    tr("[重试] %1 安装失败 (%2)，正在尝试自动修复损坏文件...")
-                        .arg(finishedId, errDetail));
-                m_autoRepairVersionId = finishedId;
-                repairVersion(finishedId);
-                return;  // repairVersion 完成后会通过 verifyFinished -> installFinished 发射结果
-            }
-            // merged：落下去 emit installFinished(false) -> Phase1 merged 循环失败收尾
+            // 自动修复（verify/repair 感知 merged tempDir，见 repairRootFor）
+            qCInfo(logVersion) << QStringLiteral("安装失败，启动自动修复 版本=%1 详情=%2").arg(finishedId, errDetail);
+            emit logMessage(
+                tr("[重试] %1 安装失败 (%2)，正在尝试自动修复损坏文件...")
+                    .arg(finishedId, errDetail));
+            m_autoRepairVersionId = finishedId;
+            repairVersion(finishedId);
+            return;  // repairVersion 完成后会通过 verifyFinished -> installFinished 发射结果
 
-            return;  // repairVersion 完成后会通过 verifyFinished → installFinished 发射结果
 
         }
 
@@ -3463,9 +3475,53 @@ void VersionBackend::VerifyWorker::process() {
 
 
 
-void VersionBackend::verifyVersion(const QString& versionId)
 
+// ============================================================
+// Verify / repair root (merged-aware)
+// ============================================================
+
+QString VersionBackend::repairRootFor(const QString& versionId) const
 {
+    for (auto it = m_mergedContexts.begin(); it != m_mergedContexts.end(); ++it) {
+        const auto* ctx = it.value();
+        if (ctx->mcVersion == versionId && !ctx->mcDownloadDone && !ctx->tempDir.isEmpty())
+            return ctx->tempDir;
+    }
+    return m_gameDir;
+}
+
+void VersionBackend::driveMergedAfterRepair(const QString& versionId)
+{
+    for (auto it = m_mergedContexts.begin(); it != m_mergedContexts.end(); ++it) {
+        auto* ctx = it.value();
+        if (ctx->mcVersion != versionId || ctx->mcDownloadDone)
+            continue;
+        ctx->mcDownloadDone = true;
+        // 会话步骤：MC 下载三步 + 校验步骤标记完成
+        auto* ds = dlSession(ctx->installId);
+        if (ds) {
+            ds->mcDownloadDone = true;   // 对齐 ds 标志（fabric 回调检查它）
+            ds->mcBytesDl = ds->mcBytesAll;
+            for (int i = 0; i < 3 && i < ds->steps.size(); i++)
+                updateStep(ctx->installId, i, QStringLiteral("completed"), 100);
+            int verifyIdx = 3;
+            if (verifyIdx < ds->steps.size() && !ds->optifineJarParallel)
+                updateStep(ctx->installId, verifyIdx, QStringLiteral("completed"), 100);
+        }
+        if (ctx->loaderJarReady)
+            proceedToLoaderInstall(ctx->installId);
+            // loader 未就绪：不 finishInstall（merged 必有 loader），
+            // 等 loader 下载完成回调（检查 ctx->mcDownloadDone → proceedToLoaderInstall）
+    }
+}
+
+void VersionBackend::verifyVersion(const QString& versionId)
+{
+
+
+    // merged 安装：MC 版本在 tempDir，校验/修复须在该根上进行
+    const QString rootDir = repairRootFor(versionId);
+
 
     // Guard: don't allow concurrent verify
 
@@ -3493,7 +3549,7 @@ void VersionBackend::verifyVersion(const QString& versionId)
 
 
 
-    const QString versionDir = m_gameDir + QStringLiteral("/versions/") + versionId;
+    const QString versionDir = rootDir + QStringLiteral("/versions/") + versionId;
 
     const QString jsonPath = versionDir + QStringLiteral("/") + versionId + QStringLiteral(".json");
 
@@ -3565,7 +3621,7 @@ void VersionBackend::verifyVersion(const QString& versionId)
 
         QString idxId2 = assetIdx2.value(QStringLiteral("id")).toString(QStringLiteral("legacy"));
 
-        QString idxPath2 = m_gameDir + QStringLiteral("/assets/indexes/") + idxId2 + QStringLiteral(".json");
+        QString idxPath2 = rootDir + QStringLiteral("/assets/indexes/") + idxId2 + QStringLiteral(".json");
 
         if (QFileInfo::exists(idxPath2)) {
 
@@ -3625,7 +3681,7 @@ void VersionBackend::verifyVersion(const QString& versionId)
 
     // --- Libraries ---
 
-    QString libsDir = m_gameDir + QStringLiteral("/libraries");
+    QString libsDir = rootDir + QStringLiteral("/libraries");
 
     QJsonArray libraries2 = versionJson.value(QStringLiteral("libraries")).toArray();
 
@@ -3743,7 +3799,7 @@ void VersionBackend::verifyVersion(const QString& versionId)
 
         QString idxId = assetIdx.value(QStringLiteral("id")).toString(QStringLiteral("legacy"));
 
-        QString idxPath = m_gameDir + QStringLiteral("/assets/indexes/") + idxId + QStringLiteral(".json");
+        QString idxPath = rootDir + QStringLiteral("/assets/indexes/") + idxId + QStringLiteral(".json");
 
         if (QFileInfo::exists(idxPath)) {
 
@@ -3757,7 +3813,7 @@ void VersionBackend::verifyVersion(const QString& versionId)
 
                 QJsonObject objects = idxDoc.object().value(QStringLiteral("objects")).toObject();
 
-                QString objectsDir = m_gameDir + QStringLiteral("/assets/objects");
+                QString objectsDir = rootDir + QStringLiteral("/assets/objects");
 
                 int assetCount = 0;
 
@@ -4072,8 +4128,11 @@ void VersionBackend::cleanCorruptVersion(const QString& versionId)
 // ============================================================
 
 void VersionBackend::repairVersion(const QString& versionId)
-
 {
+
+    // merged 安装：MC 版本在 tempDir，校验/修复须在该根上进行
+    const QString rootDir = repairRootFor(versionId);
+
 
     if (m_failedPathsCache.isEmpty()) {
 
@@ -4089,7 +4148,7 @@ void VersionBackend::repairVersion(const QString& versionId)
 
     // ── Read version JSON to build file → {sha1, url} lookup ──
 
-    QString jsonPath = m_gameDir + QStringLiteral("/versions/") + versionId
+    QString jsonPath = rootDir + QStringLiteral("/versions/") + versionId
 
                        + QStringLiteral("/") + versionId + QStringLiteral(".json");
 
@@ -4169,11 +4228,11 @@ void VersionBackend::repairVersion(const QString& versionId)
 
 
 
-    const QString libsDir    = m_gameDir + QStringLiteral("/libraries");
+    const QString libsDir    = rootDir + QStringLiteral("/libraries");
 
-    const QString objectsDir = m_gameDir + QStringLiteral("/assets/objects");
+    const QString objectsDir = rootDir + QStringLiteral("/assets/objects");
 
-    const QString versionDir = m_gameDir + QStringLiteral("/versions/") + versionId;
+    const QString versionDir = rootDir + QStringLiteral("/versions/") + versionId;
 
 
 
@@ -4285,7 +4344,7 @@ void VersionBackend::repairVersion(const QString& versionId)
 
         if (!idxId.isEmpty()) {
 
-            QString idxPath = m_gameDir + QStringLiteral("/assets/indexes/") + idxId + QStringLiteral(".json");
+            QString idxPath = rootDir + QStringLiteral("/assets/indexes/") + idxId + QStringLiteral(".json");
 
             QFile idxFile(idxPath);
 
