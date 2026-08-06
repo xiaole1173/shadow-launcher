@@ -7,9 +7,9 @@ import QtQuick.Layouts
 import QtQuick.Dialogs
 import Qt.labs.platform
 
-/// 整合包导出（版本设置独立分区，Section 7）
-/// 后端 ModpackExporter 全程 worker 线程（哈希/双平台查询/打包），信号回主线程，
-/// UI 零阻塞。复用 InputBox/ShadowSwitch/ShadowDropdown/ShadowButton 通用元件。
+/// 整合包导出（版本设置独立分区，Section 7）——完全对齐主流启动器实现 PageInstanceExport：
+/// 规则驱动选项（C++ exportContext 动态渲染，按版本实际情况显隐）、子项勾选、
+/// 配置保存/读取、隐私项默认不勾。后端 ModpackExporter 全程 worker 线程，UI 零阻塞。
 Item {
     id: root
 
@@ -24,28 +24,28 @@ Item {
     property string _packVersion: "1.0.0"
     property string _format: "modrinth"       // modrinth | curseforge
     property bool _modrinthOnly: false        // ModrinthUploadMode（同主流启动器）
-    property bool _hostedAssetsOnly: false    // 仅打包包内资源（不联网查询，主流启动器 CheckAdvancedInclude）
+    property bool _hostedAssetsOnly: false    // 仅打包包内资源（主流启动器 CheckAdvancedInclude）
     property bool _includeJava: false         // 打包便携 Java（主流启动器 IncludeJava）
-    property bool _includeConfig: true
-    property bool _includeSaves: false
-    property bool _includeResourcepacks: true
-    property bool _includeShaderpacks: true
-    property var _saves: []                    // 版本下全部存档
-    property var _selectedSaves: []            // 勾选的存档
+    property var _saves: []                   // 版本下全部存档 [{name, modified}]
+    property var _selectedSaves: []           // 勾选的存档名
+    property var _selectedRp: ({})            // 资源包子项勾选 {name: bool}
+    property var _selectedShaders: ({})      // 光影子项勾选 {name: bool}
+    property var _extraFiles: []              // 追加内容绝对路径（配置读取）
     property string _savePath: ""
     property bool _busy: false
     property real _progress: 0
     property string _statusText: ""
     property bool _done: false
 
-    /// 联网查询失败请求确认（顶层 ConfirmDialog 处理，避免 opened 绑定覆盖赋值）
+    // 导出上下文 + 选项勾选（主流启动器 ExportOption 集合，C++ optionDefs 驱动）
+    property var _ctx: ({})
+    property var _checked: ({})               // {optionId: bool}
+    property bool _pendingSavesLoad: false
+
+    /// 联网查询失败请求确认（顶层 ConfirmDialog 处理）
     signal lookupDecisionRequested(string message)
 
-    // backend/toastManager 由 MainWindow 在 Loader onLoaded 时注入（晚于本组件 onCompleted），
-    // 注入完成前 _loadSaves 会挂起，这里补执行
-    property bool _pendingSavesLoad: false
-    // 导出上下文：当前版本的实际情况（modable/hasMods/hasConfig/...），驱动选项动态显隐（同主流启动器 ShowRules）
-    property var _ctx: ({})
+    // backend/toastManager 由 MainWindow 在 Loader onLoaded 时注入（晚于本组件 onCompleted）
     onBackendChanged: {
         if (backend && backend.modpackExporter) {
             if (_pendingSavesLoad) {
@@ -65,11 +65,12 @@ Item {
         _resetSavePath()
     }
 
-    // 切换版本：重载存档列表、清空勾选（版本变了存档列表随之变化）
+    // 切换版本：重载上下文与存档、重置勾选（含子项）
     onVersionIdChanged: {
         _loadSaves()
         _selectedSaves = []
         _loadCtx()
+        _initChecked(true)
     }
 
     function _resetSavePath() {
@@ -89,19 +90,52 @@ Item {
         _selectedSaves = []
     }
 
-    // 拉取当前版本导出上下文（同步快操作：版本 JSON + 目录存在性）
+    // 拉取当前版本导出上下文（同步快操作：版本 JSON + 目录存在性 + 选项可见性）
     function _loadCtx() {
         if (backend && backend.modpackExporter && versionId) {
             _ctx = backend.modpackExporter.exportContext(versionId) || {}
         } else {
             _ctx = {}
         }
+        _initChecked()
     }
 
-    // ── 后端信号（声明式 Connections）──
-    // 关键：不能用 onCompleted 里 connect——组件 onCompleted 执行时 MainWindow 还没
-    // 注入 backend（Loader onLoaded 才赋值），连接会被整体跳过；Connections 的
-    // target 用绑定表达式，backend 注入后自动生效，根治"导出无任何反馈"
+    // 初始化选项勾选：可见选项按 defaultChecked；保留用户已改的勾选（切版本时重置）
+    function _initChecked(forceReset) {
+        var opts = _ctx.options || []
+        var next = {}
+        for (var i = 0; i < opts.length; i++) {
+            var id = opts[i].id
+            if (forceReset || _checked[id] === undefined)
+                next[id] = opts[i].defaultChecked
+            else
+                next[id] = _checked[id]
+        }
+        _checked = next
+        if (forceReset) {
+            _selectedRp = {}
+            _selectedShaders = {}
+        }
+    }
+
+    // 组装勾选选项（含子项 id:name / id:dir:name）
+    function _buildCheckedOptions() {
+        var arr = []
+        for (var id in _checked) if (_checked[id]) arr.push(id)
+        var rps = _ctx.rpItems || []
+        for (var i = 0; i < rps.length; i++) {
+            if (_selectedRp[rps[i].name] === false) continue
+            arr.push("resourcepacks:" + (rps[i].type === "dir" ? "dir:" : "") + rps[i].name)
+        }
+        var shs = _ctx.shaderItems || []
+        for (var j = 0; j < shs.length; j++) {
+            if (_selectedShaders[shs[j].name] === false) continue
+            arr.push("shaderpacks:" + (shs[j].type === "dir" ? "dir:" : "") + shs[j].name)
+        }
+        return arr
+    }
+
+    // ── 后端信号（声明式 Connections；不能 onCompleted connect——backend 注入晚于组件创建）──
     Connections {
         target: backend && backend.modpackExporter ? backend.modpackExporter : null
         function onBusyChanged() {
@@ -149,7 +183,6 @@ Item {
         }
         // ModrinthUploadMode 强制 Modrinth 格式（同主流启动器）
         if (_modrinthOnly) _format = "modrinth"
-        // 默认路径：下载目录 + 名称 + 后缀（打开对话框的初始位置）
         var ext = _format === "curseforge" ? ".zip" : ".mrpack"
         var dlDir = StandardPaths.writableLocation(StandardPaths.DownloadLocation)
         if (!dlDir) dlDir = StandardPaths.writableLocation(StandardPaths.DocumentsLocation)
@@ -163,7 +196,7 @@ Item {
         var e = backend ? backend.modpackExporter : null
         if (!e) {
             if (root.toastManager) root.toastManager.show(qsTr("导出模块未就绪，请稍后重试"), 3000)
-            console.log("[export] _doExport: modpackExporter is null")
+            console.info("[export] _doExport: modpackExporter is null")
             return
         }
         var ext = _format === "curseforge" ? ".zip" : ".mrpack"
@@ -175,9 +208,63 @@ Item {
         var fmt = _format === "curseforge" ? 1 : 0
         console.info("[export] start: " + path)
         e.exportVersion(versionId, _packName.trim(), _packVersion.trim(),
-                        _includeConfig, _selectedSaves,
-                        _includeResourcepacks, _includeShaderpacks,
-                        _modrinthOnly, _hostedAssetsOnly, _includeJava, fmt, path)
+                        _buildCheckedOptions(), _selectedSaves,
+                        _modrinthOnly, _hostedAssetsOnly, _includeJava, fmt, path, _extraFiles)
+    }
+
+    // ── 配置保存/读取（主流启动器 export_config.txt 语义）──
+    function _saveConfig() {
+        var e = backend ? backend.modpackExporter : null
+        if (!e) return
+        var dlDir = StandardPaths.writableLocation(StandardPaths.DownloadLocation)
+        if (!dlDir) dlDir = StandardPaths.writableLocation(StandardPaths.DocumentsLocation)
+        configSaveDialog.currentFile = "file:///" + ((dlDir ? dlDir + "/" : "") + "export_config.txt").replace(/\\/g, "/")
+        configSaveDialog.open()
+    }
+    function _writeConfig(path) {
+        var e = backend ? backend.modpackExporter : null
+        if (!e) return
+        var cfg = {
+            name: _packName,
+            version: _packVersion,
+            includeJava: _includeJava,
+            hostedAssetsOnly: _hostedAssetsOnly,
+            modrinthUploadMode: _modrinthOnly,
+            format: _format === "curseforge" ? 1 : 0,
+            packPath: _savePath,
+            options: _buildCheckedOptions(),
+            extraFiles: _extraFiles
+        }
+        if (e.saveExportConfig(path, cfg)) {
+            if (root.toastManager) root.toastManager.show(qsTr("导出配置已保存: ") + path)
+        } else {
+            if (root.toastManager) root.toastManager.show(qsTr("保存配置失败"), 3000)
+        }
+    }
+    function _loadConfig(path) {
+        var e = backend ? backend.modpackExporter : null
+        if (!e) return
+        var cfg = e.loadExportConfig(path) || {}
+        if (!cfg.options) {   // 空配置（文件不存在/无内容）
+            if (root.toastManager) root.toastManager.show(qsTr("读取配置失败"), 3000)
+            return
+        }
+        if (cfg.name) _packName = cfg.name
+        if (cfg.version) _packVersion = cfg.version
+        if (cfg.includeJava !== undefined) _includeJava = cfg.includeJava
+        if (cfg.hostedAssetsOnly !== undefined) _hostedAssetsOnly = cfg.hostedAssetsOnly
+        if (cfg.modrinthUploadMode !== undefined) _modrinthOnly = cfg.modrinthUploadMode
+        if (cfg.format !== undefined) _format = cfg.format === 1 ? "curseforge" : "modrinth"
+        var arr = cfg.options
+        var next = {}
+        for (var i = 0; i < arr.length; i++) next[arr[i]] = true
+        // 未在配置里的可见选项保持默认（避免全部变未勾选）
+        var opts = _ctx.options || []
+        for (var j = 0; j < opts.length; j++)
+            if (next[opts[j].id] === undefined) next[opts[j].id] = opts[j].defaultChecked
+        _checked = next
+        _extraFiles = cfg.extraFiles || []
+        if (root.toastManager) root.toastManager.show(qsTr("已读取导出配置"))
     }
 
     // 内容可滚动：分区高度有限，存档子项展开/矮窗口时避免裁切
@@ -186,8 +273,7 @@ Item {
         anchors.fill: parent
         clip: true
         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-        // 显式实例化滚动条（拿 id 供内容区留白）：overlay 模式浮在内容上会遮挡右侧，
-        // 内容宽度减滚动条宽度后，滚动条落在独立留白区，不遮内容
+        // 显式实例化滚动条（拿 id 供内容区留白）：overlay 模式浮在内容上会遮挡右侧
         ScrollBar.vertical: ScrollBar {
             id: exportVBar
             policy: ScrollBar.AsNeeded
@@ -195,11 +281,8 @@ Item {
         ColumnLayout {
             id: exportCol
             width: exportScroll.availableWidth - exportVBar.width
-            // 高度自适应：内容矮时不滚动（撑满），内容高时随 Flickable 滚动
             height: Math.max(exportScroll.availableHeight, exportCol.implicitHeight)
-            // 显式同步 Flickable contentHeight 到「实际布局高度」——不能绑 implicitHeight：
-            // ColumnLayout.implicitHeight 会漏掉显式 height 的子项（实测 218 vs 实际 374），
-            // 滚动范围偏小导致滚不到底部；childrenRect.height 是布局后的真实内容高度
+            // contentHeight 绑「实际布局高度」（childrenRect）——implicitHeight 会漏显式 height 子项
             Binding {
                 target: exportScroll.contentItem
                 property: "contentHeight"
@@ -215,7 +298,7 @@ Item {
             color: StyleTokens.textSecondary
         }
         Text {
-            text: qsTr("将当前版本打包为整合包：Modrinth (.mrpack) 或 CurseForge (.zip)。本地模组将自动联网匹配在线来源（Modrinth SHA1 + CurseForge 指纹），匹配成功以引用形式打包，否则原文件直装。全程后台执行，不阻塞其他操作。")
+            text: qsTr("将当前版本打包为整合包：Modrinth (.mrpack) 或 CurseForge (.zip)。模组将自动联网匹配在线来源（Modrinth SHA1 + CurseForge 指纹），匹配成功以引用形式打包，否则原文件直装。选项按版本实际情况显示；标记“默认不导出”的为个人数据，分享前请留意。全程后台执行，不阻塞其他操作。")
             font.pixelSize: StyleTokens.fontSizeSm
             color: StyleTokens.textTertiary
             wrapMode: Text.WordWrap
@@ -265,7 +348,6 @@ Item {
                     onValueSelected: function(v) {
                         var ext = v === "curseforge" ? ".zip" : ".mrpack"
                         if (root._savePath) {
-                            // 保留目录，只换后缀（用户已选过路径时不重置）
                             root._savePath = root._savePath.replace(/\.(mrpack|zip)$/i, "") + ext
                         }
                         root._format = v
@@ -276,7 +358,7 @@ Item {
 
         Item { height: 6; width: 1 }
 
-        // ── 导出内容 ──
+        // ── 导出内容（主流启动器 动态选项）──
         Text {
             text: qsTr("导出内容")
             font.pixelSize: StyleTokens.fontSizeXs
@@ -285,86 +367,55 @@ Item {
         }
         ColumnLayout {
             Layout.fillWidth: true
-            spacing: 8
+            spacing: 6
 
-            // 模组：必含（只读）——仅当版本可装 Mod（有 Forge/Fabric/NeoForge/Quilt）且 mods 目录非空时显示（原版隐藏）
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 38
-                visible: _ctx && _ctx.modable && _ctx.hasMods
-                radius: StyleTokens.radiusMd
-                color: StyleTokens.bgCard
-                border.color: StyleTokens.bgElevated
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.leftMargin: 14; anchors.rightMargin: 14
+            // 动态选项（C++ exportContext 按版本实际可见性过滤）
+            Repeater {
+                model: _ctx.options || []
+                delegate: RowLayout {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 30
                     spacing: 8
                     Text {
-                        text: qsTr("模组 (mods/)")
-                        color: StyleTokens.textPrimary
+                        text: modelData.title
+                        color: StyleTokens.textSecondary
                         font.pixelSize: StyleTokens.fontSizeSm
                         Layout.fillWidth: true
                     }
                     Text {
-                        text: qsTr("必含")
-                        color: StyleTokens.textMuted
-                        font.pixelSize: StyleTokens.fontSizeXs
-                        font.bold: true
-                    }
-                    Text {
-                        text: qsTr("· 已禁用的模组 (.disabled) 自动排除")
+                        text: modelData.description
                         color: StyleTokens.textTertiary
                         font.pixelSize: StyleTokens.fontSizeXs
+                        visible: modelData.description && modelData.description.length > 0
+                    }
+                    Text {
+                        text: qsTr("默认不导出")
+                        color: "#b8860b"
+                        font.pixelSize: StyleTokens.fontSizeXs
+                        visible: modelData.privacy === true
+                    }
+                    ShadowSwitch {
+                        checked: root._checked[modelData.id] !== undefined ? root._checked[modelData.id] : modelData.defaultChecked
+                        enabled: !root._busy
+                        onToggled: {
+                            root._checked[modelData.id] = checked
+                            // 取消勾选存档/资源包/光影时清空对应子项选择
+                            if (!checked && modelData.id === "saves") root._selectedSaves = []
+                            if (!checked && modelData.id === "resourcepacks") root._selectedRp = {}
+                            if (!checked && modelData.id === "shaderpacks") root._selectedShaders = {}
+                        }
                     }
                 }
             }
 
-            // config（目录不存在/为空时隐藏——原版没有 config 目录）
-            RowLayout {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 30
-                visible: _ctx && _ctx.hasConfig
-                Text {
-                    text: qsTr("配置文件 (config/)")
-                    color: StyleTokens.textSecondary
-                    font.pixelSize: StyleTokens.fontSizeSm
-                    Layout.fillWidth: true
-                }
-                ShadowSwitch {
-                    checked: root._includeConfig
-                    enabled: !root._busy
-                    onToggled: root._includeConfig = checked
-                }
-            }
-            // 存档（含子项展开）——saves 目录为空时隐藏
-            RowLayout {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 30
-                visible: _ctx && _ctx.hasSaves
-                Text {
-                    text: qsTr("存档 (saves/)")
-                    color: StyleTokens.textSecondary
-                    font.pixelSize: StyleTokens.fontSizeSm
-                    Layout.fillWidth: true
-                }
-                ShadowSwitch {
-                    checked: root._includeSaves
-                    enabled: !root._busy
-                    onToggled: {
-                        root._includeSaves = checked
-                        if (checked && root._saves.length === 0) root._loadSaves()
-                        if (!checked) root._selectedSaves = []
-                    }
-                }
-            }
-            // 存档子项（勾选展开）
+            // ── 存档子项（勾选 saves 时展开；同主流启动器 ReloadSubOptions，显示修改时间）──
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: savesList.count > 0 ? Math.min(savesList.count * 30 + 12, 132) : 0
+                Layout.preferredHeight: savesSub.count > 0 ? Math.min(savesSub.count * 28 + 12, 140) : 0
                 radius: StyleTokens.radiusMd
                 color: StyleTokens.bgCard
                 border.color: StyleTokens.bgElevated
-                visible: root._includeSaves && _ctx && _ctx.hasSaves
+                visible: root._checked["saves"] === true && (_ctx.hasSaves === true)
                 clip: true
                 ColumnLayout {
                     anchors.fill: parent
@@ -380,26 +431,31 @@ Item {
                         verticalAlignment: Text.AlignVCenter
                     }
                     Repeater {
-                        id: savesList
+                        id: savesSub
                         model: root._saves
                         delegate: RowLayout {
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 28
+                            Layout.preferredHeight: 26
                             spacing: 8
                             Text {
-                                text: modelData
+                                text: modelData.name
                                 color: StyleTokens.textSecondary
                                 font.pixelSize: StyleTokens.fontSizeSm
                                 elide: Text.ElideMiddle
                                 Layout.fillWidth: true
                             }
+                            Text {
+                                text: modelData.modified
+                                color: StyleTokens.textTertiary
+                                font.pixelSize: StyleTokens.fontSizeXs
+                            }
                             ShadowSwitch {
-                                checked: root._selectedSaves.indexOf(modelData) >= 0
+                                checked: root._selectedSaves.indexOf(modelData.name) >= 0
                                 enabled: !root._busy
                                 onToggled: {
                                     var arr = root._selectedSaves.slice()
-                                    var idx = arr.indexOf(modelData)
-                                    if (checked && idx < 0) arr.push(modelData)
+                                    var idx = arr.indexOf(modelData.name)
+                                    if (checked && idx < 0) arr.push(modelData.name)
                                     if (!checked && idx >= 0) arr.splice(idx, 1)
                                     root._selectedSaves = arr
                                 }
@@ -408,38 +464,78 @@ Item {
                     }
                 }
             }
-            // 资源包（目录不存在/为空时隐藏）
-            RowLayout {
+
+            // ── 资源包子项 ──
+            Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 30
-                visible: _ctx && _ctx.hasResourcepacks
-                Text {
-                    text: qsTr("资源包 (resourcepacks/)")
-                    color: StyleTokens.textSecondary
-                    font.pixelSize: StyleTokens.fontSizeSm
-                    Layout.fillWidth: true
-                }
-                ShadowSwitch {
-                    checked: root._includeResourcepacks
-                    enabled: !root._busy
-                    onToggled: root._includeResourcepacks = checked
+                Layout.preferredHeight: rpSub.count > 0 ? Math.min(rpSub.count * 26 + 12, 140) : 0
+                radius: StyleTokens.radiusMd
+                color: StyleTokens.bgCard
+                border.color: StyleTokens.bgElevated
+                visible: root._checked["resourcepacks"] === true && (_ctx.rpItems || []).length > 0
+                clip: true
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 6
+                    spacing: 2
+                    Repeater {
+                        id: rpSub
+                        model: _ctx.rpItems || []
+                        delegate: RowLayout {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 24
+                            spacing: 8
+                            Text {
+                                text: (modelData.type === "dir" ? "📁 " : "🗜 ") + modelData.name
+                                color: StyleTokens.textSecondary
+                                font.pixelSize: StyleTokens.fontSizeSm
+                                elide: Text.ElideMiddle
+                                Layout.fillWidth: true
+                            }
+                            ShadowSwitch {
+                                checked: root._selectedRp[modelData.name] !== false
+                                enabled: !root._busy
+                                onToggled: root._selectedRp[modelData.name] = checked
+                            }
+                        }
+                    }
                 }
             }
-            // 光影（无 Mod 加载器且无 OptiFine 时隐藏——原版不适用）
-            RowLayout {
+
+            // ── 光影子项 ──
+            Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 30
-                visible: _ctx && _ctx.hasShaderpacks && (_ctx.modable || _ctx.hasOptiFine)
-                Text {
-                    text: qsTr("光影 (shaderpacks/)")
-                    color: StyleTokens.textSecondary
-                    font.pixelSize: StyleTokens.fontSizeSm
-                    Layout.fillWidth: true
-                }
-                ShadowSwitch {
-                    checked: root._includeShaderpacks
-                    enabled: !root._busy
-                    onToggled: root._includeShaderpacks = checked
+                Layout.preferredHeight: shaderSub.count > 0 ? Math.min(shaderSub.count * 26 + 12, 140) : 0
+                radius: StyleTokens.radiusMd
+                color: StyleTokens.bgCard
+                border.color: StyleTokens.bgElevated
+                visible: root._checked["shaderpacks"] === true && (_ctx.shaderItems || []).length > 0
+                clip: true
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 6
+                    spacing: 2
+                    Repeater {
+                        id: shaderSub
+                        model: _ctx.shaderItems || []
+                        delegate: RowLayout {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 24
+                            spacing: 8
+                            Text {
+                                text: (modelData.type === "dir" ? "📁 " : "🗜 ") + modelData.name
+                                color: StyleTokens.textSecondary
+                                font.pixelSize: StyleTokens.fontSizeSm
+                                elide: Text.ElideMiddle
+                                Layout.fillWidth: true
+                            }
+                            ShadowSwitch {
+                                checked: root._selectedShaders[modelData.name] !== false
+                                enabled: !root._busy
+                                onToggled: root._selectedShaders[modelData.name] = checked
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -452,6 +548,27 @@ Item {
             font.pixelSize: StyleTokens.fontSizeXs
             color: "#9ca0b4"
             font.letterSpacing: 1.5
+        }
+        // 二次分发警告（勾选“仅打包包内资源”时提示，同主流启动器 CheckAdvancedInclude）
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 30
+            radius: StyleTokens.radiusMd
+            color: "#3a2e12"
+            border.color: "#6b5418"
+            visible: root._hostedAssetsOnly
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 12; anchors.rightMargin: 12
+                spacing: 8
+                Text {
+                    text: qsTr("⚠ 打包资源文件可能违反部分 Mod 的使用协议，请尽量不要公开分发包含资源文件的整合包！")
+                    color: "#d9b45a"
+                    font.pixelSize: StyleTokens.fontSizeXs
+                    wrapMode: Text.WordWrap
+                    Layout.fillWidth: true
+                }
+            }
         }
         RowLayout {
             Layout.fillWidth: true
@@ -488,7 +605,6 @@ Item {
                 enabled: !root._busy
                 onToggled: {
                     root._hostedAssetsOnly = checked
-                    // 与 主流启动器 一致：勾选后禁止 Modrinth 上传模式
                     if (checked) root._modrinthOnly = false
                 }
             }
@@ -502,14 +618,47 @@ Item {
                 font.pixelSize: StyleTokens.fontSizeSm
                 Layout.fillWidth: true
             }
+            Text {
+                text: qsTr("未找到可打包的 Java 运行时")
+                color: "#b8860b"
+                font.pixelSize: StyleTokens.fontSizeXs
+                visible: _ctx && _ctx.javaAvailable === false
+            }
             ShadowSwitch {
                 checked: root._includeJava
-                enabled: !root._busy
+                enabled: !root._busy && _ctx && _ctx.javaAvailable !== false
                 onToggled: root._includeJava = checked
             }
         }
 
         Item { height: 6; width: 1 }
+
+        // ── 导出配置（主流启动器 高级：保存/读取）──
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 10
+            ShadowButton {
+                text: qsTr("保存配置")
+                btnWidth: 120
+                outlined: true
+                enabled: !root._busy
+                onClicked: root._saveConfig()
+            }
+            ShadowButton {
+                text: qsTr("读取配置")
+                btnWidth: 120
+                outlined: true
+                enabled: !root._busy
+                onClicked: configOpenDialog.open()
+            }
+            Text {
+                text: qsTr("配置文件可手工编辑规则段（! 反转、* ? [] 通配、\\ 结尾=目录）")
+                color: StyleTokens.textTertiary
+                font.pixelSize: StyleTokens.fontSizeXs
+                wrapMode: Text.WordWrap
+                Layout.fillWidth: true
+            }
+        }
 
         Item { height: 6; width: 1 }
 
@@ -521,7 +670,6 @@ Item {
             ShadowButton {
                 text: root._busy ? qsTr("取消导出") : qsTr("导出")
                 btnWidth: 140
-                z: 10
                 onClicked: {
                     console.info("[export] btn clicked, busy=" + root._busy)
                     if (root._busy) {
@@ -580,8 +728,7 @@ Item {
             ? [qsTr("CurseForge 整合包 (*.zip)"), qsTr("所有文件 (*.*)")]
             : [qsTr("Modrinth 整合包 (*.mrpack)"), qsTr("所有文件 (*.*)")]
         onAccepted: {
-            // 显式 id 访问（信号处理器作用域歧义防护）+ 防御式路径转换：
-            // selectedFile 在不同 Qt 版本/对话框实现下可能是 QUrl 或带 file:/// 前缀的字符串
+            // 防御式路径转换（selectedFile 可能是 QUrl 或带 file:/// 前缀的字符串）
             var sel = exportFileDialog.selectedFile
             var p = ""
             if (typeof sel === "string") {
@@ -594,5 +741,41 @@ Item {
             root._doExport(p)
         }
         onRejected: { /* 用户取消选择：不导出 */ }
+    }
+
+    // ── 配置保存 / 读取 ──
+    FileDialog {
+        id: configSaveDialog
+        fileMode: FileDialog.SaveFile
+        title: qsTr("保存导出配置")
+        nameFilters: [qsTr("导出配置 (*.txt)"), qsTr("所有文件 (*.*)")]
+        defaultSuffix: "txt"
+        onAccepted: {
+            var sel = configSaveDialog.selectedFile
+            var p = ""
+            if (typeof sel === "string") {
+                p = sel
+            } else if (sel && typeof sel.toString === "function") {
+                p = sel.toString()
+            }
+            p = String(p).replace(/^(file:\/{2,3})/i, "")
+            root._writeConfig(p)
+        }
+    }
+    FileDialog {
+        id: configOpenDialog
+        title: qsTr("读取导出配置")
+        nameFilters: [qsTr("导出配置 (*.txt)"), qsTr("所有文件 (*.*)")]
+        onAccepted: {
+            var sel = configOpenDialog.selectedFile
+            var p = ""
+            if (typeof sel === "string") {
+                p = sel
+            } else if (sel && typeof sel.toString === "function") {
+                p = sel.toString()
+            }
+            p = String(p).replace(/^(file:\/{2,3})/i, "")
+            root._loadConfig(p)
+        }
     }
 }

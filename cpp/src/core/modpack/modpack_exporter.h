@@ -41,26 +41,51 @@ public:
     qreal progress() const { return m_progress; }
     QString statusText() const { return m_statusText; }
 
-    /// 列出版本下所有存档名（saves/ 子目录），供导出内容列表勾选（同步快操作）
-    Q_INVOKABLE QStringList listSaves(const QString& versionId) const;
+    /// 导出选项定义（同主流启动器 ExportOption：规则驱动，!反选，\结尾=目录）
+    struct ExportOptionDef {
+        QString id;
+        QString title;
+        QString description;
+        QStringList rules;          // 导出规则（空=选项恒不导出内容，仅作分组）
+        bool defaultChecked = true;
+        bool requireModLoader = false;          // 需 Mod 加载器（Forge/Fabric/NeoForge/Quilt）
+        bool requireOptiFine = false;           // 需 OptiFine
+        bool requireModLoaderOrOptiFine = false;// 两者其一
+        QStringList showRules;      // 可见性规则（为空=恒可见；匹配版本目录内容才显示，主流启动器 ShowRules）
+    };
+    /// 全部选项定义（静态表）
+    static const QList<ExportOptionDef>& optionDefs();
 
-    /// 导出上下文：按版本实际情况返回可导出内容（供导出界面动态显示/隐藏选项，同主流启动器 ShowRules）：
+    /// 列出版本下所有存档名（saves/ 子目录）及修改时间，供导出内容列表勾选
+    Q_INVOKABLE QVariantList listSaves(const QString& versionId) const;
+
+    /// 导出上下文：按版本实际情况返回可导出内容（供导出界面动态渲染，同主流启动器 ShowRules）
     ///   versionExists/modable/hasOptiFine/hasMods/hasConfig/hasShaderpacks/
-    ///   hasResourcepacks/hasSaves/hasScreenshots/hasServersDat
+    ///   hasResourcepacks/hasSaves/hasScreenshots/hasServersDat/javaAvailable
+    ///   options: [{id,title,description,visible,defaultChecked}]（按实际可见性过滤）
+    ///   rpItems/shaderItems: 资源包/光影目录下 zip/rar/文件夹子项
     Q_INVOKABLE QVariantMap exportContext(const QString& versionId) const;
 
-    /// 导出已安装版本为整合包（完全对齐主流启动器实现 PageInstanceExport）。
+    /// 保存/读取导出配置（主流启动器 export_config.txt 语义：ini 段 + 规则段 + 追加内容段）
+    /// 配置字段：name/version/includeJava/hostedAssetsOnly/modrinthUploadMode/
+    ///           format/options(勾选 id 列表)/extraFiles(追加内容绝对路径)/packPath
+    Q_INVOKABLE bool saveExportConfig(const QString& path, const QVariantMap& cfg) const;
+    Q_INVOKABLE QVariantMap loadExportConfig(const QString& path) const;
+
+    /// 导出已安装版本为整合包（完全对齐主流启动器实现 PageInstanceExport，规则驱动）。
     ///   format: 0=Modrinth(.mrpack) 1=CurseForge(.zip)
+    ///   checkedOptions: 勾选的选项 id 列表（未列出的按默认值）
     ///   selectedSaves: 勾选的存档名列表
     ///   modrinthUploadMode: 仅查 Modrinth（跳过 CurseForge）
     ///   hostedAssetsOnly: 仅打包包内资源（跳过全部联网查询，主流启动器 CheckAdvancedInclude）
     ///   includeJava: 打包便携 Java 运行时（java_cache 中匹配的 JRE）
+    ///   extraFiles: 追加内容绝对路径列表（\结尾=文件夹，复制到包根）
     Q_INVOKABLE void exportVersion(const QString& versionId, const QString& displayName,
-                                   const QString& packVersion, bool includeConfig,
+                                   const QString& packVersion, const QVariantList& checkedOptions,
                                    const QVariantList& selectedSaves,
-                                   bool includeResourcepacks, bool includeShaderpacks,
                                    bool modrinthUploadMode, bool hostedAssetsOnly,
-                                   bool includeJava, int format, const QString& outPath);
+                                   bool includeJava, int format, const QString& outPath,
+                                   const QVariantList& extraFiles = {});
     Q_INVOKABLE void cancel();
     /// 联网查询失败后用户选择：true=继续导出（未查到文件直装）false=取消
     Q_INVOKABLE void continueAfterLookupFailure(bool cont);

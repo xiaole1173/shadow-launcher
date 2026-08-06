@@ -20,6 +20,9 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QJsonParseError>
+#include <QSet>
+#include <QVariantMap>
 #include <QNetworkAccessManager>
 #include <QNetworkRequest>
 #include <QNetworkReply>
@@ -91,18 +94,153 @@ void ModpackExporter::continueAfterLookupFailure(bool cont)
     m_lookupContinue.storeRelaxed(cont ? 1 : 0);
 }
 
-QStringList ModpackExporter::listSaves(const QString& versionId) const
+QVariantList ModpackExporter::listSaves(const QString& versionId) const
 {
     Q_UNUSED(versionId)
-    QStringList out;
+    QVariantList out;
     const QDir savesDir(m_gameDir + QStringLiteral("/saves"));
     if (savesDir.exists()) {
-        const auto entries = savesDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
-        for (const auto& e : entries)
-            out.append(e);
+        const auto infos = savesDir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+        for (const auto& fi : infos) {
+            QVariantMap m;
+            m.insert(QStringLiteral("name"), fi.fileName());
+            m.insert(QStringLiteral("modified"),
+                     fi.lastModified().toString(QStringLiteral("yyyy/MM/dd HH:mm")));
+            out.append(m);
+        }
     }
     return out;
 }
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 导出选项表（完全对齐主流启动器实现 PageInstanceExport.xaml 的 ExportOption 集合）
+// 隐私敏感项（个人信息/地图/JEI/EMI/帕秋莉/服务器列表）默认不勾选
+// ═════════════════════════════════════════════════════════════════════════════
+
+const QList<ModpackExporter::ExportOptionDef>& ModpackExporter::optionDefs()
+{
+    static const QList<ExportOptionDef> defs = {
+        {"options", "游戏本体设置", "按键、音量、视频设置等",
+         {"options.txt", "configureddefaults/"}, true, false, false, false, {}},
+        {"personal", "游戏本体个人信息", "命令历史、已保存的快捷栏（默认不导出）",
+         {"hotbar.nbt", "command_history.txt"}, false, false, false, false, {}},
+        {"optifine", "OptiFine 设置", "",
+         {"optionsof.txt", "optionsshaders.txt"}, true, false, true, false, {}},
+        {"mod", "模组 (mods/)", "模组本体，含 coremods/lib（原版隐藏）",
+         {"mods/", "coremods/", "lib/", "!mods/*.disabled", "!mods/*.old", "!mods/.connector/"},
+         true, true, false, false, {"mods/", "coremods/", "lib/"}},
+        {"mod-disabled", "已禁用的 Mod", "打包 .disabled/.old 文件（默认排除）",
+         {"mods/*.disabled", "mods/*.old"}, false, true, false, false, {}},
+        {"packdata", "整合包重要数据", "脚本、内置资源包、数据包等",
+         {"hotai/", "bansoukou/", "addons/", "multiblocked/", "modpack-update-checker/",
+          "global_packs/", "global_resource_packs/", "global_data_packs/", "optional_data_packs/",
+          "moonlight-global-datapacks/", "maps/", "icon.png", "mods-resourcepacks/", "matmos/",
+          "resource_assorts/", "resource_assorts.json", "patchouli_books/", "datapacks/",
+          "kubejs*/", "!kubejs*/probe/", "!kubejs*/exported/", "!kubejs*/jsconfig.json", "!kubejs*/README.txt",
+          "openloader/", "worldshape/", "resources/", "scripts/", "structures/", "fontfiles/",
+          "oresources/", "packmenu/", "craftpresence/", "pointblanks/", "template*/",
+          "!template*/playerdata/", "!template*/stats/"},
+         true, true, false, false, {}},
+        {"config", "Mod 设置 (config/)", "模组配置文件（排除账号/隐私文件）",
+         {"config/", "!config/jei/world/", "!config/worldedit/", "config/worldedit/worldedit.properties",
+          "!config/spark/", "config/spark/config.json", "defaultconfigs/", "journeymap/config/",
+          "journeymap/server/", "TrashSlotSaveState.json", "customfov.txt", "gg.essential.mod/",
+          "!essential/", "!essential/*/", "!essential/*.jar*", "!essential/screenshot-checksum-caches.json",
+          "!essential/microsoft_accounts.json", "paragliderSettings.nbt", "local/client_config.json",
+          "local/ftbl.json", "local/client/sidebar_buttons.json", "local/client/ftbutilities.cfg",
+          "local/client/ftblib.cfg", "local/client/xencraft.cfg", "liteloader.properties",
+          "default_reference.xml", "CustomSkinLoader/CustomSkinLoader.json"},
+         true, true, false, false, {"config/", "defaultconfigs/"}},
+        {"tacz", "TaCZ 枪包", "",
+         {"tacz/", "config/tacz/custom/"}, true, true, false, false, {}},
+        {"mapdata", "已绘制的地图", "地图类 Mod 的世界/服务器地图、路标点（默认不导出）",
+         {"journeymap/data/", "xaero/", "XaeroWaypoints/", "XaeroWorldMap/"}, false, true, false, false, {}},
+        {"jei", "JEI 个人信息", "物品收藏夹等（默认不导出）",
+         {"config/jei/world/"}, false, true, false, false, {}},
+        {"emi", "EMI 个人信息", "物品收藏夹、默认配方、合成历史（默认不导出）",
+         {"emi.json"}, false, true, false, false, {}},
+        {"patchouli", "帕秋莉手册个人信息", "教程书已读记录、书签（默认不导出）",
+         {"patchouli_data.json"}, false, true, false, false, {}},
+        {"resourcepacks", "资源包 (resourcepacks/)", "纹理包、材质包",
+         {"resourcepacks/", "texturepacks/"}, true, false, false, false, {"resourcepacks/", "texturepacks/"}},
+        {"shaderpacks", "光影包 (shaderpacks/)", "需 Mod 或 OptiFine（原版隐藏）",
+         {"shaderpacks/"}, true, false, false, true, {"shaderpacks/"}},
+        {"screenshots", "截图", "screenshots/ 目录（默认不导出）",
+         {"screenshots/"}, false, false, false, false, {}},
+        {"schematics", "导出的结构", "schematics 文件（默认不导出）",
+         {"schematics/"}, false, false, false, false, {}},
+        {"replay", "录像回放", "Replay Mod 的录像文件（默认不导出）",
+         {"replay_recordings/", "replay_videos/"}, false, true, false, false, {}},
+        {"saves", "单机游戏存档", "世界/地图（按存档子项勾选）",
+         {"saves/"}, false, false, false, false, {"saves/"}},
+        {"license", "协议", "Licence 文件",
+         {"LICEN*"}, true, false, false, false, {}},
+        {"servers", "多人游戏服务器列表", "servers.dat（默认不导出）",
+         {"servers.dat"}, false, false, false, false, {}},
+    };
+    return defs;
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 主流启动器 Like 通配匹配（* ? [] 字符集；大小写不敏感；目录规则以 \ 结尾=前缀匹配）
+// ═════════════════════════════════════════════════════════════════════════════
+
+static bool likeMatchImpl(const QString& p, int pi, const QString& t, int ti)
+{
+    while (pi < p.size()) {
+        const QChar pc = p.at(pi);
+        if (pc == QLatin1Char('*')) {
+            // 连续 * 合并
+            while (pi + 1 < p.size() && p.at(pi + 1) == QLatin1Char('*')) ++pi;
+            if (pi + 1 == p.size()) return true;    // 尾部 * 匹配一切
+            for (int k = ti; k <= t.size(); ++k)
+                if (likeMatchImpl(p, pi + 1, t, k)) return true;
+            return false;
+        }
+        if (ti >= t.size()) return false;
+        const QChar tc = t.at(ti);
+        if (pc == QLatin1Char('?')) {
+            ++pi; ++ti;
+            continue;
+        }
+        if (pc == QLatin1Char('[')) {
+            // 字符集 [abc] / [a-z]，支持 ^ 取反
+            int j = pi + 1;
+            bool negate = false;
+            if (j < p.size() && p.at(j) == QLatin1Char('^')) { negate = true; ++j; }
+            bool matched = false;
+            while (j < p.size() && p.at(j) != QLatin1Char(']')) {
+                if (j + 2 < p.size() && p.at(j + 1) == QLatin1Char('-') && p.at(j + 2) != QLatin1Char(']')) {
+                    if (tc >= p.at(j) && tc <= p.at(j + 2)) matched = true;
+                    j += 3;
+                } else {
+                    if (tc == p.at(j)) matched = true;
+                    ++j;
+                }
+            }
+            if (j >= p.size()) return false;    // 未闭合的 [ 不匹配
+            if (matched == negate) return false;
+            pi = j + 1; ++ti;
+            continue;
+        }
+        if (pc.toLower() != tc.toLower()) return false;
+        ++pi; ++ti;
+    }
+    return ti >= t.size();
+}
+
+/// 规则匹配：支持 \ 或 / 结尾的目录前缀规则（主流启动器 StandardizeLines 加 * 语义）与 ! 反转（由调用方处理）
+static bool likeMatch(const QString& rawPattern, const QString& text)
+{
+    QString pat = rawPattern;
+    if (pat.endsWith(QLatin1Char('\\')) || pat.endsWith(QLatin1Char('/')))
+        pat += QLatin1Char('*');
+    return likeMatchImpl(pat, 0, text, 0);
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 导出上下文（动态渲染选项，同主流启动器 ShowRules）
+// ═════════════════════════════════════════════════════════════════════════════
 
 QVariantMap ModpackExporter::exportContext(const QString& versionId) const
 {
@@ -148,6 +286,84 @@ QVariantMap ModpackExporter::exportContext(const QString& versionId) const
     ctx.insert(QStringLiteral("hasSaves"), hasContent(m_gameDir + QStringLiteral("/saves")));
     ctx.insert(QStringLiteral("hasScreenshots"), hasContent(m_gameDir + QStringLiteral("/screenshots")));
     ctx.insert(QStringLiteral("hasServersDat"), QFileInfo::exists(m_gameDir + QStringLiteral("/servers.dat")));
+
+    // Java 可用性（java_cache 有任一 JRE）——同主流启动器 RefreshJavaInfo：无 Java 时隐藏/禁用
+    const QDir javaRoot(QCoreApplication::applicationDirPath() + QStringLiteral("/java_cache"));
+    ctx.insert(QStringLiteral("javaAvailable"),
+               javaRoot.exists() && !javaRoot.entryList(QDir::Dirs | QDir::NoDotAndDotDot).isEmpty());
+
+    // 版本目录顶层文件/文件夹清单（两级，供 ShowRules 判定）
+    QStringList topEntries;    // 一级条目（文件名 或 目录名+\）
+    {
+        const QDir root(m_gameDir);
+        if (root.exists()) {
+            const auto files = root.entryInfoList(QDir::Files, QDir::Name);
+            for (const auto& fi : files) topEntries.append(fi.fileName());
+            const auto dirs = root.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+            for (const auto& di : dirs) topEntries.append(di.fileName() + QStringLiteral("/"));
+        }
+    }
+
+    // 选项可见性（同主流启动器 RefreshAllOptionsUI）
+    QVariantList optList;
+    const QStringList checked = {};   // 默认值在 QML 侧维护，这里只给 visible/defaultChecked
+    Q_UNUSED(checked)
+    const auto& defs = optionDefs();
+    for (const auto& d : defs) {
+        bool visible = true;
+        if (d.requireModLoader && !modable) visible = false;
+        if (d.requireOptiFine && !hasOptiFine) visible = false;
+        if (d.requireModLoaderOrOptiFine && !modable && !hasOptiFine) visible = false;
+        if (visible && !d.showRules.isEmpty()) {
+            visible = false;
+            for (const auto& r : d.showRules) {
+                QString rr = r;
+                if (rr.endsWith(QLatin1Char('/'))) rr += QLatin1Char('*');
+                for (const auto& e : topEntries) {
+                    if (likeMatch(rr, e)) { visible = true; break; }
+                }
+                if (visible) break;
+            }
+        }
+        if (!visible) continue;
+        QVariantMap om;
+        om.insert(QStringLiteral("id"), d.id);
+        om.insert(QStringLiteral("title"), d.title);
+        om.insert(QStringLiteral("description"), d.description);
+        om.insert(QStringLiteral("defaultChecked"), d.defaultChecked);
+        om.insert(QStringLiteral("privacy"), !d.defaultChecked);
+        optList.append(om);
+    }
+    ctx.insert(QStringLiteral("options"), optList);
+
+    // 资源包/光影子项（zip/rar/文件夹，同主流启动器 ReloadSubOptions）
+    auto subItems = [](const QString& dir) {
+        QVariantList out;
+        const QDir d(dir);
+        if (!d.exists()) return out;
+        const auto files = d.entryInfoList(QStringList() << QStringLiteral("*.zip") << QStringLiteral("*.rar"),
+                                           QDir::Files, QDir::Name);
+        for (const auto& fi : files) {
+            QVariantMap m;
+            m.insert(QStringLiteral("name"), fi.fileName());
+            m.insert(QStringLiteral("type"), QStringLiteral("file"));
+            out.append(m);
+        }
+        const auto dirs = d.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+        for (const auto& di : dirs) {
+            if (di.fileName().startsWith(QLatin1Char('.'))) continue;
+            // 空目录不列（同主流启动器 IsValidDirectory）
+            QDirIterator it(di.absoluteFilePath(), QDir::NoDotAndDotDot | QDir::AllEntries);
+            if (!it.hasNext()) continue;
+            QVariantMap m;
+            m.insert(QStringLiteral("name"), di.fileName());
+            m.insert(QStringLiteral("type"), QStringLiteral("dir"));
+            out.append(m);
+        }
+        return out;
+    };
+    ctx.insert(QStringLiteral("rpItems"), subItems(m_gameDir + QStringLiteral("/resourcepacks")));
+    ctx.insert(QStringLiteral("shaderItems"), subItems(m_gameDir + QStringLiteral("/shaderpacks")));
     return ctx;
 }
 
@@ -238,12 +454,11 @@ static QByteArray postJson(const QUrl& url, const QByteArray& body,
 // ═════════════════════════════════════════════════════════════════════════════
 
 void ModpackExporter::exportVersion(const QString& versionId, const QString& displayName,
-                                    const QString& packVersion, bool includeConfig,
+                                    const QString& packVersion, const QVariantList& checkedOptions,
                                     const QVariantList& selectedSaves,
-                                    bool includeResourcepacks, bool includeShaderpacks,
                                     bool modrinthUploadMode, bool hostedAssetsOnly,
                                     bool includeJava, int format,
-                                    const QString& outPath)
+                                    const QString& outPath, const QVariantList& extraFiles)
 {
     if (m_busy) return;
     if (versionId.isEmpty() || outPath.isEmpty()) {
@@ -264,9 +479,8 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
 
     QtConcurrent::run([this, gameDir, cfKey, cfFormat,
                        versionId, displayName, packVersion,
-                       includeConfig, selectedSaves,
-                       includeResourcepacks, includeShaderpacks,
-                       modrinthUploadMode, hostedAssetsOnly, includeJava, outPath]() {
+                       checkedOptions, selectedSaves,
+                       modrinthUploadMode, hostedAssetsOnly, includeJava, outPath, extraFiles]() {
         auto finish = [this, outPath](bool ok, const QString& err) {
             qCInfo(logMod) << QStringLiteral("[整合包] 导出结束 %1 %2 %3")
                                   .arg(ok ? QStringLiteral("成功") : QStringLiteral("失败"), outPath, err);
@@ -314,7 +528,54 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
             return;
         }
 
-        // ── 2. 收集 mods（排除 .disabled）──
+        // ── 2. 勾选选项 → 规则列表（同主流启动器 GetAllRules：勾选选项 rules + 全局排除）──
+        QSet<QString> checked;
+        for (const auto& v : checkedOptions) checked.insert(v.toString());
+        QStringList rules;
+        {
+            const auto& defs = optionDefs();
+            for (const auto& d : defs)
+                if (checked.contains(d.id))
+                    for (const auto& r : d.rules) rules.append(r);
+            // 存档子项：勾选 saves 时用精确子项规则替换整目录规则
+            if (checked.contains(QStringLiteral("saves"))) {
+                rules.removeAll(QStringLiteral("saves/"));
+                QStringList wantSaves;
+                for (const auto& v : selectedSaves) wantSaves.append(v.toString());
+                for (const auto& s : wantSaves)
+                    rules.append(QStringLiteral("saves/") + s + QStringLiteral("/"));
+            }
+            // 全局排除（同主流启动器：日志/临时/启动器配置文件不进包）
+            rules << QStringLiteral("!*.log") << QStringLiteral("!*.dat_old")
+                  << QStringLiteral("!*.BakaCoreInfo") << QStringLiteral("!hmclversion.cfg")
+                  << QStringLiteral("!log4j2.xml");
+            // 资源包/光影子项（QML 传 id:name 文件 / id:dir:name 文件夹）：
+            // 有勾选子项时用精确规则替换整目录规则（同主流启动器 ReloadSubOptions）
+            auto applySubItemRules = [&](const QString& optId, const QStringList& dirRules) {
+                QStringList subs;
+                const QString prefix = optId + QLatin1Char(':');
+                for (const auto& v : checkedOptions) {
+                    const QString s = v.toString();
+                    if (!s.startsWith(prefix)) continue;
+                    QString rest = s.mid(prefix.size());
+                    if (rest.startsWith(QStringLiteral("dir:")))
+                        subs.append(optId + QStringLiteral("/") + rest.mid(4) + QStringLiteral("/*"));
+                    else
+                        subs.append(optId + QStringLiteral("/") + rest);
+                }
+                if (subs.isEmpty()) return;
+                for (const auto& r : dirRules) rules.removeAll(r);
+                for (const auto& s : subs) rules.append(s);
+            };
+            applySubItemRules(QStringLiteral("resourcepacks"),
+                              {QStringLiteral("resourcepacks/"), QStringLiteral("texturepacks/")});
+            applySubItemRules(QStringLiteral("shaderpacks"),
+                              {QStringLiteral("shaderpacks/")});
+        }
+        const bool includeMods = checked.contains(QStringLiteral("mod"));
+        const bool includeDisabled = checked.contains(QStringLiteral("mod-disabled"));
+
+        // ── 3. 收集 mods（走哈希/在线查询；排除 .disabled/.old/.connector，除非勾选“已禁用的 Mod”）──
         struct ModFile {
             QString diskPath;
             QString relPath;
@@ -328,70 +589,88 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
             bool hosted = false;      // 找到至少一个在线来源
         };
         QList<ModFile> mods;
-        QDir modsDir(gameDir + QStringLiteral("/mods"));
-        if (modsDir.exists()) {
-            QDirIterator it(modsDir.absolutePath(), QStringList() << QStringLiteral("*.jar"),
-                            QDir::Files, QDirIterator::Subdirectories);
-            while (it.hasNext()) {
-                const QString p = it.next();
-                if (p.endsWith(QStringLiteral(".disabled"), Qt::CaseInsensitive)) continue;
-                ModFile mf;
-                mf.diskPath = p;
-                mf.relPath = modsDir.relativeFilePath(p);
-                mf.size = QFileInfo(p).size();
-                mods.append(mf);
+        if (includeMods) {
+            QDir modsDir(gameDir + QStringLiteral("/mods"));
+            if (modsDir.exists()) {
+                QDirIterator it(modsDir.absolutePath(), QStringList() << QStringLiteral("*.jar"),
+                                QDir::Files, QDirIterator::Subdirectories);
+                while (it.hasNext()) {
+                    const QString p = it.next();
+                    const QString lower = p.toLower();
+                    if (!includeDisabled && (lower.endsWith(QStringLiteral(".disabled"))
+                                              || lower.endsWith(QStringLiteral(".old"))))
+                        continue;
+                    if (p.contains(QStringLiteral("/.connector/"), Qt::CaseInsensitive)) continue;
+                    ModFile mf;
+                    mf.diskPath = p;
+                    mf.relPath = modsDir.relativeFilePath(p);
+                    mf.size = QFileInfo(p).size();
+                    mods.append(mf);
+                }
             }
         }
 
-        // ── 3. overrides 文件清单（saves 按勾选子项；跳过垃圾目录，同主流启动器）──
+        // ── 4. overrides 文件清单（规则驱动，同主流启动器 SearchFolder：
+        //     遍历版本目录，Like 匹配规则；! 反选；跳过 assets/versions/libraries 与垃圾目录）──
         struct OvFile { QString diskPath; QString relPath; };
         QList<OvFile> ovFiles;
-        // 主流启动器 黑名单：structureCacheV1/.fabric/.git/avatar-cache/cosmetic-cache
+        // 主流启动器 黑名单：structureCacheV1/.fabric/.git/avatar-cache/cosmetic-cache；顶层跳过版本公共目录
         static const QStringList kSkipDirs = {
             QStringLiteral("structureCacheV1"), QStringLiteral(".fabric"), QStringLiteral(".git"),
-            QStringLiteral("avatar-cache"), QStringLiteral("cosmetic-cache")};
-        std::function<void(const QString&, const QString&)> addDirRec;
-        addDirRec = [&](const QString& absDir, const QString& relPrefix) {
+            QStringLiteral("avatar-cache"), QStringLiteral("cosmetic-cache"),
+            QStringLiteral("assets"), QStringLiteral("versions"), QStringLiteral("libraries")};
+        auto shouldKeep = [&](const QString& rel) {
+            bool keep = false;
+            for (const auto& r : rules) {
+                const bool neg = r.startsWith(QLatin1Char('!'));
+                const QString pat = neg ? r.mid(1) : r;
+                if (likeMatch(pat, rel)) keep = !neg;
+            }
+            return keep;
+        };
+        std::function<void(const QString&, const QString&)> scanDir;
+        scanDir = [&](const QString& absDir, const QString& relPrefix) {
             QDir d(absDir);
             const auto subDirs = d.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
             for (const auto& sd : subDirs) {
                 if (kSkipDirs.contains(sd)) continue;   // 跳过垃圾目录
-                addDirRec(d.filePath(sd), relPrefix.isEmpty() ? sd : relPrefix + QStringLiteral("/") + sd);
+                scanDir(d.filePath(sd), relPrefix.isEmpty() ? sd : relPrefix + QStringLiteral("/") + sd);
             }
             const auto files = d.entryList(QDir::Files, QDir::Name);
             for (const auto& fn : files) {
                 const QString rel = relPrefix.isEmpty() ? fn : relPrefix + QStringLiteral("/") + fn;
+                // mods/ 下的 .jar 走 mods 哈希流程，避免与 overrides 重复打包
+                if (rel.startsWith(QStringLiteral("mods/"))
+                    && rel.endsWith(QStringLiteral(".jar"), Qt::CaseInsensitive))
+                    continue;
+                if (!shouldKeep(rel)) continue;
                 ovFiles.append({d.filePath(fn), rel});
             }
         };
-        auto addDir = [&](const QString& sub) {
-            const QString d = gameDir + QStringLiteral("/") + sub;
-            if (!QDir(d).exists()) return;
-            addDirRec(d, sub);
-        };
-        auto addFile = [&](const QString& name) {
-            const QString p = gameDir + QStringLiteral("/") + name;
-            if (QFileInfo::exists(p)) ovFiles.append({p, name});
-        };
-        if (includeConfig) addDir(QStringLiteral("config"));
-        addFile(QStringLiteral("options.txt"));
-        addFile(QStringLiteral("servers.dat"));
-        if (includeResourcepacks) addDir(QStringLiteral("resourcepacks"));
-        if (includeShaderpacks)   addDir(QStringLiteral("shaderpacks"));
-        {
-            // 勾选的存档（主流启动器 按存档子项）
-            QStringList wantSaves;
-            for (const auto& v : selectedSaves)
-                wantSaves.append(v.toString());
-            if (!wantSaves.isEmpty()) {
-                const QString savesRoot = gameDir + QStringLiteral("/saves");
-                for (const auto& s : wantSaves) {
-                    const QString d = savesRoot + QStringLiteral("/") + s;
-                    if (!QDir(d).exists()) continue;
-                    addDirRec(d, QStringLiteral("saves/") + s);
-                }
+        scanDir(gameDir, QString());
+
+        // 追加内容（主流启动器 GetExtraFileLines：文件夹→包根/名，文件→包根）
+        for (const auto& ef : extraFiles) {
+            const QString p = ef.toString();
+            if (p.isEmpty()) continue;
+            const QFileInfo fi(p);
+            if (fi.isDir()) {
+                std::function<void(const QString&, const QString&)> addDirRec;
+                addDirRec = [&](const QString& absDir, const QString& relPrefix) {
+                    QDir d(absDir);
+                    const auto subDirs = d.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+                    for (const auto& sd : subDirs)
+                        addDirRec(d.filePath(sd), relPrefix + QStringLiteral("/") + sd);
+                    const auto files = d.entryList(QDir::Files, QDir::Name);
+                    for (const auto& fn : files)
+                        ovFiles.append({d.filePath(fn), relPrefix + QStringLiteral("/") + fn});
+                };
+                addDirRec(p, fi.fileName());
+            } else if (fi.isFile()) {
+                ovFiles.append({p, fi.fileName()});
             }
         }
+        setProgress(0.06, tr("收集导出内容完成（%1 个覆写文件）").arg(ovFiles.size()));
 
         // ── 3b. IncludeJava：打包便携 Java 运行时（java_cache 中匹配 major 的 JRE，同主流启动器）──
         if (includeJava) {
@@ -415,7 +694,18 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
                 if (javaDir.isEmpty() && !majors.isEmpty())
                     javaDir = majors.first();   // 无精确匹配取第一个可用
                 if (!javaDir.isEmpty()) {
-                    addDirRec(javaRoot.filePath(javaDir), QStringLiteral("java/") + javaDir);
+                    // 复制 java_cache/{dir} → overrides/java/{dir}（局部递归，避免与扫描互扰）
+                    std::function<void(const QString&, const QString&)> addJavaRec;
+                    addJavaRec = [&](const QString& absDir, const QString& relPrefix) {
+                        QDir d(absDir);
+                        const auto subDirs = d.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+                        for (const auto& sd : subDirs)
+                            addJavaRec(d.filePath(sd), relPrefix + QStringLiteral("/") + sd);
+                        const auto files = d.entryList(QDir::Files, QDir::Name);
+                        for (const auto& fn : files)
+                            ovFiles.append({d.filePath(fn), relPrefix + QStringLiteral("/") + fn});
+                    };
+                    addJavaRec(javaRoot.filePath(javaDir), QStringLiteral("java/") + javaDir);
                     qCInfo(logMod) << QStringLiteral("[导出] 打包 Java %1 → overrides/java/%1").arg(javaDir);
                 }
             }
@@ -433,7 +723,7 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
             m.sha1 = QCryptographicHash::hash(data, QCryptographicHash::Sha1);
             m.sha512 = QCryptographicHash::hash(data, QCryptographicHash::Sha512);
             m.cfHash = cfMurmurHash2(data);
-            setProgress(0.05 + 0.15 * (i + 1) / qMax(1, modTotal),
+            setProgress(0.06 + 0.14 * (i + 1) / qMax(1, modTotal),
                         tr("计算模组哈希 %1/%2").arg(i + 1).arg(modTotal));
         }
 
@@ -441,7 +731,7 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
         int modrinthHits = 0, cfHits = 0;
         if (!mods.isEmpty() && !hostedAssetsOnly) {
             // 5a. Modrinth：批量 sha1 查询（分块 500/批，大整合包防 API 上限）
-            setProgress(0.22, tr("查询 Modrinth 在线来源..."));
+            setProgress(0.2, tr("查询 Modrinth 在线来源..."));
             bool modrinthFailed = false;
             constexpr int kMrBatch = 500;
             for (int b = 0; b < mods.size() && !modrinthFailed; b += kMrBatch) {
@@ -483,7 +773,7 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
                     return;
                 }
             }
-            setProgress(0.5, tr("Modrinth 查询完成（命中 %1）").arg(modrinthHits));
+            setProgress(0.36, tr("Modrinth 查询完成（命中 %1）").arg(modrinthHits));
 
             // 5b. CurseForge：批量 fingerprint 查询（ModrinthUploadMode 跳过）
             if (!modrinthUploadMode) {
@@ -496,7 +786,7 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
                     }
                 } else {
                     // 分块 500 fingerprints/批（CF API 批量上限，大整合包防截断）
-                    setProgress(0.55, tr("查询 CurseForge 在线来源..."));
+                    setProgress(0.38, tr("查询 CurseForge 在线来源..."));
                     bool cfFailed = false;
                     constexpr int kCfBatch = 500;
                     for (int b = 0; b < mods.size() && !cfFailed; b += kCfBatch) {
@@ -545,7 +835,7 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
                         }
                     }
                 }
-                setProgress(0.78, tr("CurseForge 查询完成（命中 %1）").arg(cfHits));
+                setProgress(0.52, tr("CurseForge 查询完成（命中 %1）").arg(cfHits));
             }
         } else if (!mods.isEmpty()) {
             setProgress(0.5, tr("仅打包包内资源，跳过联网查询"));
@@ -662,7 +952,7 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
             }
         }
         ++done;
-        setProgress(0.8, tr("生成压缩包..."));
+        setProgress(0.55, tr("生成压缩包..."));
 
         // 6b. 非 hosted mods → overrides/mods/ 实体
         for (const auto& m : mods) {
@@ -675,7 +965,7 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
                 return;
             }
             ++done;
-            setProgress(0.8 + 0.15 * done / qMax(1, totalFiles), tr("打包模组 %1/%2").arg(done).arg(totalFiles));
+            setProgress(0.55 + 0.45 * done / qMax(1, totalFiles), tr("打包模组 %1/%2").arg(done).arg(totalFiles));
         }
 
         // 6c. overrides 文件
@@ -688,7 +978,7 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
                 return;
             }
             ++done;
-            setProgress(0.8 + 0.15 * done / qMax(1, totalFiles), tr("打包覆写文件 %1/%2").arg(done).arg(totalFiles));
+            setProgress(0.55 + 0.45 * done / qMax(1, totalFiles), tr("打包覆写文件 %1/%2").arg(done).arg(totalFiles));
         }
 
         if (!zip.closeWrite()) {
@@ -706,6 +996,127 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
             .arg(displayName, outPath).arg(mods.size()).arg(hostedCount).arg(localCount);
         finish(true, note);
     });
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 导出配置保存/读取（主流启动器 export_config.txt 语义：ini 段 + 规则段 + 追加内容段）
+// 配置文件为 UTF-8 文本，规则段支持手工编辑（读取后 options 为空 → 用规则段整体覆盖）
+// ═════════════════════════════════════════════════════════════════════════════
+
+static const QString kCfgSep = QStringLiteral("==============================================================");
+
+bool ModpackExporter::saveExportConfig(const QString& path, const QVariantMap& cfg) const
+{
+    QStringList lines;
+    lines << QStringLiteral("Name:") + cfg.value(QStringLiteral("name")).toString()
+          << QStringLiteral("Version:") + cfg.value(QStringLiteral("version")).toString()
+          << QStringLiteral("IncludeJava:") + QString(cfg.value(QStringLiteral("includeJava")).toBool() ? "True" : "False")
+          << QStringLiteral("DontCheckHostedAssets:") + QString(cfg.value(QStringLiteral("hostedAssetsOnly")).toBool() ? "True" : "False")
+          << QStringLiteral("ModrinthUploadMode:") + QString(cfg.value(QStringLiteral("modrinthUploadMode")).toBool() ? "True" : "False")
+          << QStringLiteral("Format:") + QString::number(cfg.value(QStringLiteral("format")).toInt())
+          << QStringLiteral("PackPath:") + cfg.value(QStringLiteral("packPath")).toString()
+          << QString()
+          << kCfgSep
+          << QStringLiteral("# 导出的规则（勾选的选项）——可按 主流启动器语法手工编辑：! 反转、* ? [] 通配、\\ 结尾=目录")
+          << QStringLiteral("# 读取时若下方为空则按此规则整体生效（忽略界面勾选）");
+    const auto checked = cfg.value(QStringLiteral("options")).toList();
+    for (const auto& c : checked) {
+        const QString id = c.toString();
+        for (const auto& d : optionDefs()) {
+            if (d.id != id) continue;
+            lines << QStringLiteral("# ") + d.title;
+            for (const auto& r : d.rules)
+                lines << QString(r).replace(QLatin1Char('/'), QLatin1Char('\\'));
+            lines << QString();
+            break;
+        }
+    }
+    lines << QStringLiteral("# 全局排除")
+          << QStringLiteral("!*.log") << QStringLiteral("!*.dat_old")
+          << QStringLiteral("!*.BakaCoreInfo") << QStringLiteral("!hmclversion.cfg")
+          << QStringLiteral("!log4j2.xml")
+          << QString()
+          << kCfgSep
+          << QStringLiteral("# 追加内容：完整绝对路径，每行一个；以 \\ 结尾=文件夹（复制到包根同名目录）");
+    const auto extras = cfg.value(QStringLiteral("extraFiles")).toList();
+    for (const auto& e : extras)
+        lines << e.toString();
+
+    QFile f(path);
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Text)) return false;
+    f.write(lines.join(QLatin1Char('\n')).toUtf8());
+    f.close();
+    return true;
+}
+
+QVariantMap ModpackExporter::loadExportConfig(const QString& path) const
+{
+    QVariantMap cfg;
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) return cfg;
+    const QStringList raw = QString::fromUtf8(f.readAll()).split(QLatin1Char('\n'));
+    f.close();
+
+    QStringList segments;
+    QString cur;
+    for (const auto& line : raw) {
+        const QString t = line.trimmed();
+        if (t == kCfgSep) { segments.append(cur); cur.clear(); continue; }
+        cur += line + QLatin1Char('\n');
+    }
+    segments.append(cur);
+
+    // ini 段
+    if (segments.size() > 0) {
+        for (const auto& l : segments[0].split(QLatin1Char('\n'))) {
+            const QString t = l.trimmed();
+            if (t.isEmpty() || t.startsWith(QLatin1Char('#')) || t.startsWith(QLatin1Char('='))) continue;
+            const int idx = t.indexOf(QLatin1Char(':'));
+            if (idx <= 0) continue;
+            const QString key = t.left(idx);
+            const QString val = t.mid(idx + 1).trimmed();
+            if (key == QLatin1String("Name")) cfg.insert(QStringLiteral("name"), val);
+            else if (key == QLatin1String("Version")) cfg.insert(QStringLiteral("version"), val);
+            else if (key == QLatin1String("IncludeJava")) cfg.insert(QStringLiteral("includeJava"), val.compare(QLatin1String("True"), Qt::CaseInsensitive) == 0);
+            else if (key == QLatin1String("DontCheckHostedAssets")) cfg.insert(QStringLiteral("hostedAssetsOnly"), val.compare(QLatin1String("True"), Qt::CaseInsensitive) == 0);
+            else if (key == QLatin1String("ModrinthUploadMode")) cfg.insert(QStringLiteral("modrinthUploadMode"), val.compare(QLatin1String("True"), Qt::CaseInsensitive) == 0);
+            else if (key == QLatin1String("Format")) cfg.insert(QStringLiteral("format"), val.toInt());
+            else if (key == QLatin1String("PackPath")) cfg.insert(QStringLiteral("packPath"), val);
+        }
+    }
+
+    // 规则段 → 尝试反推勾选选项；解析失败则原样保留 rules 覆盖
+    QStringList ruleLines;
+    if (segments.size() > 1) {
+        for (const auto& l : segments[1].split(QLatin1Char('\n'))) {
+            const QString t = l.trimmed();
+            if (t.isEmpty() || t.startsWith(QLatin1Char('#')) || t.startsWith(QLatin1Char('='))) continue;
+            ruleLines.append(t);
+        }
+    }
+    QVariantList checked;
+    const auto& defs = optionDefs();
+    for (const auto& d : defs) {
+        bool has = false, hasNeg = false;
+        for (const auto& r : d.rules) {
+            const QString rr = QString(r).replace(QLatin1Char('/'), QLatin1Char('\\'));
+            if (ruleLines.contains(rr)) has = true;
+            if (ruleLines.contains(QLatin1Char('!') + rr)) hasNeg = true;
+        }
+        if (has && !hasNeg) checked.append(d.id);
+    }
+    cfg.insert(QStringLiteral("options"), checked);
+    // 追加内容段
+    QVariantList extras;
+    if (segments.size() > 2) {
+        for (const auto& l : segments[2].split(QLatin1Char('\n'))) {
+            const QString t = l.trimmed();
+            if (t.isEmpty() || t.startsWith(QLatin1Char('#')) || t.startsWith(QLatin1Char('='))) continue;
+            extras.append(t);
+        }
+    }
+    cfg.insert(QStringLiteral("extraFiles"), extras);
+    return cfg;
 }
 
 } // namespace ShadowLauncher

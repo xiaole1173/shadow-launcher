@@ -88,7 +88,15 @@ int main(int argc, char** argv)
         const auto list = savesDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
         for (const auto& s : list) saves.append(s);
     }
+    // 勾选选项：与导出界面默认一致（游戏本体设置/协议/资源包/光影/存档/Mod 设置等）
+    QVariantList checked;
+    const auto& defs = ModpackExporter::optionDefs();
+    for (const auto& d : defs) {
+        if (d.defaultChecked) checked.append(d.id);
+    }
+    checked.append(QStringLiteral("saves"));
     exporter->exportVersion(versionId, versionId + "-export-test", QStringLiteral("1.0.0"),
-                            true, saves, true, true, false, false, false, format, outPath);
+                            checked, saves, true /*modrinthOnly: 跳过 CF*/, true /*hostedAssetsOnly: 纯本地规则收集测试*/,
+                            false, format, outPath);
     return app.exec();
 }
