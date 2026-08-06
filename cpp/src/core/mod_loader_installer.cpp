@@ -1684,7 +1684,6 @@ void ModLoaderInstaller::forgeStep3_prepareImpl(const QByteArray& jarData, const
         m_installWorkerFailed.store(true);
         return;
     }
-    QZipReader reader2b(&buffer2b);
     QZipReader reader2(&buffer2b);   // 段内 reader2.xxx 对象调用
     // 3. Ensure client_mappings is on disk before bootstrapper runs
     //    (Forge 1.19+ ChainMappings.process needs it for JAR remapping)
@@ -1742,9 +1741,6 @@ void ModLoaderInstaller::forgeStep3_prepareImpl(const QByteArray& jarData, const
             }
         }
     }
-
-    m_currentStep = 3;
-    emit progressChanged(3, m_totalSteps, QStringLiteral("正在准备安装..."));
 
     // 2. Extract bundled maven jars from installer to libraries/ (all paths benefit)
     QString libBase = m_gameDir + QStringLiteral("/libraries");
@@ -1846,14 +1842,13 @@ void ModLoaderInstaller::forgeStep3_route(const QByteArray& jarData) {
         m_running = false;
         return;
     }
-    QZipReader reader2c(&buffer2c);
     QZipReader reader2(&buffer2c);   // 段内 reader2.xxx 对象调用
     // 3. Read install_profile.json (re-read for routing)
     QByteArray profileData2 = reader2.fileData(QStringLiteral("install_profile.json"));
     QJsonDocument profileDoc = QJsonDocument::fromJson(profileData2);
     if (!profileDoc.isObject()) {
         qCWarning(logLoader) << QStringLiteral("[安装] install_profile.json 无效，改用 Bootstrapper");
-        reader2c.close();
+        reader2.close();
         runBootstrapperProcess(jarData);
         return;
     }
@@ -1869,7 +1864,7 @@ void ModLoaderInstaller::forgeStep3_route(const QByteArray& jarData) {
     //
     // Branch A: has "install" → Legacy 2 (universal JAR + inheritsFrom)
     if (hasInstall) {
-        reader2c.close();
+        reader2.close();
         qCInfo(logLoader) << QStringLiteral("[安装] 使用 Legacy 2 安装模式");
         installLegacy2(jarData, profileObj);
         return;
@@ -1877,14 +1872,14 @@ void ModLoaderInstaller::forgeStep3_route(const QByteArray& jarData) {
 
     // Branch B: has "json" AND no processors AND spec <= 0 → Legacy 1
     if (hasJson && procCount == 0 && spec <= 0) {
-        reader2c.close();
+        reader2.close();
         qCInfo(logLoader) << QStringLiteral("[安装] 使用 Legacy 1 安装模式");
         installLegacy1(jarData, profileObj);
         return;
     }
 
     // Branch C: has processors OR spec >= 1 → Bootstrapper
-    reader2c.close();
+    reader2.close();
     qCInfo(logLoader) << QStringLiteral("[安装] 使用 Bootstrapper 安装模式");
     runBootstrapperProcess(jarData);
 }
@@ -2058,7 +2053,7 @@ void ModLoaderInstaller::installLegacy2(const QByteArray& jarData, const QJsonOb
     {
         QJsonArray libs = vInfo.value(QStringLiteral("libraries")).toArray();
         if (!libs.isEmpty()) {
-            QNetworkAccessManager localNam;   // worker 线程用局部 NAM（共享单例跨线程有竞态）
+            QNetworkAccessManager localNam;   // 局部 NAM（避免共享单例的跨线程竞态）
             QNetworkAccessManager* nam = &localNam;
             int downloaded = 0;
             for (const auto& lv : libs) {
@@ -2685,7 +2680,7 @@ void ModLoaderInstaller::bootstrapperPrepare(const QByteArray& jarData,
         QString tsrgPath = tsrgDir + QStringLiteral("/client-") + m_mcVersion + QStringLiteral("-mappings.tsrg");
         if (!QFile::exists(tsrgPath)) {
             qCInfo(logLoader) << QStringLiteral("[安装] 预下载 mappings.tsrg: %1").arg(m_mcVersion);
-            QNetworkAccessManager localNam;   // worker 线程用局部 NAM（共享单例跨线程有竞态）
+            QNetworkAccessManager localNam;   // 局部 NAM（避免共享单例的跨线程竞态）
             QNetworkAccessManager* nam = &localNam;
 
             // Helper: download URL with timeout
@@ -3691,7 +3686,7 @@ void ModLoaderInstaller::fabricStep3_writeVersion(const QByteArray& profileData)
 void ModLoaderInstaller::fabricStep3_writeVersionImpl(const QByteArray& profileData) {
     qCInfo(logLoader) << QStringLiteral("[TRACE-f] fabricStep3 impl enter");
     QJsonDocument doc = QJsonDocument::fromJson(profileData);
-    if (doc.isNull()) { emit finished(false, "Fabric 配置 JSON 格式无效"); m_running = false; return; }
+    if (doc.isNull()) { m_installWorkerFailed.store(true); return; }
 
     QJsonObject json = doc.object();
     json["id"] = m_installName;
