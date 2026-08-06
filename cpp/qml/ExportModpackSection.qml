@@ -106,6 +106,10 @@ Item {
             _ctx = {}
         }
         _initChecked()
+        console.info("[export] ctx loaded version=" + versionId
+                     + " opts=" + (_ctx.options || []).length
+                     + " hasSaves=" + _ctx.hasSaves
+                     + " saves=" + _saves.length)
     }
 
     // 初始化选项勾选：可见选项按 defaultChecked；保留用户已改的勾选（切版本时重置）
@@ -501,7 +505,7 @@ Item {
                 radius: StyleTokens.radiusMd
                 color: StyleTokens.bgCard
                 border.color: StyleTokens.bgElevated
-                visible: root._checked["saves"] === true && (_ctx.hasSaves === true)
+                visible: root._checked["saves"] === true && !!_ctx.hasSaves
                 clip: true
                 ColumnLayout {
                     anchors.fill: parent

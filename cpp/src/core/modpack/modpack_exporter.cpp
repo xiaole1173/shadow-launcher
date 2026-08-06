@@ -418,6 +418,7 @@ QVariantMap ModpackExporter::exportContext(const QString& versionId) const
     auto subItems = [](const QString& dirA, const QString& dirB) {
         QVariantList out;
         auto collectDir = [&out](const QString& dir) {
+            if (dir.isEmpty()) return;   // QDir("") 会解析为 CWD（启动器根目录），必须拦
             const QDir d(dir);
             if (!d.exists()) return;
             const auto files = d.entryInfoList(QStringList() << QStringLiteral("*.zip") << QStringLiteral("*.rar"),
