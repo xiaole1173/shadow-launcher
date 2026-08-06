@@ -5011,9 +5011,10 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
             tr("校验游戏资源完整性"),
             tr("下载 %1 主文件").arg(loaderLabel),
             tr("校验 %1 完整性").arg(loaderLabel),
+            tr("下载 %1 安装器库").arg(loaderLabel),
             tr("安装 %1").arg(loaderLabel)
-        }, {3.0, 8.0, 5.0, 0.5, 6.0, 0.5, 10.0},
-         {true, true, true, true, true, true, true});
+        }, {3.0, 8.0, 5.0, 0.5, 6.0, 0.5, 4.0, 6.0},
+         {true, true, true, true, true, true, true, true});
     }
 
     updateStep(installName, 0, QStringLiteral("active"), 0);
@@ -5155,12 +5156,19 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                 qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
                 qint64 delta = recv - speedState->first;
                 qint64 timeDelta = nowMs - speedState->second;
+                qint64 instant = 0;
                 if (timeDelta >= 200 && speedState->second > 0 && delta > 0) {
-                    qint64 instant = delta * 1000 / timeDelta;
+                    instant = delta * 1000 / timeDelta;
                     ensureSession(installName);
                 }
                 speedState->first = recv;
                 speedState->second = nowMs;
+                // 速度/字节集成到卡片（mlSpeed 由 byteProgress 语义一致）
+                if (auto* ds = dlSession(installName)) {
+                    ds->mlBytesDl = recv;
+                    ds->mlBytesAll = total;
+                    if (instant > 0) ds->mlSpeed = instant;
+                }
             });
 
             connect(reply, &QNetworkReply::finished, this,
@@ -8281,6 +8289,32 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
             ds->mlBytesDl = received;
             ds->mlBytesAll = total;
             ds->mlSpeed = speed;
+        });
+
+    // 安装器库下载步骤联动（forge/neoforge：与 MC 下载并行）
+    connect(ctx->installer, &ModLoaderInstaller::installerLibsStarted, this,
+        [this, installId]() {
+            auto* ds = dlSession(installId);
+            if (!ds) return;
+            for (int i = 0; i < ds->steps.size(); ++i) {
+                if (ds->steps[i].toMap().value(QStringLiteral("name")).toString()
+                        .contains(QStringLiteral("安装器库"))) {
+                    updateStep(installId, i, QStringLiteral("active"), 0);
+                    break;
+                }
+            }
+        });
+    connect(ctx->installer, &ModLoaderInstaller::installerLibsDone, this,
+        [this, installId]() {
+            auto* ds = dlSession(installId);
+            if (!ds) return;
+            for (int i = 0; i < ds->steps.size(); ++i) {
+                if (ds->steps[i].toMap().value(QStringLiteral("name")).toString()
+                        .contains(QStringLiteral("安装器库"))) {
+                    updateStep(installId, i, QStringLiteral("completed"), 100);
+                    break;
+                }
+            }
         });
 
     // logMessage: forward

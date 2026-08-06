@@ -59,6 +59,10 @@ public:
                                   const QString& neoVersion, const QString& installName);
     void neoForgeContinueInstall();
 
+    /// 下载安装器库（install_profile 的 libraries）：verify 完成后立即启动，
+    /// 与 MC 下载并行；安装阶段前确保完成（m_installerLibsDone）
+    void forgeStepLibs(const QByteArray& jarData);
+
     void cancel();
 
     // Fabric parallel install: start downloading MC + Fabric at the same time
@@ -85,6 +89,9 @@ signals:
     void waitingForMC();
     // Sub-progress within a step (for installer stdout parsing)
     void stepProgress(int step, int percentage);
+    // 安装器库下载开始/完成（供版本后端联动步骤状态）
+    void installerLibsStarted();
+    void installerLibsDone();
 
 private:
     // Download helpers
@@ -159,6 +166,10 @@ private:
 
     QByteArray m_cachedJar;
     bool m_verifyOnly = false;
+    // 安装器库（install_profile libraries）并行下载状态
+    bool m_installerLibsDone = false;
+    bool m_installerLibsRunning = false;
+    bool m_pendingInstallAfterLibs = false;
     void installNeoForge(const QByteArray& jarData, const QJsonObject& profile);
     void renameVersionFolder(const QString& oldName, const QString& newName);
     /// Extract the embedded forge-installer.jar (helper) to temp, return path
