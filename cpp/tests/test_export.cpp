@@ -11,6 +11,7 @@
 #include <cstdio>
 
 #include "core/modpack/modpack_exporter.h"
+#include "core/modpack/modpack_parser.h"
 #include "core/modpack/zip_archive.h"
 #include "utils/logger.h"
 
@@ -77,13 +78,38 @@ int main(int argc, char** argv)
                    format, game.toUtf8().constData(), deps.toUtf8().constData(),
                    hostedInManifest, modsInOverrides, overridesOther,
                    QFileInfo(out).size() / 1048576.0, out.toUtf8().constData());
+            // ── 自识别验证：用启动器自己的 detectFormat/parse 解析导出的包 ──
+            ModpackMeta meta;
+            QString perr;
+            const ModpackFormat pfmt = ModpackParser::detectFormat(out);
+            const bool recognized = pfmt != ModpackFormat::Unknown
+                && ModpackParser::parse(out, pfmt, meta, perr);
+            printf("SELF-RECOGNIZE: %s fmt=%d name=%s mc=%s loader=%s/%s files=%d overrides=%s err=%s\n",
+                   recognized ? "OK" : "FAIL",
+                   static_cast<int>(pfmt),
+                   meta.name.toUtf8().constData(),
+                   meta.mcVersion.toUtf8().constData(),
+                   meta.loaderType.toUtf8().constData(),
+                   meta.loaderVersion.toUtf8().constData(),
+                   meta.files.size(),
+                   meta.overrideDirs.join(QLatin1Char(',')).toUtf8().constData(),
+                   perr.toUtf8().constData());
             zip.close();
             app.exit(0);
         });
 
-    // 勾选全部存档测试 saves 子项路径
+    // 勾选全部存档测试 saves 子项路径（版本内容根：隔离 game/ > 版本内目录 > 共享根）
     QVariantList saves;
-    const QDir savesDir(gameDir + QStringLiteral("/saves"));
+    QString contentRoot = gameDir;
+    const QString vdir = gameDir + QStringLiteral("/versions/") + versionId;
+    if (QDir(vdir + QStringLiteral("/game")).exists()) contentRoot = vdir + QStringLiteral("/game");
+    else if (QDir(vdir).exists()) {
+        const QDir vd(vdir);
+        if (vd.exists(QStringLiteral("mods")) || vd.exists(QStringLiteral("config"))
+            || vd.exists(QStringLiteral("saves")) || vd.exists(QStringLiteral("options.txt")))
+            contentRoot = vdir;
+    }
+    const QDir savesDir(contentRoot + QStringLiteral("/saves"));
     if (savesDir.exists()) {
         const auto list = savesDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
         for (const auto& s : list) saves.append(s);

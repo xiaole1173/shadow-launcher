@@ -601,13 +601,27 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
             QFile f(jsonPath);
             if (f.open(QIODevice::ReadOnly)) {
                 const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
+                // MC 版本：继承的原版优先（旧版 Forge JSON 有 inheritsFrom），
+                // 否则从安装名去掉加载器后缀（26.2-forge-65.1.0 → 26.2）
                 mcVersion = root.value(QStringLiteral("id")).toString();
+                const QString inherited = root.value(QStringLiteral("inheritsFrom")).toString();
+                if (!inherited.isEmpty()) {
+                    mcVersion = inherited;
+                } else {
+                    for (const char* marker : {"-forge-", "-neoforge-", "-fabric-loader-", "-quilt-loader-"}) {
+                        const int idx = mcVersion.indexOf(QLatin1String(marker));
+                        if (idx > 0) { mcVersion = mcVersion.left(idx); break; }
+                    }
+                }
                 const QJsonArray libs = root.value(QStringLiteral("libraries")).toArray();
                 for (const auto& lv : libs) {
                     const QString name = lv.toObject().value(QStringLiteral("name")).toString();
-                    const int lastColon = name.lastIndexOf(QLatin1Char(':'));
-                    if (lastColon <= 0) continue;
-                    const QString ver = name.mid(lastColon + 1);
+                    // group:artifact:version[:classifier]——版本段是第 3 段
+                    // （forge 库名形如 net.minecraftforge:forge:26.2-65.1.0:universal，
+                    //  取最后一段会拿到 classifier 而非版本号）
+                    const QStringList parts = name.split(QLatin1Char(':'));
+                    if (parts.size() < 3) continue;
+                    const QString ver = parts.at(2);
                     if (name.startsWith(QStringLiteral("net.minecraftforge:forge:")))
                         deps.insert(QStringLiteral("forge"), ver);
                     else if (name.contains(QStringLiteral("fabric-loader")))

@@ -583,6 +583,7 @@ if(SHADOW_BUILD_MODPACK_SELFTEST)
     add_executable(ModpackExportTest
         tests/test_export.cpp
         src/core/modpack/modpack_exporter.cpp
+        src/core/modpack/modpack_parser.cpp
         src/core/modpack/zip_archive.cpp
         src/core/modpack/modpack_common.cpp
         src/utils/logger.cpp
