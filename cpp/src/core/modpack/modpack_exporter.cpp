@@ -170,7 +170,7 @@ const QList<ModpackExporter::ExportOptionDef>& ModpackExporter::optionDefs()
           "local/client/ftblib.cfg", "local/client/xencraft.cfg", "liteloader.properties",
           "default_reference.xml", "CustomSkinLoader/CustomSkinLoader.json"},
          true, true, false, false, {"config/", "defaultconfigs/"}, QStringLiteral("mod")},
-        {"tacz", "TaCZ 枪包", "",
+        {"tacz", "TaCZ 枪包", "Timeless and Classics Guns 模组的枪包数据",
          {"tacz/", "config/tacz/custom/"}, true, true, false, false,
          {"tacz/", "config/tacz/custom/"}, QStringLiteral("mod")},
         {"immersive", "已上传的沉浸画", "immersive_paintings 目录",
@@ -334,20 +334,52 @@ QVariantMap ModpackExporter::exportContext(const QString& versionId) const
         if (d.requireOptiFine && !hasOptiFine) visible = false;
         if (d.requireModLoaderOrOptiFine && !modable && !hasOptiFine) visible = false;
         if (visible && !d.showRules.isEmpty()) {
-            // ShowRules：文件规则（无 /）→ 精确文件存在；路径规则 → 首段目录存在
-            // （主流启动器语义：一级条目存在即显示——空目录也显示选项，导出时无文件自然不打包）
+            // ShowRules 判定（主流启动器 RefreshAllOptionsUI 语义：前两级别举 + 三级精确检查）
+            //   无 / 文件规则 → 精确文件存在（含 * 通配 → 根目录 Like 匹配）
+            //   路径规则 → 目录段数：1 段=一级目录条目存在（空目录也显示，同主流启动器）；
+            //               ≥2 段=精确目录存在且非空 / 文件存在（没装对应 Mod 就不出现）
             visible = false;
-            for (const auto& r : d.showRules) {
-                const int slash = r.indexOf(QLatin1Char('/'));
-                if (slash <= 0) {
-                    if (QFileInfo::exists(contentRoot + QLatin1Char('/') + r)) { visible = true; break; }
-                    continue;
+            auto matchShowRule = [&](const QString& rule) {
+                const int slash = rule.indexOf(QLatin1Char('/'));
+                if (slash < 0) {
+                    if (rule.contains(QLatin1Char('*')) || rule.contains(QLatin1Char('?'))) {
+                        const QDir root(contentRoot);
+                        if (!root.exists()) return false;
+                        const auto files = root.entryList(QDir::Files, QDir::Name);
+                        for (const auto& f : files)
+                            if (likeMatch(rule, f)) return true;
+                        return false;
+                    }
+                    return QFileInfo::exists(contentRoot + QLatin1Char('/') + rule);
                 }
-                QString top = r.left(slash);
-                if (top.endsWith(QLatin1Char('*'))) top.chop(1);
-                if (top.isEmpty()) continue;
-                const QDir d2(contentRoot + QLatin1Char('/') + top);
-                if (d2.exists()) { visible = true; break; }
+                const QString dirPart = rule.left(rule.lastIndexOf(QLatin1Char('/')) + 1);
+                const int segs = dirPart.count(QLatin1Char('/'));
+                if (segs <= 1) {
+                    QString top = dirPart;
+                    if (top.endsWith(QLatin1Char('/'))) top.chop(1);
+                    if (top.isEmpty()) return false;
+                    if (top.contains(QLatin1Char('*')) || top.contains(QLatin1Char('?'))) {
+                        const QDir root(contentRoot);
+                        if (!root.exists()) return false;
+                        const auto dirs = root.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+                        for (const auto& d : dirs)
+                            if (likeMatch(top, d)) return true;
+                        return false;
+                    }
+                    return QDir(contentRoot + QLatin1Char('/') + top).exists();
+                }
+                // 二级及以上：精确检查（主流启动器 三级精确 IsValidDirectory / 文件存在）
+                const QString path = contentRoot + QLatin1Char('/') + rule;
+                const QFileInfo fi(path);
+                if (rule.endsWith(QLatin1Char('/')))
+                    return fi.isDir()
+                        && !QDir(path).entryInfoList(QDir::AllEntries | QDir::NoDotAndDotDot).isEmpty();
+                if (rule.contains(QLatin1Char('*')) || rule.contains(QLatin1Char('?')))
+                    return QDir(contentRoot + QLatin1Char('/') + dirPart).exists();   // 通配文件：目录存在即可
+                return fi.isFile();
+            };
+            for (const auto& r : d.showRules) {
+                if (matchShowRule(r)) { visible = true; break; }
             }
         }
         if (!visible) continue;
