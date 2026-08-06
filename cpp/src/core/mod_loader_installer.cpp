@@ -3427,70 +3427,81 @@ void ModLoaderInstaller::fabricStep2_downloadLibraries(const QByteArray& profile
     m_fabricLibBytesDone = 0;
     m_fabricLibBytesTotal = 0;
 
-    // Download sequentially (each Fabric lib is <2MB)
-    // Capture task data by VALUE — async HTTP callback must not hold &task (dangling ref)
-    auto dlNext = std::make_shared<std::function<void()>>();
-    *dlNext = [this, profileData, mirrors, dlNext]() {
+    // ── 并行 + 镜像顺序 fallback 下载（原实现串行单连接：国内官方源慢时
+    //     20 个库逐个等超时 → 极慢；改 6 路并发，每任务镜像失败才切换）──
+    constexpr int kFabricConcurrency = 6;
+    struct DlState {
+        int active = 0;
+        int next = 0;
+        int done = 0;
+        bool failed = false;
+        QString failErr;
+    };
+    auto st = std::make_shared<DlState>();
+    auto pump = std::make_shared<std::function<void()>>();
+    *pump = [this, st, pump, mirrors, profileData]() {
         if (m_cancelled) {
             emit finished(false, "用户取消");
             m_running = false;
             return;
         }
-        if (m_fabricLibIndex >= m_fabricLibTasks.size()) {
-            emit progressChanged(2, m_totalSteps, "Fabric 依赖库下载完成");
-            if (m_parallelMode) { m_fabricProfileData = profileData; emit waitingForMC(); }
-            else fabricStep3_writeVersion(profileData);
-            return;
+        // 启动新任务直到并发满
+        while (st->active < kFabricConcurrency && st->next < m_fabricLibTasks.size() && !st->failed) {
+            const int taskIdx = st->next++;
+            st->active++;
+            const QString taskUrl = m_fabricLibTasks[taskIdx].url;      // mirrors[0] + rel
+            const QString taskSavePath = m_fabricLibTasks[taskIdx].savePath;
+            QDir().mkpath(QFileInfo(taskSavePath).absolutePath());
+
+            auto tryMirror = std::make_shared<std::function<void(int)>>();
+            *tryMirror = [this, taskIdx, taskUrl, taskSavePath, st, pump, tryMirror, mirrors](int idx) {
+                if (m_cancelled) { st->active--; (*pump)(); return; }
+                if (idx >= mirrors.size()) {
+                    st->active--;
+                    st->failed = true;
+                    st->failErr = QStringLiteral("Fabric 依赖库下载失败:\n%1\n\n已尝试 %2 个镜像源")
+                                      .arg(taskUrl, QString::number(mirrors.size()));
+                    (*pump)();
+                    return;
+                }
+                QString url = taskUrl;
+                url.replace(mirrors[0], mirrors[qMin(idx, mirrors.size() - 1)]);
+                qCInfo(logLoader) << QStringLiteral("[安装] Fabric 库 #%1 下载中（并发 %2/%3）").arg(taskIdx).arg(st->active).arg(kFabricConcurrency);
+                downloadToFile(url, taskSavePath,
+                    [this, taskIdx, taskSavePath, st, pump, tryMirror, idx](bool ok, const QString& err) {
+                        if (ok) {
+                            const qint64 fileSize = QFileInfo(taskSavePath).size();
+                            m_fabricLibBytesDone += fileSize;
+                            st->done++;
+                            st->active--;
+                            const int pct = m_fabricLibTasks.size() > 0
+                                ? static_cast<int>(st->done * 100 / m_fabricLibTasks.size()) : 100;
+                            emit stepProgress(2, pct);
+                            emit byteProgress(QFileInfo(taskSavePath).fileName(),
+                                              static_cast<qint64>(st->done),
+                                              static_cast<qint64>(m_fabricLibTasks.size()), 0);
+                            (*pump)();
+                        } else {
+                            qCInfo(logLoader) << QStringLiteral("[安装] Fabric 库 #%1 下载失败: %2").arg(taskIdx).arg(err);
+                            (*tryMirror)(idx + 1);
+                        }
+                    });
+            };
+            (*tryMirror)(0);
         }
-
-        // Capture by VALUE — safe across async callback
-        int taskIdx = m_fabricLibIndex;
-        QString taskUrl = m_fabricLibTasks[taskIdx].url;
-        QString taskSavePath = m_fabricLibTasks[taskIdx].savePath;
-
-        auto tryMirror = std::make_shared<std::function<void(int)>>();
-        *tryMirror = [this, taskIdx, taskUrl, taskSavePath, dlNext, tryMirror, mirrors](int idx) {
-            if (idx >= mirrors.size()) {
-                emit finished(false, QStringLiteral("Fabric 依赖库下载失败:\n%1\n\n已尝试 %2 个镜像源")
-                                   .arg(taskUrl, QString::number(mirrors.size())));
+        // 无在途任务 → 全部结束
+        if (st->active == 0) {
+            if (st->failed) {
+                emit finished(false, st->failErr);
                 m_running = false;
                 return;
             }
-
-            QString url = (idx == 0) ? taskUrl : taskUrl;
-            url.replace(mirrors[0], mirrors[idx > 0 ? qMin(idx, mirrors.size()-1) : 0]);
-
-            qCInfo(logLoader) << QStringLiteral("[安装] Fabric 库 #%1 正在下载").arg(taskIdx);
-            QDir().mkpath(QFileInfo(taskSavePath).absolutePath());
-            downloadToFile(url, taskSavePath, [this, taskIdx, taskSavePath, dlNext, tryMirror, idx](bool ok, const QString& err) {
-                if (ok) {
-                    qint64 fileSize = QFileInfo(taskSavePath).size();
-                    qCInfo(logLoader) << QStringLiteral("[安装] Fabric 库 #%1 下载成功").arg(taskIdx);
-                    m_fabricLibBytesDone += fileSize;
-                    if (taskIdx < m_fabricLibTasks.size())
-                        m_fabricLibTasks[taskIdx].downloaded = true;
-
-                    int pct = (m_fabricLibTasks.size() > 0)
-                        ? static_cast<int>((m_fabricLibIndex + 1) * 100 / m_fabricLibTasks.size())
-                        : 100;
-                    emit stepProgress(2, pct);
-                    emit byteProgress(QFileInfo(taskSavePath).fileName(),
-                                     static_cast<qint64>(m_fabricLibIndex + 1),
-                                     static_cast<qint64>(m_fabricLibTasks.size()), 0);
-
-                    m_fabricLibIndex++;
-                    (*dlNext)();
-                } else {
-                    qCInfo(logLoader) << QStringLiteral("[安装] Fabric 库 #%1 下载失败: %2").arg(taskIdx).arg(err);
-                    (*tryMirror)(idx + 1);
-                }
-            });
-        };
-
-        (*tryMirror)(0);
+            emit progressChanged(2, m_totalSteps, "Fabric 依赖库下载完成");
+            if (m_parallelMode) { m_fabricProfileData = profileData; emit waitingForMC(); }
+            else fabricStep3_writeVersion(profileData);
+        }
     };
-
-    (*dlNext)();
+    (*pump)();
 }
 
 void ModLoaderInstaller::fabricFinalize() {
