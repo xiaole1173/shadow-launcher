@@ -8431,11 +8431,18 @@ void VersionBackend::destroyMergedContext(const QString& installId)
             lastUser = false; break;
         }
     }
-    if (!ctx->tempDir.isEmpty() && lastUser) {
+    // 安装 worker/bootstrapper 仍在写 tempDir（解压/复制/java 安装器）时不能删目录，
+    // 否则访问冲突崩溃（0xc0000005）
+    const bool workerBusy = ctx->installer
+        && (ctx->installer->installWorkerBusy() || ctx->installer->bootstrapperRunning());
+    if (!ctx->tempDir.isEmpty() && lastUser && !workerBusy) {
         QDir d(ctx->tempDir);
         if (d.exists()) d.removeRecursively();
         TempTracker::forget(ctx->tempDir);
         qCInfo(logVersion) << QStringLiteral("[追踪] 清理临时目录: %1").arg(ctx->tempDir);
+    } else if (workerBusy) {
+        qCWarning(logVersion) << QStringLiteral("[追踪] 取消时安装 worker 仍在运行，跳过临时目录删除: %1")
+            .arg(ctx->tempDir);
     }
 
     // Delete owned children

@@ -81,6 +81,11 @@ void ModLoaderInstaller::cancel() {
     if (m_bootstrapperCancelled) {
         m_bootstrapperCancelled->store(true);
     }
+    // Signal the install worker (QEventLoop downloads / TSRG QProcess) to cancel fast
+    // —— 否则 deleteLater 析构时 QFutureWatcher waitForFinished 会阻塞主线程（最长 120s）
+    if (m_installCancelled) {
+        m_installCancelled->store(true);
+    }
 }
 
 // ════════════════════════════════════════════════════════════════════════
@@ -94,6 +99,7 @@ void ModLoaderInstaller::runInstallTask(std::function<void()> task, std::functio
     }
     m_installWorkerRunning.store(true);
     m_installWorkerFailed.store(false);
+    m_installCancelled = std::make_shared<std::atomic<bool>>(false);   // 本次任务的取消标志
     if (!m_installWorker) {
         m_installWorker = new QFutureWatcher<void>(this);
         connect(m_installWorker, &QFutureWatcher<void>::finished, this,
@@ -1711,7 +1717,15 @@ void ModLoaderInstaller::forgeStep3_prepareImpl(const QByteArray& jarData, const
                     QNetworkReply* r = nm.get(QNetworkRequest(QUrl(cmUrl)));
                     QEventLoop loop;
                     connect(r, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+                    // 取消支持：200ms 轮询 → abort + quit（否则析构 waitForFinished 卡主线程）
+                    QTimer cancelWatch;
+                    cancelWatch.setInterval(200);
+                    QObject::connect(&cancelWatch, &QTimer::timeout, [&]() {
+                        if (m_installCancelled->load()) { r->abort(); loop.quit(); }
+                    });
+                    cancelWatch.start();
                     loop.exec();
+                    cancelWatch.stop();
                     if (r->error() == QNetworkReply::NoError) {
                         QByteArray data = r->readAll();
                         // Save to Maven path (install_profile data section path)
@@ -1747,6 +1761,7 @@ void ModLoaderInstaller::forgeStep3_prepareImpl(const QByteArray& jarData, const
     int extractedCount = 0;
     const auto& fileList = reader2.fileInfoList();
     for (const auto& info : fileList) {
+        if (m_installCancelled->load()) break;   // 取消支持：尽快退出
         QString fp = info.filePath;
         if (!fp.startsWith(QStringLiteral("maven/"))) continue;
         if (!fp.endsWith(QStringLiteral(".jar"))) continue;
@@ -2626,6 +2641,7 @@ void ModLoaderInstaller::bootstrapperPrepare(const QByteArray& jarData,
         QList<QZipReader::FileInfo> entries = reader.fileInfoList();
         QZipWriter writer(tempDir + QStringLiteral("/forge-installer-") + m_installName + QStringLiteral(".jar"));
         for (const auto& e : entries) {
+            if (m_installCancelled->load()) break;   // 取消支持：尽快退出
             if (e.isDir) writer.addDirectory(e.filePath);
             else if (e.isSymLink) qCWarning(logLoader) << QStringLiteral("[安装] 安装程序 JAR 含符号链接，跳过: %1").arg(e.filePath);
             else {
@@ -2694,7 +2710,15 @@ void ModLoaderInstaller::bootstrapperPrepare(const QByteArray& jarData,
                 timer.setSingleShot(true);
                 QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
                 timer.start(timeoutMs);
+                // 取消支持：200ms 轮询 → abort + quit
+                QTimer cancelWatch;
+                cancelWatch.setInterval(200);
+                QObject::connect(&cancelWatch, &QTimer::timeout, [&]() {
+                    if (m_installCancelled->load()) { reply->abort(); loop.quit(); }
+                });
+                cancelWatch.start();
                 loop.exec();
+                cancelWatch.stop();
                 QByteArray data;
                 if (reply->error() == QNetworkReply::NoError && timer.isActive()) {
                     timer.stop();
@@ -2915,7 +2939,16 @@ void ModLoaderInstaller::bootstrapperPrepare(const QByteArray& jarData,
                                     << QStringLiteral("ProGuardToTSRG")
                                     << QDir::toNativeSeparators(rawPath)
                                     << QDir::toNativeSeparators(outPath));
-                            if (srgProc.waitForFinished(120000) && srgProc.exitCode() == 0) {
+                            // 等待完成（轮询取消：取消时 kill 进程，避免析构 waitForFinished 卡 120s）
+                            bool tsrgDone = false;
+                            while (!tsrgDone && !m_installCancelled->load())
+                                tsrgDone = srgProc.waitForFinished(500);
+                            if (!tsrgDone && m_installCancelled->load()) {
+                                srgProc.kill();
+                                srgProc.waitForFinished(3000);
+                                qCInfo(logLoader) << QStringLiteral("[安装] TSRG 转换已取消（kill 进程）");
+                            }
+                            if (tsrgDone && srgProc.exitCode() == 0) {
                                 qint64 outSize = QFileInfo(outPath).size();
                                 if (outSize > 1024) {
                                     qCInfo(logLoader) << QStringLiteral("[安装] srgutils TSRG 转换成功: %1").arg(outPath);

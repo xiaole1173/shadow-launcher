@@ -63,6 +63,10 @@ public:
     /// 与 MC 下载并行；安装阶段前确保完成（m_installerLibsDone）
     void forgeStepLibs(const QByteArray& jarData);
 
+    /// 安装 worker（后台收尾任务）是否在运行（取消时删 tempDir 前检查）
+    bool installWorkerBusy() const { return m_installWorkerRunning.load(); }
+    /// bootstrapper java 进程是否在跑（取消时删 tempDir 前检查）
+    bool bootstrapperRunning() const { return m_bootstrapperWatcher && m_bootstrapperWatcher->isRunning(); }
     void cancel();
 
     // Fabric parallel install: start downloading MC + Fabric at the same time
@@ -134,10 +138,11 @@ private:
     // ── 后台安装任务（安装收尾重活块搬离主线程，治 UI 卡顿/冻结）──
     /// 在后台线程执行纯文件/网络/进程重活，完成后回主线程执行 onDone（继续流程/emit）
     void runInstallTask(std::function<void()> task, std::function<void()> onDone = {});
-    bool installWorkerBusy() const { return m_installWorkerRunning.load(); }
+
     QFutureWatcher<void>* m_installWorker = nullptr;
     std::atomic<bool> m_installWorkerRunning{false};
     std::atomic<bool> m_installWorkerFailed{false};   // worker 内失败标志（onDone 前检查，中止流程）
+    std::shared_ptr<std::atomic<bool>> m_installCancelled;   // worker 取消标志（QEventLoop/QProcess 轮询）
     std::function<void()> m_pendingInstallOnDone;   // worker 完成后主线程继续流程的回调
 
     /// 后台线程：写安装器 JAR（剥离签名）+ client jar 复制 + mappings 预下载/TSRG 转换
