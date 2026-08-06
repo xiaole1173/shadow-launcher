@@ -317,8 +317,10 @@ QVariantMap ModpackExporter::exportContext(const QString& versionId) const
             const QJsonArray libs = root.value(QStringLiteral("libraries")).toArray();
             for (const auto& lv : libs) {
                 const QString name = lv.toObject().value(QStringLiteral("name")).toString();
-                if (name.startsWith(QStringLiteral("net.minecraftforge:forge:"))
-                    || name.startsWith(QStringLiteral("net.neoforged:neoforge:"))
+                // Forge 家族：主库 net.minecraftforge:forge: 或附属库（eventbus/modlauncher/
+                // coremods 等）——整合包导入的 JSON 常无主库只有家族库，必须能识别
+                if (name.startsWith(QStringLiteral("net.minecraftforge:"))
+                    || name.startsWith(QStringLiteral("net.neoforged:"))
                     || name.contains(QStringLiteral("fabric-loader"))
                     || name.contains(QStringLiteral("quilt-loader")))
                     modable = true;

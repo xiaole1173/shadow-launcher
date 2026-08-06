@@ -352,10 +352,15 @@ Item {
         ScrollBar.vertical: ScrollBar {
             id: exportVBar
             policy: ScrollBar.AsNeeded
+            // 内容不溢出时彻底隐藏（防残留灰色小点/残留 thumb）
+            visible: exportScroll.contentItem
+                     && exportScroll.contentItem.contentHeight > exportScroll.contentItem.height
         }
         ColumnLayout {
             id: exportCol
-            width: exportScroll.availableWidth - exportVBar.width
+            // 滚动条可见才让出宽度；隐藏时全宽（避免内容无谓变窄）
+            width: exportScroll.availableWidth
+                   - (exportVBar.visible ? exportVBar.width : 0)
             height: Math.max(exportScroll.availableHeight, exportCol.implicitHeight)
             // contentHeight 绑「实际布局高度」（childrenRect）——implicitHeight 会漏显式 height 子项
             Binding {
@@ -380,22 +385,22 @@ Item {
             Layout.fillWidth: true
         }
 
-        // ── 基本信息 ──
+        // ── 基本信息：整合包名称单独一行（长名称显示不下），版本+格式一行 ──
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: 6
+            Text { text: qsTr("整合包名称"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSecondary }
+            InputBox {
+                Layout.fillWidth: true
+                text: root._packName
+                placeholderText: root.versionName || qsTr("输入整合包名称")
+                enabled: !root._busy
+                onTextChanged: root._packName = text
+            }
+        }
         RowLayout {
             Layout.fillWidth: true
             spacing: 12
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 6
-                Text { text: qsTr("整合包名称"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSecondary }
-                InputBox {
-                    Layout.fillWidth: true
-                    text: root._packName
-                    placeholderText: root.versionName || qsTr("输入整合包名称")
-                    enabled: !root._busy
-                    onTextChanged: root._packName = text
-                }
-            }
             ColumnLayout {
                 Layout.preferredWidth: 130
                 spacing: 6
@@ -488,7 +493,11 @@ Item {
                         checked: root._checked[modelData.id] !== undefined ? root._checked[modelData.id] : modelData.defaultChecked
                         enabled: !root._busy
                         onToggled: {
-                            root._checked[modelData.id] = checked
+                            // 整体赋值：JS 对象属性突变不触发 QML 绑定更新（子项面板/子项随父显隐依赖它）
+                            var next = {}
+                            for (var k in root._checked) next[k] = root._checked[k]
+                            next[modelData.id] = checked
+                            root._checked = next
                             // 取消勾选存档/资源包/光影时清空对应子项选择
                             if (!checked && modelData.id === "saves") root._selectedSaves = []
                             if (!checked && modelData.id === "resourcepacks") root._selectedRp = {}
@@ -585,7 +594,12 @@ Item {
                             ShadowSwitch {
                                 checked: root._selectedRp[modelData.name] !== false
                                 enabled: !root._busy
-                                onToggled: root._selectedRp[modelData.name] = checked
+                                onToggled: {
+                                    var next = {}
+                                    for (var k in root._selectedRp) next[k] = root._selectedRp[k]
+                                    next[modelData.name] = checked
+                                    root._selectedRp = next
+                                }
                             }
                         }
                     }
@@ -622,7 +636,12 @@ Item {
                             ShadowSwitch {
                                 checked: root._selectedShaders[modelData.name] !== false
                                 enabled: !root._busy
-                                onToggled: root._selectedShaders[modelData.name] = checked
+                                onToggled: {
+                                    var next = {}
+                                    for (var k in root._selectedShaders) next[k] = root._selectedShaders[k]
+                                    next[modelData.name] = checked
+                                    root._selectedShaders = next
+                                }
                             }
                         }
                     }
