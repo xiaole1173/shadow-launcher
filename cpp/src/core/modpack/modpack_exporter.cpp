@@ -14,6 +14,7 @@
 
 #include <QDir>
 #include <QDirIterator>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
 #include <QCryptographicHash>
@@ -984,13 +985,14 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
                 hashes.insert(QStringLiteral("sha1"), QString::fromLatin1(m.sha1.toHex()));
                 hashes.insert(QStringLiteral("sha512"), QString::fromLatin1(m.sha512.toHex()));
                 f.insert(QStringLiteral("hashes"), hashes);
-                // downloads：URL 列表，非 Modrinth 优先排序（同主流启动器 OrderBy）
+                // downloads：URL 列表，非 Modrinth 优先排序（同主流启动器 OrderBy：
+                // “不优先选择 Modrinth”，Modrinth 链接排后，避免默认从 Modrinth 拉取）
                 QJsonArray dlArr;
                 QStringList sorted = m.downloads;
                 std::stable_sort(sorted.begin(), sorted.end(),
                                  [](const QString& a, const QString& b) {
-                                     return a.contains(QStringLiteral("modrinth.com"))
-                                         && !b.contains(QStringLiteral("modrinth.com"));
+                                     return !a.contains(QStringLiteral("modrinth.com"))
+                                         && b.contains(QStringLiteral("modrinth.com"));
                                  });
                 for (const auto& u : sorted) dlArr.append(u);
                 f.insert(QStringLiteral("downloads"), dlArr);
@@ -1014,6 +1016,15 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
         ++done;
         setProgress(0.55, tr("生成压缩包..."));
 
+        // 打包进度节流（100ms）：几千文件的包逐文件 setProgress 会信号风暴卡主线程
+        QElapsedTimer packTick;
+        packTick.start();
+        auto throttledPackProgress = [&](const QString& text) {
+            if (packTick.elapsed() < 100) return;
+            packTick.restart();
+            setProgress(0.55 + 0.45 * done / qMax(1, totalFiles), text);
+        };
+
         // 6b. 非 hosted mods → overrides/mods/ 实体
         for (const auto& m : mods) {
             if (m.hosted) continue;
@@ -1025,7 +1036,7 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
                 return;
             }
             ++done;
-            setProgress(0.55 + 0.45 * done / qMax(1, totalFiles), tr("打包模组 %1/%2").arg(done).arg(totalFiles));
+            throttledPackProgress(tr("打包模组 %1/%2").arg(done).arg(totalFiles));
         }
 
         // 6c. overrides 文件
@@ -1038,7 +1049,7 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
                 return;
             }
             ++done;
-            setProgress(0.55 + 0.45 * done / qMax(1, totalFiles), tr("打包覆写文件 %1/%2").arg(done).arg(totalFiles));
+            throttledPackProgress(tr("打包覆写文件 %1/%2").arg(done).arg(totalFiles));
         }
 
         if (!zip.closeWrite()) {
@@ -1075,6 +1086,12 @@ bool ModpackExporter::saveExportConfig(const QString& path, const QVariantMap& c
           << QStringLiteral("ModrinthUploadMode:") + QString(cfg.value(QStringLiteral("modrinthUploadMode")).toBool() ? "True" : "False")
           << QStringLiteral("Format:") + QString::number(cfg.value(QStringLiteral("format")).toInt())
           << QStringLiteral("PackPath:") + cfg.value(QStringLiteral("packPath")).toString()
+          << QStringLiteral("UncheckedOptions:") + [&]() {
+                 QStringList un;
+                 const auto unchecked = cfg.value(QStringLiteral("unchecked")).toList();
+                 for (const auto& u : unchecked) un.append(u.toString());
+                 return un.join(QLatin1Char(','));
+             }()
           << QString()
           << kCfgSep
           << QStringLiteral("# 导出的规则（勾选的选项）——可按 主流启动器语法手工编辑：! 反转、* ? [] 通配、\\ 结尾=目录")
@@ -1142,6 +1159,12 @@ QVariantMap ModpackExporter::loadExportConfig(const QString& path) const
             else if (key == QLatin1String("ModrinthUploadMode")) cfg.insert(QStringLiteral("modrinthUploadMode"), val.compare(QLatin1String("True"), Qt::CaseInsensitive) == 0);
             else if (key == QLatin1String("Format")) cfg.insert(QStringLiteral("format"), val.toInt());
             else if (key == QLatin1String("PackPath")) cfg.insert(QStringLiteral("packPath"), val);
+            else if (key == QLatin1String("UncheckedOptions")) {
+                QVariantList un;
+                const auto parts = val.split(QLatin1Char(','), Qt::SkipEmptyParts);
+                for (const auto& p : parts) un.append(p.trimmed());
+                cfg.insert(QStringLiteral("unchecked"), un);
+            }
         }
     }
 

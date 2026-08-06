@@ -342,6 +342,7 @@
 
 | 日期 | 说明 |
 |---|---|
+| 2026-08-06 | 导出三轮复比对再修 6 项：①downloads 排序方向（主流启动器 非 Modrinth 优先，原反了）②配置 PackPath 应用（读取后直接导出不弹窗）③清除配置覆盖入口（主流启动器 ResetConfigOverrides）④配置 UncheckedOptions 还原未勾选状态 ⑤打包进度 100ms 节流（大包防信号风暴）⑥取消导出静默（不弹“失败”误导）（modpack_exporter.cpp/ExportModpackSection.qml） |
 | 2026-08-06 | 导出对齐 主流启动器 补齐轮 + 代码复查：①补 immersive_paintings 子项、子项黑名单（Quark Programmer Art 等 UI+收集双过滤）、Mod 子项随父勾选显隐（parent 字段）、packdata/tacz/地图/JEI/EMI/帕秋莉/截图等补 showRules 可见性（无内容隐藏）②配置读取规则覆盖模式（rawRules，手工规则整体生效）③修严重 BUG：ModpackExporter 构造后未初始化 setGameDir（m_gameDir 空→导出全路径失效）④隔离版本内容根支持（versions/{id}/game/）⑤联网失败弹窗在浮层关闭时自动继续防 worker 死等（modpack_exporter/shadow_backend/ExportModpackSection） |
 | 2026-08-06 | 导出全量对齐 PCL2（差距报告 P0-P2 全部落地）：规则驱动选项表 optionDefs（19 项，含隐私项默认不勾）+ Like 通配引擎（* ? [] ! 反选、/或\结尾=目录前缀）；全局排除 *.log/*.dat_old/*.BakaCoreInfo/hmclversion.cfg/log4j2.xml；子项规则（saves 带修改时间、资源包/光影子项 id:name/id:dir:name）；exportContext 扩展（options 可见性列表/rpItems/shaderItems/javaAvailable）；配置保存/读取（saveExportConfig/loadExportConfig 三段式 txt）；exportVersion 新签名（checkedOptions+extraFiles）规则收集；分阶段进度（收集/哈希/联网/打包）；QML 动态选项渲染+二次分发警告+Java 不可用禁用；ModpackExportTest 回归通过（规则收集/隐私排除/全局排除实测验证）（modpack_exporter.{h,cpp}/ExportModpackSection.qml/test_export.cpp） |
 | 2026-08-06 | 导出选项按版本实际情况动态显隐（同主流启动器 ShowRules）：ModpackExporter 新增 exportContext（版本 JSON 读 modable/hasOptiFine + 目录非空检测），QML 模组/配置/光影/资源包/存档选项按 ctx 显隐（原版不再出现模组/光影/配置）；进分区/切版本刷新 ctx；另输出 主流启动器 导出模块差距报告 docs/audit/export-gap-report-2026-08-06.md（选项体系/规则系统/配置化三层面 30+ 差距项） |

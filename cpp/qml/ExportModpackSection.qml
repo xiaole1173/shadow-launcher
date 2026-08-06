@@ -32,6 +32,7 @@ Item {
     property var _selectedShaders: ({})      // 光影子项勾选 {name: bool}
     property var _extraFiles: []              // 追加内容绝对路径（配置读取）
     property var _rulesOverride: []           // 配置读取的自定义规则（主流启动器 RulesOverrides 覆盖模式）
+    property string _configPackPath: ""      // 配置指定的输出路径（非空时导出不弹保存窗，主流启动器 PackPath）
     property string _savePath: ""
     property bool _busy: false
     property real _progress: 0
@@ -154,6 +155,10 @@ Item {
                 root._statusText = qsTr("导出完成") + " " + error
                 root._done = true
                 if (root.toastManager) root.toastManager.show(qsTr("整合包已导出: ") + outPath)
+            } else if (error === "已取消") {
+                // 用户取消：静默恢复（不弹“失败”误导）
+                root._progress = 0
+                root._statusText = qsTr("已取消导出")
             } else {
                 root._progress = 0
                 root._done = false
@@ -185,6 +190,11 @@ Item {
         if (_busy) return
         if (!_packName.trim()) {
             if (root.toastManager) root.toastManager.show(qsTr("请填写整合包名称"), 3000)
+            return
+        }
+        // 配置指定输出路径（主流启动器 PackPath）：直接导出，不弹保存窗
+        if (_configPackPath.length > 0) {
+            root._doExport(_configPackPath)
             return
         }
         // ModrinthUploadMode 强制 Modrinth 格式（同主流启动器）
@@ -227,6 +237,13 @@ Item {
         configSaveDialog.currentFile = "file:///" + ((dlDir ? dlDir + "/" : "") + "export_config.txt").replace(/\\/g, "/")
         configSaveDialog.open()
     }
+    // 清除配置影响（主流启动器 ResetConfigOverrides）：恢复界面勾选模式
+    function _clearConfigOverride() {
+        _rulesOverride = []
+        _configPackPath = ""
+        _extraFiles = []
+        if (root.toastManager) root.toastManager.show(qsTr("已清除配置覆盖，恢复界面勾选"))
+    }
     function _writeConfig(path) {
         var e = backend ? backend.modpackExporter : null
         if (!e) return
@@ -239,6 +256,7 @@ Item {
             format: _format === "curseforge" ? 1 : 0,
             packPath: _savePath,
             options: _buildCheckedOptions(),
+            unchecked: _uncheckedOptions(),
             extraFiles: _extraFiles
         }
         if (e.saveExportConfig(path, cfg)) {
@@ -246,6 +264,16 @@ Item {
         } else {
             if (root.toastManager) root.toastManager.show(qsTr("保存配置失败"), 3000)
         }
+    }
+    // 当前可见但未勾选的选项 id（配置还原用，主流启动器 读取后勾选状态与保存时一致）
+    function _uncheckedOptions() {
+        var arr = []
+        var opts = _ctx.options || []
+        for (var i = 0; i < opts.length; i++) {
+            var id = opts[i].id
+            if (!_checked[id]) arr.push(id)
+        }
+        return arr
     }
     function _loadConfig(path) {
         var e = backend ? backend.modpackExporter : null
@@ -270,6 +298,13 @@ Item {
             if (next[opts[j].id] === undefined) next[opts[j].id] = opts[j].defaultChecked
         _checked = next
         _extraFiles = cfg.extraFiles || []
+        _configPackPath = cfg.packPath || ""
+        // 未勾选选项还原（保存时记录的 UncheckedOptions）
+        if (cfg.unchecked) {
+            for (var u = 0; u < cfg.unchecked.length; u++)
+                next[cfg.unchecked[u]] = false
+            _checked = next
+        }
         // 自定义规则覆盖模式（主流启动器 RulesOverrides：手工编辑的规则整体生效）
         if (cfg.rawRules && cfg.rawRules.length > 0) {
             _rulesOverride = cfg.rawRules
@@ -669,8 +704,16 @@ Item {
                 enabled: !root._busy
                 onClicked: configOpenDialog.open()
             }
+            ShadowButton {
+                text: qsTr("清除覆盖")
+                btnWidth: 120
+                outlined: true
+                enabled: !root._busy
+                visible: root._rulesOverride.length > 0 || root._configPackPath.length > 0
+                onClicked: root._clearConfigOverride()
+            }
             Text {
-                text: qsTr("配置文件可手工编辑规则段（! 反转、* ? [] 通配、\\ 结尾=目录）")
+                text: qsTr("配置文件可手工编辑规则段（! 反转、* ? [] 通配、\\ 结尾=目录）；含 PackPath 时导出不弹保存窗")
                 color: StyleTokens.textTertiary
                 font.pixelSize: StyleTokens.fontSizeXs
                 wrapMode: Text.WordWrap
