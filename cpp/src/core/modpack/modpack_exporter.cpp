@@ -104,7 +104,8 @@ QVariantList ModpackExporter::listSaves(const QString& versionId) const
     QVariantList out;
     const QDir savesDir(savesRoot);
     if (savesDir.exists()) {
-        const auto infos = savesDir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+        // 同主流启动器 ReloadSubOptions：按最后修改时间倒序（最新在前）
+        const auto infos = savesDir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Time);
         for (const auto& fi : infos) {
             QVariantMap m;
             m.insert(QStringLiteral("name"), fi.fileName());
@@ -364,38 +365,50 @@ QVariantMap ModpackExporter::exportContext(const QString& versionId) const
     }
     ctx.insert(QStringLiteral("options"), optList);
 
-    // 资源包/光影子项（zip/rar/文件夹，同主流启动器 ReloadSubOptions + 子项黑名单）
-    auto subItems = [](const QString& dir) {
+    // 资源包/光影子项（同主流启动器 ReloadSubOptions：zip/rar + 文件夹，按修改时间倒序，
+    // 黑名单过滤，texturepacks 合并；空目录剔除）
+    auto subItems = [](const QString& dirA, const QString& dirB) {
         QVariantList out;
-        const QDir d(dir);
-        if (!d.exists()) return out;
-        const auto files = d.entryInfoList(QStringList() << QStringLiteral("*.zip") << QStringLiteral("*.rar"),
-                                           QDir::Files, QDir::Name);
-        for (const auto& fi : files) {
-            bool black = false;
-            for (const auto& b : kSubBlacklist)
-                if (fi.fileName().contains(b)) { black = true; break; }
-            if (black) continue;
-            QVariantMap m;
-            m.insert(QStringLiteral("name"), fi.fileName());
-            m.insert(QStringLiteral("type"), QStringLiteral("file"));
-            out.append(m);
-        }
-        const auto dirs = d.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
-        for (const auto& di : dirs) {
-            if (di.fileName().startsWith(QLatin1Char('.'))) continue;
-            // 空目录不列（同主流启动器 IsValidDirectory）
-            QDirIterator it(di.absoluteFilePath(), QDir::NoDotAndDotDot | QDir::AllEntries);
-            if (!it.hasNext()) continue;
-            QVariantMap m;
-            m.insert(QStringLiteral("name"), di.fileName());
-            m.insert(QStringLiteral("type"), QStringLiteral("dir"));
-            out.append(m);
-        }
+        auto collectDir = [&out](const QString& dir) {
+            const QDir d(dir);
+            if (!d.exists()) return;
+            const auto files = d.entryInfoList(QStringList() << QStringLiteral("*.zip") << QStringLiteral("*.rar"),
+                                               QDir::Files, QDir::Name);
+            for (const auto& fi : files) {
+                bool black = false;
+                for (const auto& b : kSubBlacklist)
+                    if (fi.fileName().contains(b)) { black = true; break; }
+                if (black) continue;
+                QVariantMap m;
+                m.insert(QStringLiteral("name"), fi.fileName());
+                m.insert(QStringLiteral("type"), QStringLiteral("file"));
+                out.append(m);
+            }
+            const auto dirs = d.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Time);   // 时间倒序
+            for (const auto& di : dirs) {
+                if (di.fileName().startsWith(QLatin1Char('.'))) continue;
+                bool black = false;
+                for (const auto& b : kSubBlacklist)
+                    if (di.fileName().contains(b)) { black = true; break; }
+                if (black) continue;
+                // 空目录不列（同主流启动器 IsValidDirectory）
+                QDirIterator it(di.absoluteFilePath(), QDir::NoDotAndDotDot | QDir::AllEntries);
+                if (!it.hasNext()) continue;
+                QVariantMap m;
+                m.insert(QStringLiteral("name"), di.fileName());
+                m.insert(QStringLiteral("type"), QStringLiteral("dir"));
+                out.append(m);
+            }
+        };
+        collectDir(dirA);
+        collectDir(dirB);
         return out;
     };
-    ctx.insert(QStringLiteral("rpItems"), subItems(contentRoot + QStringLiteral("/resourcepacks")));
-    ctx.insert(QStringLiteral("shaderItems"), subItems(contentRoot + QStringLiteral("/shaderpacks")));
+    ctx.insert(QStringLiteral("rpItems"),
+               subItems(contentRoot + QStringLiteral("/resourcepacks"),
+                        contentRoot + QStringLiteral("/texturepacks")));
+    ctx.insert(QStringLiteral("shaderItems"),
+               subItems(contentRoot + QStringLiteral("/shaderpacks"), QString()));
     return ctx;
 }
 
@@ -627,14 +640,16 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
                     includeDisabled = true;
             }
         }
-
-        // ── 3. 收集 mods（走哈希/在线查询；排除 .disabled/.old/.connector，除非勾选“已禁用的 Mod”）──
         // 隔离版本：内容根在 versions/{id}/game/（模组/存档/配置等都在其下）
         const QString contentRoot = QDir(versionDir + QStringLiteral("/game")).exists()
             ? versionDir + QStringLiteral("/game") : gameDir;
+
+        // ── 3. 收集哈希对象（主流启动器 CheckHostedAssets 语义：mods/packs/resource 路径下的
+        //     压缩包类文件尝试在线匹配）：mods/ 下 *.jar/*.zip/*.rar（.disabled/.old 仅当
+        //     勾选“已禁用的 Mod”）+ resourcepacks/ 下 *.zip/*.rar
         struct ModFile {
             QString diskPath;
-            QString relPath;
+            QString relPath;          // 相对版本目录（mods/xxx.jar 或 resourcepacks/xxx.zip）
             QByteArray sha1;
             QByteArray sha512;
             quint32 cfHash = 0;
@@ -645,26 +660,32 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
             bool hosted = false;      // 找到至少一个在线来源
         };
         QList<ModFile> mods;
-        if (includeMods) {
-            QDir modsDir(contentRoot + QStringLiteral("/mods"));
-            if (modsDir.exists()) {
-                QDirIterator it(modsDir.absolutePath(), QStringList() << QStringLiteral("*.jar"),
-                                QDir::Files, QDirIterator::Subdirectories);
-                while (it.hasNext()) {
-                    const QString p = it.next();
-                    const QString lower = p.toLower();
-                    if (!includeDisabled && (lower.endsWith(QStringLiteral(".disabled"))
-                                              || lower.endsWith(QStringLiteral(".old"))))
-                        continue;
-                    if (p.contains(QStringLiteral("/.connector/"), Qt::CaseInsensitive)) continue;
-                    ModFile mf;
-                    mf.diskPath = p;
-                    mf.relPath = modsDir.relativeFilePath(p);
-                    mf.size = QFileInfo(p).size();
-                    mods.append(mf);
-                }
+        auto collectMods = [&](const QString& baseDir, const QString& relPrefix) {
+            const QDir d(baseDir);
+            if (!d.exists()) return;
+            QDirIterator it(d.absolutePath(),
+                            QStringList() << QStringLiteral("*.jar") << QStringLiteral("*.zip")
+                                          << QStringLiteral("*.rar") << QStringLiteral("*.disabled")
+                                          << QStringLiteral("*.old"),
+                            QDir::Files, QDirIterator::Subdirectories);
+            while (it.hasNext()) {
+                const QString p = it.next();
+                const QString lower = p.toLower();
+                if (!includeDisabled && (lower.endsWith(QStringLiteral(".disabled"))
+                                          || lower.endsWith(QStringLiteral(".old"))))
+                    continue;
+                if (p.contains(QStringLiteral("/.connector/"), Qt::CaseInsensitive)) continue;
+                ModFile mf;
+                mf.diskPath = p;
+                mf.relPath = relPrefix + QStringLiteral("/") + d.relativeFilePath(p);
+                mf.size = QFileInfo(p).size();
+                mods.append(mf);
             }
-        }
+        };
+        if (includeMods)
+            collectMods(contentRoot + QStringLiteral("/mods"), QStringLiteral("mods"));
+        if (checked.contains(QStringLiteral("resourcepacks")))
+            collectMods(contentRoot + QStringLiteral("/resourcepacks"), QStringLiteral("resourcepacks"));
 
         // ── 4. overrides 文件清单（规则驱动，同主流启动器 SearchFolder：
         //     遍历版本目录，Like 匹配规则；! 反选；跳过 assets/versions/libraries 与垃圾目录）──
@@ -695,9 +716,13 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
             const auto files = d.entryList(QDir::Files, QDir::Name);
             for (const auto& fn : files) {
                 const QString rel = relPrefix.isEmpty() ? fn : relPrefix + QStringLiteral("/") + fn;
-                // mods/ 下的 .jar 走 mods 哈希流程，避免与 overrides 重复打包
-                if (rel.startsWith(QStringLiteral("mods/"))
-                    && rel.endsWith(QStringLiteral(".jar"), Qt::CaseInsensitive))
+                // mods/ 与 resourcepacks/ 下的压缩包类文件走哈希流程，避免与 overrides 重复打包
+                const QString lower = rel.toLower();
+                const bool isArchive = lower.endsWith(QStringLiteral(".jar"))
+                    || lower.endsWith(QStringLiteral(".zip")) || lower.endsWith(QStringLiteral(".rar"))
+                    || lower.endsWith(QStringLiteral(".disabled")) || lower.endsWith(QStringLiteral(".old"));
+                if (isArchive && (rel.startsWith(QStringLiteral("mods/"))
+                                  || rel.startsWith(QStringLiteral("resourcepacks/"))))
                     continue;
                 if (!shouldKeep(rel)) continue;
                 // 子项黑名单兜底（主流启动器 SubOptionBlackList：这些文件永不打包）
@@ -980,7 +1005,7 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
             for (const auto& m : mods) {
                 if (!m.hosted) continue;
                 QJsonObject f;
-                f.insert(QStringLiteral("path"), QStringLiteral("mods/") + m.relPath);
+                f.insert(QStringLiteral("path"), m.relPath);   // 已含前缀（mods/xxx.jar 或 resourcepacks/xxx.zip）
                 QJsonObject hashes;
                 hashes.insert(QStringLiteral("sha1"), QString::fromLatin1(m.sha1.toHex()));
                 hashes.insert(QStringLiteral("sha512"), QString::fromLatin1(m.sha512.toHex()));
@@ -1029,7 +1054,7 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
         for (const auto& m : mods) {
             if (m.hosted) continue;
             if (m_cancel.loadRelaxed()) { zip.closeWrite(); QFile::remove(outPath); finish(false, tr("已取消")); return; }
-            if (!zip.addFile(m.diskPath, QStringLiteral("overrides/mods/") + m.relPath)) {
+            if (!zip.addFile(m.diskPath, QStringLiteral("overrides/") + m.relPath)) {
                 zip.closeWrite();
                 QFile::remove(outPath);
                 finish(false, zip.error());

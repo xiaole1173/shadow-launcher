@@ -121,19 +121,23 @@ Item {
         }
     }
 
-    // 组装勾选选项（含子项 id:name / id:dir:name）
+    // 组装勾选选项（含子项 id:name / id:dir:name；子项仅在父选项勾选时生效）
     function _buildCheckedOptions() {
         var arr = []
         for (var id in _checked) if (_checked[id]) arr.push(id)
-        var rps = _ctx.rpItems || []
-        for (var i = 0; i < rps.length; i++) {
-            if (_selectedRp[rps[i].name] === false) continue
-            arr.push("resourcepacks:" + (rps[i].type === "dir" ? "dir:" : "") + rps[i].name)
+        if (_checked["resourcepacks"] === true) {
+            var rps = _ctx.rpItems || []
+            for (var i = 0; i < rps.length; i++) {
+                if (_selectedRp[rps[i].name] === false) continue
+                arr.push("resourcepacks:" + (rps[i].type === "dir" ? "dir:" : "") + rps[i].name)
+            }
         }
-        var shs = _ctx.shaderItems || []
-        for (var j = 0; j < shs.length; j++) {
-            if (_selectedShaders[shs[j].name] === false) continue
-            arr.push("shaderpacks:" + (shs[j].type === "dir" ? "dir:" : "") + shs[j].name)
+        if (_checked["shaderpacks"] === true) {
+            var shs = _ctx.shaderItems || []
+            for (var j = 0; j < shs.length; j++) {
+                if (_selectedShaders[shs[j].name] === false) continue
+                arr.push("shaderpacks:" + (shs[j].type === "dir" ? "dir:" : "") + shs[j].name)
+            }
         }
         return arr
     }
@@ -188,10 +192,9 @@ Item {
             return
         }
         if (_busy) return
-        if (!_packName.trim()) {
-            if (root.toastManager) root.toastManager.show(qsTr("请填写整合包名称"), 3000)
-            return
-        }
+        // 包名兜底：为空用版本名（同主流启动器 StartExport：空名用 HintText=版本名）
+        var name = _packName.trim() || versionName || "modpack"
+        if (_packName !== name) _packName = name
         // 配置指定输出路径（主流启动器 PackPath）：直接导出，不弹保存窗
         if (_configPackPath.length > 0) {
             root._doExport(_configPackPath)
