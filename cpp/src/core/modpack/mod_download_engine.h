@@ -91,6 +91,10 @@ private:
         QPointer<QTimer> idleTimer;
         qint64 launchMs = 0;            // 请求发起时刻（连接耗时统计）
         qint64 firstByteMs = 0;        // 首包时间（连接耗时统计）
+        // 慢速看门狗（尾程提速）
+        qint64 slowSinceMs = 0;         // 连续低速起始时刻（0=未触发）
+        qint64 lastWatchBytes = 0;      // 看门狗上次采样的 received
+        int slowSwitchCount = 0;        // 看门狗换源累计（全源都慢时停止换源，避免误判失败）
     };
 
     enum State { Idle, Running, Cancelled };
@@ -106,6 +110,7 @@ private:
     void tryStartNextRound();
     void finishAll();
     void speedTick();
+    void watchTick();                          // 慢速看门狗：500ms 扫描低速文件 → 换源
     bool verifyFile(const std::shared_ptr<Item>& it) const;
     bool isMirrorHost(const QString& url) const;
 
@@ -131,6 +136,11 @@ private:
     QNetworkAccessManager m_nam;             // 引擎级共享（连接池复用）
     QTimer m_pumpTimer;                      // 50ms 调度
     QTimer m_speedTimer;                     // 100ms 采样
+    QTimer m_watchTimer;                     // 500ms 慢速看门狗
+    // 慢速看门狗阈值：每 500ms tick 增量 <64KB（≈128KB/s）且连续 2000ms → 换源
+    static constexpr qint64 kSlowBytesPerTick = 64 * 1024;
+    static constexpr qint64 kSlowTriggerMs = 2000;
+    static constexpr int kMaxSlowSwitches = 6;   // 每文件看门狗换源上限（全源慢时停止，宁可慢爬不误判失败）
     QElapsedTimer m_speedClock;
     qint64 m_lastSpeedBytes = 0;
     QList<qint64> m_speedRecords;            // 30 条 × 100ms ≈ 3s 窗口

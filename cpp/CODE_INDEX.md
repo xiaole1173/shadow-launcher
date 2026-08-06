@@ -187,7 +187,7 @@
 | `modpack_common.h/.cpp` | 74 / 108 | 整合包公共常量/工具。 |
 | `modpack_parser.h/.cpp` | 34 / 276 | **整合包 manifest 解析**（CF/Modrinth/通用格式）。 |
 | `modpack_downloader.h/.cpp` | 144 / 831 | **整合包编排下载（女娲）**：manifest → 文件清单 → 并行下载 → 覆盖备份钩子。 |
-| `mod_download_engine.h/.cpp` | 144 / 467 | **批量模组小文件下载（精卫）**：多源自降级、SHA1/大小校验、EMA 网速统计。 |
+| `mod_download_engine.h/.cpp` | 135 / 532 | **批量模组小文件下载（精卫）**：多源自降级、SHA1/大小校验、EMA 网速统计、**任务大小降序 + 慢速看门狗（500ms 扫描，<128KB/s 持续 2s → 换源，单源/全源慢时放弃看门狗宁慢不误判）**（2026-08-06，commit 待提交）。 |
 | `modpack_install_task.h/.cpp` | 181 / 1280 | **整合包安装任务**：合并安装上下文（MergedInstallContext，主流启动器 式 UUID 临时目录隔离）、加载器安装编排、步骤管线、取消清理。 |
 | `zip_archive.h/.cpp` | 71 / 283 | ZIP 解压封装（QZipReader 包装）。 |
 

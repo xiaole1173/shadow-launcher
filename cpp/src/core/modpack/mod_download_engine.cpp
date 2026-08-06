@@ -30,6 +30,11 @@ ModDownloadEngine::ModDownloadEngine(QObject* parent)
     m_speedTimer.setTimerType(Qt::PreciseTimer);
     connect(&m_speedTimer, &QTimer::timeout, this, &ModDownloadEngine::speedTick);
 
+    // 慢速看门狗：500ms 扫描低速文件 → 换源（治尾程龟速）
+    m_watchTimer.setInterval(500);
+    m_watchTimer.setTimerType(Qt::CoarseTimer);
+    connect(&m_watchTimer, &QTimer::timeout, this, &ModDownloadEngine::watchTick);
+
     m_speedClock.start();
 }
 
@@ -67,6 +72,14 @@ void ModDownloadEngine::start()
     m_round = 0;
     m_active = 0;
     m_pending.clear();
+
+    // 任务大小降序（对齐夸父/山海经）：大文件先下，尾程只剩小文件，
+    // 避免最后几个大文件单连接硬啃导致“越下越慢”的观感
+    std::stable_sort(m_items.begin(), m_items.end(),
+        [](const std::shared_ptr<Item>& a, const std::shared_ptr<Item>& b) {
+            return a->fileSize > b->fileSize;   // 未知大小(-1)自然沉底
+        });
+
     for (auto& it : m_items) {
         it->state = 0;
         it->sourceIdx = 0;
@@ -74,12 +87,16 @@ void ModDownloadEngine::start()
         it->fallbackPassDone = false;
         it->received = 0;
         it->error.clear();
+        it->slowSinceMs = 0;
+        it->lastWatchBytes = 0;
+        it->slowSwitchCount = 0;
         m_pending.append(it);
     }
     m_lastSpeedBytes = m_downloadedBytes;
     m_speedClock.restart();
     m_pumpTimer.start();
     m_speedTimer.start();
+    m_watchTimer.start();
     emit progressChanged(m_completedFiles, m_totalFiles, m_downloadedBytes, m_totalBytes);
     emit logMessage(engineBanner("jingwei"));
     emit logMessage(QStringLiteral("[精卫] 模组下载引擎启动 文件数=%1 最大并发=%2")
@@ -94,6 +111,7 @@ void ModDownloadEngine::cancel()
     m_cancelled = true;
     m_pumpTimer.stop();
     m_speedTimer.stop();
+    m_watchTimer.stop();
     for (auto& it : m_items) {
         if (it->state == 1 && it->reply) it->reply->abort();
     }
@@ -428,6 +446,7 @@ void ModDownloadEngine::finishAll()
     m_state = Idle;
     m_pumpTimer.stop();
     m_speedTimer.stop();
+    m_watchTimer.stop();
     emit progressChanged(m_completedFiles, m_totalFiles, m_downloadedBytes, m_totalBytes);
     emit logMessage(QStringLiteral("[精卫] [完成] 模组下载引擎结束 成功=%1 失败=%2 共%3")
                         .arg(m_completedFiles).arg(m_failedFiles).arg(m_totalFiles));
@@ -462,6 +481,77 @@ void ModDownloadEngine::speedTick()
     m_emaMbps = currentBps / (1024.0 * 1024.0);   // 窗口值直接作为展示值（停流自然归零）
 
     emit progressChanged(m_completedFiles, m_totalFiles, m_downloadedBytes, m_totalBytes);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// 慢速看门狗 — 每 500ms 扫描活动文件，低速持续 2s 则换源（治尾程龟速）
+// ═════════════════════════════════════════════════════════════════════════
+
+void ModDownloadEngine::watchTick()
+{
+    if (m_state != Running) return;
+
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    for (auto& it : m_items) {
+        if (it->state != 1 || !it->reply) continue;
+
+        // 首包前不检测（连接建立期由 idle 超时兜底）
+        if (it->firstByteMs == 0) {
+            it->lastWatchBytes = it->received;
+            it->slowSinceMs = 0;
+            continue;
+        }
+        // 换源/启动后 3s 冷却（新连接提速期，避免误伤）
+        if (now - it->launchMs < 3000) {
+            it->lastWatchBytes = it->received;
+            it->slowSinceMs = 0;
+            continue;
+        }
+
+        const qint64 delta = it->received - it->lastWatchBytes;
+        it->lastWatchBytes = it->received;
+
+        if (delta >= kSlowBytesPerTick) {
+            // 这个 tick 够快 → 重置低速计时
+            it->slowSinceMs = 0;
+            continue;
+        }
+
+        // 低速 tick
+        if (it->slowSinceMs == 0) {
+            it->slowSinceMs = now;
+            continue;
+        }
+        if (now - it->slowSinceMs < kSlowTriggerMs)
+            continue;
+
+        // 连续低速 ≥2s：换源（有限次）
+        // 单源无意义（重下同源大概率还是慢），直接放弃看门狗
+        if (it->sources.size() <= 1) {
+            it->slowSinceMs = 0;
+            continue;
+        }
+        // 还有源可换吗？（正常下一个源 或 触发兜底回绕第一个源）
+        const bool hasNext = it->sourceIdx + 1 < it->sources.size()
+                          || (!it->fallbackPassDone && !it->sources.isEmpty());
+        if (!hasNext) {
+            // 全部源都已试过：放弃看门狗，宁可慢爬也不误判失败
+            it->slowSinceMs = 0;
+            continue;
+        }
+        if (it->slowSwitchCount >= kMaxSlowSwitches) {
+            it->slowSinceMs = 0;
+            continue;
+        }
+
+        it->slowSwitchCount++;
+        it->slowSinceMs = 0;
+        it->lastWatchBytes = it->received;
+        emit logMessage(QStringLiteral("[精卫] [慢速换源] 文件=%1 第%2次 当前源速度过慢 → 切换")
+                            .arg(it->localName).arg(it->slowSwitchCount));
+        // abort 触发 onReplyFinished(OperationCanceled) → sourceFailed → pickSource 换下一个源
+        if (it->reply) it->reply->abort();
+    }
 }
 
 } // namespace ShadowDownloader
