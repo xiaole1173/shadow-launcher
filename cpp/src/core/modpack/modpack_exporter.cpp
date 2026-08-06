@@ -684,8 +684,34 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
         };
         if (includeMods)
             collectMods(contentRoot + QStringLiteral("/mods"), QStringLiteral("mods"));
-        if (checked.contains(QStringLiteral("resourcepacks")))
-            collectMods(contentRoot + QStringLiteral("/resourcepacks"), QStringLiteral("resourcepacks"));
+        // resourcepacks 的 zip 哈希（主流启动器 packs/resource 语义）——遵守子项精确勾选：
+        // 有子项勾选时只哈希勾选项，否则未勾选的 zip 会泄漏进 files[]/实体直装
+        if (checked.contains(QStringLiteral("resourcepacks"))) {
+            QStringList rpSubs;
+            const QString rpPrefix = QStringLiteral("resourcepacks:");
+            for (const auto& v : checkedOptions) {
+                const QString s = v.toString();
+                if (s.startsWith(rpPrefix)) rpSubs.append(s.mid(rpPrefix.size()));
+            }
+            if (rpSubs.isEmpty()) {
+                collectMods(contentRoot + QStringLiteral("/resourcepacks"), QStringLiteral("resourcepacks"));
+            } else {
+                for (const auto& sub : rpSubs) {
+                    const QString name = sub.startsWith(QStringLiteral("dir:")) ? sub.mid(4) : sub;
+                    const QString base = contentRoot + QStringLiteral("/resourcepacks/") + name;
+                    const QFileInfo fi(base);
+                    if (fi.isFile()) {
+                        ModFile mf;
+                        mf.diskPath = base;
+                        mf.relPath = QStringLiteral("resourcepacks/") + name;
+                        mf.size = fi.size();
+                        mods.append(mf);
+                    } else if (fi.isDir()) {
+                        collectMods(base, QStringLiteral("resourcepacks/") + name);
+                    }
+                }
+            }
+        }
 
         // ── 4. overrides 文件清单（规则驱动，同主流启动器 SearchFolder：
         //     遍历版本目录，Like 匹配规则；! 反选；跳过 assets/versions/libraries 与垃圾目录）──

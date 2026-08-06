@@ -342,6 +342,7 @@
 
 | 日期 | 说明 |
 |---|---|
+| 2026-08-06 | 导出五轮复比对：修资源包子项精确模式哈希泄漏（勾选子项时未勾选 zip 不再进 files[]/直装——collectMods 按 rpSubs 限定范围）；确认安装侧 modpack_parser 按 path 通用下载（resourcepacks 引用安全）（modpack_exporter.cpp） |
 | 2026-08-06 | 导出四轮复比对再修：①子项父勾选检查（父未勾选时子项规则不再泄漏导出——BUG）②存档按修改时间倒序、子项文件夹时间倒序+黑名单过滤+texturepacks 合并（主流启动器 ReloadSubOptions）③包名空兕底版本名（主流启动器 StartExport 不拦截空名）④哈希收集扩展：mods 压缩包变体（zip/rar/disabled/old）+ resourcepacks zip 也走在线匹配（主流启动器 packs/resource 语义），files[] path 通用化（modpack_exporter.cpp/ExportModpackSection.qml） |
 | 2026-08-06 | 导出三轮复比对再修 6 项：①downloads 排序方向（主流启动器 非 Modrinth 优先，原反了）②配置 PackPath 应用（读取后直接导出不弹窗）③清除配置覆盖入口（主流启动器 ResetConfigOverrides）④配置 UncheckedOptions 还原未勾选状态 ⑤打包进度 100ms 节流（大包防信号风暴）⑥取消导出静默（不弹“失败”误导）（modpack_exporter.cpp/ExportModpackSection.qml） |
 | 2026-08-06 | 导出对齐 主流启动器 补齐轮 + 代码复查：①补 immersive_paintings 子项、子项黑名单（Quark Programmer Art 等 UI+收集双过滤）、Mod 子项随父勾选显隐（parent 字段）、packdata/tacz/地图/JEI/EMI/帕秋莉/截图等补 showRules 可见性（无内容隐藏）②配置读取规则覆盖模式（rawRules，手工规则整体生效）③修严重 BUG：ModpackExporter 构造后未初始化 setGameDir（m_gameDir 空→导出全路径失效）④隔离版本内容根支持（versions/{id}/game/）⑤联网失败弹窗在浮层关闭时自动继续防 worker 死等（modpack_exporter/shadow_backend/ExportModpackSection） |
