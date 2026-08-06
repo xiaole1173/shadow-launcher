@@ -621,7 +621,15 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
                     //  取最后一段会拿到 classifier 而非版本号）
                     const QStringList parts = name.split(QLatin1Char(':'));
                     if (parts.size() < 3) continue;
-                    const QString ver = parts.at(2);
+                    QString ver = parts.at(2);
+                    // forge/neoforge 版本段可能是 "26.2-65.1.0"（mcVer-forgeVer 完整 ID）——
+                    // mrpack/CF 依赖规范用纯 forge 版本（如 47.4.6），去掉 MC 前缀
+                    if (name.startsWith(QStringLiteral("net.minecraftforge:forge:"))
+                        || name.startsWith(QStringLiteral("net.neoforged:neoforge:"))) {
+                        const int dash = ver.indexOf(QLatin1Char('-'));
+                        if (dash > 0 && ver.left(dash) == mcVersion)
+                            ver = ver.mid(dash + 1);
+                    }
                     if (name.startsWith(QStringLiteral("net.minecraftforge:forge:")))
                         deps.insert(QStringLiteral("forge"), ver);
                     else if (name.contains(QStringLiteral("fabric-loader")))
