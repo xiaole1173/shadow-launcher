@@ -107,14 +107,15 @@ void ModLoaderInstaller::emitByteProgress(const QString& name, qint64 received, 
 
 void ModLoaderInstaller::downloadToFile(const QString& url, const QString& savePath,
                                          std::function<void(bool ok, const QString& error)> done,
-                                         bool reportProgress) {
+                                         bool reportProgress,
+                                         std::function<void(qint64, qint64)> rawProgress) {
     if (m_cancelled) { done(false, "Cancelled"); return; }
     QString fileName = savePath.section('/', -1);
     HttpClient::DownloadHandle* reply = HttpClient::instance().downloadWithReply(url, savePath,
-        [this, fileName, reportProgress](qint64 received, qint64 total) {
+        [this, fileName, reportProgress, rawProgress](qint64 received, qint64 total) {
             if (m_cancelled) return;
-            if (reportProgress)
-                emitByteProgress(fileName, received, total);
+            if (rawProgress) rawProgress(received, total);
+            else if (reportProgress) emitByteProgress(fileName, received, total);
         },
         [this, done, reply](bool ok, const QString& error) {
             m_activeReplies.removeOne(reply);
@@ -3436,6 +3437,8 @@ void ModLoaderInstaller::fabricStep2_downloadLibraries(const QByteArray& profile
         int done = 0;
         bool failed = false;
         QString failErr;
+        qint64 doneBytes = 0;              // 已完成库字节
+        QHash<int, qint64> inflightRecv;   // 在途任务当前 received（实时速度统计用）
     };
     auto st = std::make_shared<DlState>();
     auto pump = std::make_shared<std::function<void()>>();
@@ -3467,24 +3470,37 @@ void ModLoaderInstaller::fabricStep2_downloadLibraries(const QByteArray& profile
                 QString url = taskUrl;
                 url.replace(mirrors[0], mirrors[qMin(idx, mirrors.size() - 1)]);
                 qCInfo(logLoader) << QStringLiteral("[安装] Fabric 库 #%1 下载中（并发 %2/%3）").arg(taskIdx).arg(st->active).arg(kFabricConcurrency);
+                // rawProgress：实时累计字节 → 卡片速度显示（并发下用全局字节，避免单文件跳变）
                 downloadToFile(url, taskSavePath,
                     [this, taskIdx, taskSavePath, st, pump, tryMirror, idx](bool ok, const QString& err) {
                         if (ok) {
                             const qint64 fileSize = QFileInfo(taskSavePath).size();
                             m_fabricLibBytesDone += fileSize;
+                            st->doneBytes += fileSize;
+                            st->inflightRecv.remove(taskIdx);
                             st->done++;
                             st->active--;
                             const int pct = m_fabricLibTasks.size() > 0
                                 ? static_cast<int>(st->done * 100 / m_fabricLibTasks.size()) : 100;
                             emit stepProgress(2, pct);
                             emit byteProgress(QFileInfo(taskSavePath).fileName(),
-                                              static_cast<qint64>(st->done),
-                                              static_cast<qint64>(m_fabricLibTasks.size()), 0);
+                                              st->doneBytes,
+                                              st->doneBytes, 0);
                             (*pump)();
                         } else {
+                            st->inflightRecv.remove(taskIdx);
                             qCInfo(logLoader) << QStringLiteral("[安装] Fabric 库 #%1 下载失败: %2").arg(taskIdx).arg(err);
                             (*tryMirror)(idx + 1);
                         }
+                    },
+                    false,
+                    [this, taskIdx, taskSavePath, st](qint64 recv, qint64 total) {
+                        if (m_cancelled) return;
+                        st->inflightRecv[taskIdx] = recv;
+                        qint64 totalRecv = st->doneBytes;
+                        for (auto it = st->inflightRecv.begin(); it != st->inflightRecv.end(); ++it)
+                            totalRecv += it.value();
+                        emitByteProgress(QFileInfo(taskSavePath).fileName(), totalRecv, totalRecv);
                     });
             };
             (*tryMirror)(0);

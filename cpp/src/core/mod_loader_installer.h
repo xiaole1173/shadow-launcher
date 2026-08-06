@@ -90,7 +90,8 @@ private:
     // Download helpers
     void downloadToFile(const QString& url, const QString& savePath,
                         std::function<void(bool ok, const QString& error)> done,
-                        bool reportProgress = true);
+                        bool reportProgress = true,
+                        std::function<void(qint64, qint64)> rawProgress = {});
     void downloadToMemory(const QString& url,
                           std::function<void(bool ok, const QByteArray& data)> done,
                           const QString& fileNameHint = QString(),
