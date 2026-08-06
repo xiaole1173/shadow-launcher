@@ -204,13 +204,14 @@ Item {
         }
         // ModrinthUploadMode 强制 Modrinth 格式（同主流启动器）
         if (_modrinthOnly) _format = "modrinth"
-        // 初始位置：下载目录（SaveFile 模式 currentFile 要求文件已存在，预填不存在的
-        // 默认文件会被 Qt 拒绝导致对话框状态异常/selectedFile 为空——改用 currentFolder）
-        // 注意：writableLocation 返回 QUrl，currentFolder 也是 url 类型，直接赋值
+        // 预填默认文件名（native 对话框支持不存在的文件；同主流启动器体验）
+        var ext = _format === "curseforge" ? ".zip" : ".mrpack"
         var dlUrl = Platform.StandardPaths.writableLocation(Platform.StandardPaths.DownloadLocation)
         if (!dlUrl || String(dlUrl).length === 0)
             dlUrl = Platform.StandardPaths.writableLocation(Platform.StandardPaths.DocumentsLocation)
-        if (dlUrl) exportFileDialog.currentFolder = dlUrl
+        var defaultPath = (String(dlUrl || "").replace(/^file:\/{2,3}/i, "") || "")
+            + "/" + (_packName.trim() || "modpack") + ext
+        exportFileDialog.currentFile = "file:///" + defaultPath.replace(/\\/g, "/")
         exportFileDialog.open()
     }
 
@@ -809,11 +810,12 @@ Item {
     }
     }
 
-    // ── 保存位置选择 ──
-    FileDialog {
+    // ── 保存位置选择（native 对话框：支持预填不存在的默认文件名，同主流启动器）──
+    Platform.FileDialog {
         id: exportFileDialog
-        fileMode: FileDialog.SaveFile
+        fileMode: Platform.FileDialog.SaveFile
         title: qsTr("保存整合包")
+        defaultSuffix: root._format === "curseforge" ? "zip" : "mrpack"
         nameFilters: root._format === "curseforge"
             ? [qsTr("CurseForge 整合包 (*.zip)"), qsTr("所有文件 (*.*)")]
             : [qsTr("Modrinth 整合包 (*.mrpack)"), qsTr("所有文件 (*.*)")]
@@ -846,9 +848,9 @@ Item {
     }
 
     // ── 配置保存 / 读取 ──
-    FileDialog {
+    Platform.FileDialog {
         id: configSaveDialog
-        fileMode: FileDialog.SaveFile
+        fileMode: Platform.FileDialog.SaveFile
         title: qsTr("保存导出配置")
         nameFilters: [qsTr("导出配置 (*.txt)"), qsTr("所有文件 (*.*)")]
         defaultSuffix: "txt"
@@ -864,7 +866,7 @@ Item {
             root._writeConfig(p)
         }
     }
-    FileDialog {
+    Platform.FileDialog {
         id: configOpenDialog
         title: qsTr("读取导出配置")
         nameFilters: [qsTr("导出配置 (*.txt)"), qsTr("所有文件 (*.*)")]
