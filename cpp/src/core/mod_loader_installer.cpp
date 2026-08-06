@@ -1297,7 +1297,9 @@ void ModLoaderInstaller::forgeStep2_verify(const QByteArray& jarData) {
 
     QString actualSha1 = computeSha1(jarData);
     emit progressChanged(2, m_totalSteps, "正在获取 Forge SHA1 校验值...");
-    QString verArg = m_mcVersion + "-" + m_loaderVersion;
+    // 完整 ID（26.2-65.1.0）直接用；纯版本（65.1.0）拼 MC 前缀
+    const QString verArg = m_loaderVersion.startsWith(m_mcVersion + QLatin1Char('-'))
+        ? m_loaderVersion : m_mcVersion + QStringLiteral("-") + m_loaderVersion;
 
 
     // BMCLAPI: use cached SHA1 from version list (avoids redundant network fetch)
@@ -3216,9 +3218,12 @@ void ModLoaderInstaller::finalizeBootstrapperInstall()
     // DlNeoForgeListEntry: Inherit = "1.20.1" 时用 forge，否则 neoforge
     bool isLegacy = (m_mcVersion == QStringLiteral("1.20.1"));
     const QString neoPkg = isLegacy ? QStringLiteral("forge") : QStringLiteral("neoforge");
+    // 完整 ID（26.2-65.1.0）直接用；纯版本拼 MC 前缀
+    const QString forgeVer = m_loaderVersion.startsWith(m_mcVersion + QLatin1Char('-'))
+        ? m_loaderVersion : m_mcVersion + QStringLiteral("-") + m_loaderVersion;
     const QString ver = isNeo
         ? (isLegacy ? QStringLiteral("1.20.1-%1").arg(m_loaderVersion) : m_loaderVersion)
-        : (m_mcVersion + QStringLiteral("-") + m_loaderVersion);
+        : forgeVer;
     const QString loaderGroup = isNeo
         ? (QStringLiteral("net/neoforged/") + neoPkg)
         : QStringLiteral("net/minecraftforge/forge");

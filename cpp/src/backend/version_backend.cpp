@@ -4948,8 +4948,13 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                                        const QString& fabricApiSavePath,
                                        const QString& forgeInstallerSha1,
                                        const QString& forgeInstallerBranch) {
-    // Build the full Forge Maven version: {mc}-{forge} or {mc}-{forge}-{branch}
-    QString m_forgeMavenVer = mcVersion + QStringLiteral("-") + loaderVersion;
+    // Forge Maven 完整版本 ID：整合包依赖里 loaderVersion 已是完整 ID
+    // （如 "26.2-65.1.0"，mrpack dependencies.forge 规范）；手动安装传纯版本
+    // （如 "65.1.0"）——此时才需要拼 MC 前缀。原实现无条件拼接导致
+    // 完整 ID 变成 "26.2-26.2-65.1.0" → forge 下载 404
+    QString m_forgeMavenVer = loaderVersion;
+    if (!loaderVersion.startsWith(mcVersion + QLatin1Char('-')))
+        m_forgeMavenVer = mcVersion + QStringLiteral("-") + loaderVersion;
     if (!forgeInstallerBranch.isEmpty())
         m_forgeMavenVer += QStringLiteral("-") + forgeInstallerBranch;
 
@@ -5206,18 +5211,20 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
                 };
 
                 if (reply->error() != QNetworkReply::NoError) {
-                    // Build fallback URLs
+                    // Build fallback URLs（与主 URL 同一套版本 ID 语义：完整 ID 直接用，纯版本拼 MC）
                     QStringList fallbackUrls;
                     if (loaderType == QStringLiteral("forge")) {
-                        QString baseVer = mcVersion + QStringLiteral("-") + loaderVersion;
+                        QString baseVer = loaderVersion;
+                        if (!baseVer.startsWith(mcVersion + QLatin1Char('-')))
+                            baseVer = mcVersion + QStringLiteral("-") + loaderVersion;
                         auto addFb = [&](const QString& base, const QString& ver) {
                             fallbackUrls << QStringLiteral("%1/net/minecraftforge/forge/%2/forge-%2-installer.jar").arg(base, ver);
                         };
-                        addFb(QStringLiteral("https://bmclapi2.bangbang93.com/maven"), baseVer + QStringLiteral("-") + mcVersion);
                         QString branchVer = baseVer;
                         if (!forgeInstallerBranch.isEmpty()) branchVer += QStringLiteral("-") + forgeInstallerBranch;
+                        addFb(QStringLiteral("https://bmclapi2.bangbang93.com/maven"), baseVer);
                         addFb(QStringLiteral("https://maven.minecraftforge.net"), branchVer);
-                        addFb(QStringLiteral("https://maven.minecraftforge.net"), baseVer + QStringLiteral("-") + mcVersion);
+                        addFb(QStringLiteral("https://maven.minecraftforge.net"), baseVer);
                     } else if (loaderType == QStringLiteral("neoforge")) {
                         fallbackUrls << QStringLiteral("https://maven.neoforged.net/releases/net/neoforged/neoforge/%1/neoforge-%1-installer.jar").arg(loaderVersion);
                     }
