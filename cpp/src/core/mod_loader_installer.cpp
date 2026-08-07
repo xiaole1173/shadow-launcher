@@ -1034,11 +1034,11 @@ void ModLoaderInstaller::runOptifineInstaller(const QByteArray& jarData) {
         bool installOk = (exitCode == 0) && fullOutput.length() >= 1000
                          && !lastLine.contains(QStringLiteral("at "));
 
-        // Log installer output for debugging
+        // Log installer output for debugging（2026-08-07：实际输出内容到日志，辅助诊断）
         if (!capturedOutput->isEmpty()) {
-            int logLines = qMin(20, static_cast<int>(capturedOutput->size()));
-            QStringList preview = capturedOutput->mid(0, logLines);
             qCInfo(logLoader) << QStringLiteral("[安装] OptiFine 安装器输出: %1 行").arg(static_cast<int>(capturedOutput->size()));
+            for (const QString& ol : *capturedOutput)
+                qCInfo(logLoader) << QStringLiteral("[JVM 输出] ") + ol;
         }
 
         if (m_cancelled || !installOk) {
@@ -3400,54 +3400,60 @@ ModLoaderInstaller::runBootstrapperSync(
             proc.waitForFinished(3000);
             break;
         }
-        if (proc.waitForReadyRead(pollMs)) {
-            QByteArray stdoutData = proc.readAllStandardOutput();
-            if (!stdoutData.isEmpty()) {
-                QStringList lines = QString::fromUtf8(stdoutData)
-                    .split(QRegularExpression(QStringLiteral("[\\r\\n]+")), Qt::SkipEmptyParts);
-                for (const QString& line : lines) {
-                    if (line.trimmed().isEmpty()) continue;
-                    outputLines.append(line);
-                    // 关键词 → 步骤进度映射
-                    if (onStepProgress) {
-                        if (line == QStringLiteral("Extracting json"))
-                            onStepProgress(27);
-                        else if (line == QStringLiteral("Downloading libraries"))
-                            onStepProgress(28);
-                        else if (line == QStringLiteral("Building Processors"))
-                            onStepProgress(38);
-                        else if (line == QStringLiteral("Task: DOWNLOAD_MOJMAPS"))
-                            onStepProgress(40);
-                        else if (line == QStringLiteral("Task: MERGE_MAPPING"))
-                            onStepProgress(50);
-                        else if (line.startsWith(QStringLiteral("Splitting: ")))
-                            onStepProgress(55);
-                        else if (line == QStringLiteral("Parameter Annotations"))
-                            onStepProgress(60);
-                        else if (line == QStringLiteral("Processing Complete") || line == QStringLiteral("log: null"))
-                            onStepProgress(67);
-                        else if (line == QStringLiteral("Sorting"))
-                            onStepProgress(80);
-                        else if (line == QStringLiteral("Remapping final jar"))
-                            onStepProgress(85);
-                        else if (line == QStringLiteral("Remapping jar... 50%"))
-                            onStepProgress(90);
-                        else if (line == QStringLiteral("Remapping jar... 100%"))
-                            onStepProgress(95);
-                        else if (line == QStringLiteral("Injecting profile"))
-                            onStepProgress(98);
-                    }
+        // 每次迭代都 drain 两个通道（不依赖 waitForReadyRead 返回值：
+        // 进程只写 stderr 不写 stdout 时 readyRead 不触发 → stderr 滞留/阻塞；
+        // 2026-08-07 开启 JVM 标准/错误输出辅助诊断）
+        QByteArray stdoutData = proc.readAllStandardOutput();
+        if (!stdoutData.isEmpty()) {
+            QStringList lines = QString::fromUtf8(stdoutData)
+                .split(QRegularExpression(QStringLiteral("[\r\n]+")), Qt::SkipEmptyParts);
+            for (const QString& line : lines) {
+                if (line.trimmed().isEmpty()) continue;
+                outputLines.append(line);
+                // JVM 标准输出写入日志（辅助诊断，2026-08-07）
+                qCInfo(logLoader) << QStringLiteral("[安装] JVM 输出: ") + line;
+                // 关键词 → 步骤进度映射
+                if (onStepProgress) {
+                    if (line == QStringLiteral("Extracting json"))
+                        onStepProgress(27);
+                    else if (line == QStringLiteral("Downloading libraries"))
+                        onStepProgress(28);
+                    else if (line == QStringLiteral("Building Processors"))
+                        onStepProgress(38);
+                    else if (line == QStringLiteral("Task: DOWNLOAD_MOJMAPS"))
+                        onStepProgress(40);
+                    else if (line == QStringLiteral("Task: MERGE_MAPPING"))
+                        onStepProgress(50);
+                    else if (line.startsWith(QStringLiteral("Splitting: ")))
+                        onStepProgress(55);
+                    else if (line == QStringLiteral("Parameter Annotations"))
+                        onStepProgress(60);
+                    else if (line == QStringLiteral("Processing Complete") || line == QStringLiteral("log: null"))
+                        onStepProgress(67);
+                    else if (line == QStringLiteral("Sorting"))
+                        onStepProgress(80);
+                    else if (line == QStringLiteral("Remapping final jar"))
+                        onStepProgress(85);
+                    else if (line == QStringLiteral("Remapping jar... 50%"))
+                        onStepProgress(90);
+                    else if (line == QStringLiteral("Remapping jar... 100%"))
+                        onStepProgress(95);
+                    else if (line == QStringLiteral("Injecting profile"))
+                        onStepProgress(98);
                 }
             }
         }
         QByteArray stderrData = proc.readAllStandardError();
         if (!stderrData.isEmpty()) {
             for (const auto& line : QString::fromUtf8(stderrData)
-                .split(QRegularExpression(QStringLiteral("[\\r\\n]+")), Qt::SkipEmptyParts)) {
+                .split(QRegularExpression(QStringLiteral("[\r\n]+")), Qt::SkipEmptyParts)) {
                 if (!line.trimmed().isEmpty())
-                    qCInfo(logLoader) << QStringLiteral("[安装] Bootstrapper 错误: ") + line;
+                    qCInfo(logLoader) << QStringLiteral("[安装] JVM 错误输出: ") + line;
             }
         }
+        // 兜底：两个通道都空且进程仍在跑 → 短暂等待避免忙轮询
+        if (proc.state() == QProcess::Running && proc.bytesAvailable() == 0)
+            proc.waitForReadyRead(pollMs);
         if (proc.state() == QProcess::NotRunning) {
             procFinished = true;
             proc.waitForFinished(3000);

@@ -372,13 +372,23 @@ void Launcher::onProcessStarted()
 
 void Launcher::onReadyReadStdout()
 {
-    // JVM 输出不再写入启动器日志（用户要求：关闭 JVM 一切输出）。
-    // 仍需读走数据以排空管道，避免 QProcess 内部缓冲区无限增长；
-    // launchProgress 保留给启动遮罩的进度提示（不落日志文件）。
+    // JVM 标准输出写入启动器日志（2026-08-07 重新开启：诊断辅助，曾按用户要求关闭）。
+    // 逐行 qCInfo（日志文件按天轮转），同时保留：排空管道、crash ring buffer、
+    // 全量 shadow-jvm-output.log、launchProgress 进度提示。
     QByteArray data = m_process->readAllStandardOutput();
     QString text = QString::fromUtf8(data).trimmed();
     if (text.isEmpty())
         return;
+
+    // ── 启动器日志：JVM 标准输出（逐行，避免超长行撑爆单条日志）──
+    {
+        const QStringList lines = QString::fromUtf8(data).split(QLatin1Char('\n'));
+        for (const QString& l : lines) {
+            const QString t = l.trimmed();
+            if (t.isEmpty()) continue;
+            qCInfo(logLaunch) << QStringLiteral("[JVM 输出] ") + t;
+        }
+    }
 
     // ── Crash analysis ring buffer: keep raw lines (unfiltered) ──
     {
@@ -409,10 +419,20 @@ void Launcher::onReadyReadStdout()
 
 void Launcher::onReadyReadStderr()
 {
-    // 同 stdout：只排空管道，不写入启动器日志
+    // JVM 错误输出写入启动器日志（2026-08-07 重新开启：诊断辅助，曾按用户要求关闭）
     QByteArray data = m_process->readAllStandardError();
     QString text = QString::fromUtf8(data).trimmed();
     if (!text.isEmpty()) {
+        // ── 启动器日志：JVM 错误输出（逐行）──
+        {
+            const QStringList errLines = QString::fromUtf8(data).split(QLatin1Char('\n'));
+            for (const QString& l : errLines) {
+                const QString t = l.trimmed();
+                if (t.isEmpty()) continue;
+                qCInfo(logLaunch) << QStringLiteral("[JVM 错误输出] ") + t;
+            }
+        }
+
         // ── Crash analysis ring buffer ──
         const QStringList rawLines = QString::fromUtf8(data).split(QLatin1Char('\n'));
         for (const QString& raw : rawLines) {
@@ -422,6 +442,7 @@ void Launcher::onReadyReadStderr()
             if (m_outputRing.size() > 600)
                 m_outputRing.removeFirst();
         }
+
         emit launchProgress(text);
     }
 
