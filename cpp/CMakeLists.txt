@@ -621,6 +621,16 @@ if(SHADOW_BUILD_MODPACK_SELFTEST)
     target_link_directories(DiagImage PRIVATE "${WEBP_ROOT}/lib")
     target_compile_definitions(DiagImage PRIVATE WEBP_STATIC_LINK)
     target_link_libraries(DiagImage PRIVATE Qt6::Gui Qt6::Core libwebp)
+
+    # Forge 旧版安装集成测试（Legacy 2/3 统一路线）：真实网络跑 installForge
+    add_executable(Forge147Test
+        tests/test_forge147.cpp
+        src/core/mod_loader_installer.cpp
+        src/core/http_client.cpp
+        src/utils/logger.cpp
+    )
+    target_include_directories(Forge147Test PRIVATE src)
+    target_link_libraries(Forge147Test PRIVATE Qt6::Core Qt6::Network Qt6::Concurrent Qt6::Gui Qt6::GuiPrivate)
 endif()
 
 # ============================================================

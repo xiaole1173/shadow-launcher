@@ -154,6 +154,9 @@ private:
 
     void forgeStep1_downloadInstaller();
     void forgeStep2_verify(const QByteArray& jarData);
+    /// 统一版本库下载（Legacy 2/3 共用，对齐主流启动器实现 GameLibrariesTask）：
+    /// rules 检查 + natives classifier + 多源 + 跳过已存在（2026-08-07）
+    int downloadVersionLibraries(const QJsonArray& libs);
     void neoStep1_downloadInstaller();
     void neoStep2_verify(const QByteArray& jarData);
     // Extract & install — four-way branch (Legacy3 / Legacy2 / Legacy1 / Bootstrapper)

@@ -32,7 +32,6 @@
 #include <QNetworkAccessManager>
 #include <QNetworkRequest>
 #include <QNetworkReply>
-#include <QApplication>
 #include <QEventLoop>
 #include <QTimer>
 #include "utils/lzma/LzmaDec.h"
@@ -1343,23 +1342,40 @@ void ModLoaderInstaller::forgeStep1_downloadInstaller() {
         return;
     }
 
-    qCInfo(logLoader) << QStringLiteral("[安装] Forge 并行下载: %1 个地址").arg(urlList.size());
+    qCInfo(logLoader) << QStringLiteral("[安装] Forge 顺序下载: %1 个地址").arg(urlList.size());
 
+    // 2026-08-07 修复：竞速并发抢第一个 200 会拿错类别（1.5.2 有 installer.jar 和
+    // universal.zip 都 200，可能抢到 universal.zip → 按 installer SHA1 校验失败）。
+    // 改顺序尝试：URL 列表已按 installer.jar → universal.zip → client.zip 排列，
+    // 逐个下载，第一个成功即停（1.5.2 先得 installer，1.4.7 installer 404 后得 universal）。
     // Use browser UA for Forge Maven (Cloudflare blocks ShadowLauncher/1.0)
     const std::string oldUA = HttpClient::instance().config().userAgent;
     HttpClient::instance().setUserAgent(QString::fromLatin1(ShadowLauncher::kDefaultUserAgent));
-    downloadToMemoryRace(urlList,
-        [this, oldUA](bool ok, const QByteArray& data) {
+    auto tryNext = std::make_shared<std::function<void(int)>>();
+    *tryNext = [this, urlList, oldUA, tryNext](int idx) {
+        if (idx >= urlList.size()) {
             HttpClient::instance().setUserAgent(QString::fromStdString(oldUA));
-            if (!ok) {
-                emit finished(false, "Forge 安装程序下载失败（所有镜像源均不可用）");
-                m_running = false;
-                return;
-            }
-            qCInfo(logLoader) << QStringLiteral("[安装] Forge 下载完成 大小=%1").arg(data.size());
-            forgeStep2_verify(data);
-        },
-        QStringLiteral("forge-installer.jar"));
+            emit finished(false, "Forge 安装程序下载失败（所有镜像源均不可用）");
+            m_running = false;
+            return;
+        }
+        const QString url = urlList[idx];
+        qCInfo(logLoader) << QStringLiteral("[安装] 尝试下载 Forge 安装程序: %1").arg(url);
+        downloadToMemory(url,
+            [this, oldUA, urlList, tryNext, idx](bool ok, const QByteArray& data) {
+                if (!ok) {
+                    qCWarning(logLoader) << QStringLiteral("[安装] Forge 下载失败(源): %1").arg(urlList[idx]);
+                    (*tryNext)(idx + 1);
+                    return;
+                }
+                HttpClient::instance().setUserAgent(QString::fromStdString(oldUA));
+                qCInfo(logLoader) << QStringLiteral("[安装] Forge 下载完成 大小=%1").arg(data.size());
+                forgeStep2_verify(data);
+            },
+            QStringLiteral("forge-installer.jar"),
+            idx == 0);
+    };
+    (*tryNext)(0);
 }
 
 void ModLoaderInstaller::forgeStep2_verify(const QByteArray& jarData) {
@@ -1459,7 +1475,11 @@ static QString officialMavenBaseForGroup(const QString& group) {
     if (group.startsWith(QLatin1String("com/mojang")) || group.startsWith(QLatin1String("com/google"))
         || group.startsWith(QLatin1String("io/netty")) || group.startsWith(QLatin1String("org/apache"))
         || group.startsWith(QLatin1String("org/ow2")) || group.startsWith(QLatin1String("org/slf4j"))
-        || group.startsWith(QLatin1String("com/ibm")) || group.startsWith(QLatin1String("org/lwjgl")))
+        || group.startsWith(QLatin1String("com/ibm")) || group.startsWith(QLatin1String("org/lwjgl"))
+        // 老版本（1.6.4 以下）Minecraft 系库只在 libraries.minecraft.net（repo1 404，2026-08-07 实测）
+        || group.startsWith(QLatin1String("net/minecraft")) || group.startsWith(QLatin1String("lzma"))
+        || group.startsWith(QLatin1String("net/java")) || group.startsWith(QLatin1String("argo"))
+        || group.startsWith(QLatin1String("com/paulscode")) || group.startsWith(QLatin1String("net/sf/jopt-simple")))
         return QStringLiteral("https://libraries.minecraft.net");
     return QStringLiteral("https://repo1.maven.org/maven2");
 }
@@ -1475,7 +1495,140 @@ static QStringList mavenCandidates(bool preferOfficial, const QString& group,
         + version + QLatin1Char('/') + fileName;
     const QString bmcl = QStringLiteral("https://bmclapi2.bangbang93.com/maven/") + rel;
     const QString official = officialMavenBaseForGroup(group) + QLatin1Char('/') + rel;
-    return preferOfficial ? QStringList{official, bmcl} : QStringList{bmcl, official};
+    // files.minecraftforge.net 兜底：Forge 托管全部老版本库（scala/argo/bcprov 等，
+    // 官方 maven/repo1 404 时唯一官方可达源，2026-08-07 实测）
+    const QString fml = QStringLiteral("https://files.minecraftforge.net/maven/") + rel;
+    if (preferOfficial)
+        return QStringList{official, fml, bmcl};
+    return QStringList{bmcl, fml, official};
+}
+
+// ── OS rules 判定（对齐主流启动器实现 McJsonRuleCheck / 主流启动器 Library.rules）──
+// 全 allow/空 → 允许；disallow 当前 OS → 禁止；仅 allow 他 OS → 禁止（2026-08-07）
+static bool libraryAllowed(const QJsonObject& libObj) {
+    const QJsonArray rules = libObj.value(QStringLiteral("rules")).toArray();
+    if (rules.isEmpty()) return true;
+    bool allowed = false;
+    for (const QJsonValue& rv : rules) {
+        const QJsonObject rule = rv.toObject();
+        const QString action = rule.value(QStringLiteral("action")).toString();
+        const QJsonObject os = rule.value(QStringLiteral("os")).toObject();
+        if (os.isEmpty()) {
+            if (action == QStringLiteral("allow")) allowed = true;
+            else if (action == QStringLiteral("disallow")) return false;
+            continue;
+        }
+#ifdef Q_OS_WIN
+        const QString osName = QStringLiteral("windows");
+#elif defined(Q_OS_MACOS)
+        const QString osName = QStringLiteral("osx");
+#else
+        const QString osName = QStringLiteral("linux");
+#endif
+        if (os.value(QStringLiteral("name")).toString() == osName) {
+            if (action == QStringLiteral("allow")) allowed = true;
+            else if (action == QStringLiteral("disallow")) return false;
+        }
+    }
+    return allowed;
+}
+
+// ── 统一版本库下载（对齐主流启动器实现 GameLibrariesTask / 主流启动器 McLibListGetWithJson）──
+// Legacy 2/3 共用：rules 检查 + natives classifier + 多源 + 跳过已存在。
+// 返回下载成功数（失败不致命，版本 JSON 仍写入，启动时再补）。
+int ModLoaderInstaller::downloadVersionLibraries(const QJsonArray& libs) {
+    int downloaded = 0;
+    QNetworkAccessManager localNam;   // 局部 NAM（避免共享单例的跨线程竞态）
+    for (const auto& lv : libs) {
+        if (m_cancelled) break;
+        if (!lv.isObject()) continue;
+        const QJsonObject libObj = lv.toObject();
+        const QString name = libObj.value(QStringLiteral("name")).toString();
+        if (name.isEmpty()) continue;
+        if (!libraryAllowed(libObj)) continue;   // OS rules 排除（2026-08-07）
+
+        QString classifier;
+        // 1) downloads.artifact.url 文件名提取 classifier
+        {
+            const QJsonObject artifactUrl = libObj.value(QStringLiteral("downloads")).toObject()
+                                                .value(QStringLiteral("artifact")).toObject();
+            const QString urlStr = artifactUrl.value(QStringLiteral("url")).toString();
+            if (!urlStr.isEmpty()) {
+                const QString fileName = urlStr.mid(urlStr.lastIndexOf(QLatin1Char('/')) + 1);
+                const QString bare = name.section(QLatin1Char(':'), 1, 1) + QStringLiteral("-")
+                                     + name.section(QLatin1Char(':'), 2, 2);
+                if (fileName.startsWith(bare) && fileName.contains(QLatin1Char('-'))) {
+                    const QString middle = fileName.mid(bare.length());
+                    if (middle.contains(QLatin1Char('.')) && middle.indexOf(QLatin1Char('.')) > 0)
+                        classifier = middle.section(QLatin1Char('.'), 0, 0).mid(1);
+                }
+            }
+        }
+        // 2) natives 字段（老版本 1.6.4 以下）：{windows: "natives-windows"} → classifier
+        if (classifier.isEmpty()) {
+            const QJsonObject nativesObj = libObj.value(QStringLiteral("natives")).toObject();
+            if (!nativesObj.isEmpty()) {
+#ifdef Q_OS_WIN
+                classifier = nativesObj.value(QStringLiteral("windows")).toString();
+#elif defined(Q_OS_MACOS)
+                classifier = nativesObj.value(QStringLiteral("osx")).toString();
+#else
+                classifier = nativesObj.value(QStringLiteral("linux")).toString();
+#endif
+            }
+        }
+
+        QStringList parts = name.split(QLatin1Char(':'));
+        if (parts.size() < 3) continue;
+        const QString group = parts[0].replace(QLatin1Char('.'), QLatin1Char('/'));
+        const QString artifact = parts[1];
+        QString version = parts[2];
+        QString ext = QStringLiteral("jar");
+        if (version.contains(QLatin1Char('@'))) {
+            const int atIdx = version.indexOf(QLatin1Char('@'));
+            ext = version.mid(atIdx + 1);
+            version = version.left(atIdx);
+        }
+        if (parts.size() >= 4 && classifier.isEmpty()) classifier = parts[3];
+
+        const QString classifierSuffix = classifier.isEmpty() ? QString() : (QStringLiteral("-") + classifier);
+        const QString libDir = m_gameDir + QStringLiteral("/libraries/") + group
+            + QStringLiteral("/") + artifact + QStringLiteral("/") + version;
+        const QString libFile = libDir + QStringLiteral("/") + artifact
+            + QStringLiteral("-") + version + classifierSuffix + QStringLiteral(".") + ext;
+        if (QFile::exists(libFile)) continue;   // 已存在（含原版库 MC 下载已装）跳过
+
+        const QStringList urls = mavenCandidates(m_preferOfficial, group, artifact, version, ext, classifier);
+        QDir().mkpath(libDir);
+        for (const QString& url : urls) {
+            QNetworkRequest req;
+            req.setUrl(QUrl(url));
+            QNetworkReply* reply = localNam.get(req);
+            QEventLoop loop;
+            QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+            QTimer timer;
+            timer.setSingleShot(true);
+            QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+            timer.start(15000);
+            loop.exec();
+            const bool ok = reply->error() == QNetworkReply::NoError && timer.isActive();
+            if (ok) {
+                timer.stop();
+                QFile f(libFile);
+                if (f.open(QIODevice::WriteOnly)) {
+                    f.write(reply->readAll());
+                    f.close();
+                    downloaded++;
+                }
+            } else {
+                qCWarning(logLoader) << QStringLiteral("[安装] 版本库下载失败: %1").arg(url);
+                QFile::remove(libFile);
+            }
+            reply->deleteLater();
+            if (ok && QFile::exists(libFile)) break;
+        }
+    }
+    return downloaded;
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -1956,16 +2109,31 @@ void ModLoaderInstaller::installLegacy3(const QByteArray& jarData) {
         }
     }
 
-    // 4. Create version JSON with inheritsFrom (inherit MC's libraries)
-    //    but override jar and mainClass to use our Forge-patched JAR.
+    // 4. Create version JSON — 对齐 主流启动器/主流启动器：inheritsFrom 中间态 → flatten 拍平
+    //    （合并原版 libraries + 删 inheritsFrom → 独立版本，原版清理后仍可启动；
+    //     2026-08-07 统一 Legacy 2/3 路线）
     QJsonObject versionJson;
     versionJson[QStringLiteral("id")] = m_installName;
     versionJson[QStringLiteral("type")] = QStringLiteral("release");
     versionJson[QStringLiteral("mainClass")] = mainClass;
     versionJson[QStringLiteral("inheritsFrom")] = m_mcVersion;
-    versionJson[QStringLiteral("jar")] = m_installName;  // use our JAR
+    versionJson[QStringLiteral("jar")] = m_installName;  // use our JAR (self-contained)
     versionJson[QStringLiteral("minimumLauncherVersion")] = 4;
-    versionJson[QStringLiteral("libraries")] = QJsonArray();  // all libraries from inheritsFrom
+    versionJson[QStringLiteral("libraries")] = QJsonArray();
+    {
+        QJsonObject flattened = flattenVersionJson(m_gameDir, versionJson);
+        if (flattened != versionJson) {
+            versionJson = flattened;
+            qCInfo(logLoader) << QStringLiteral("[安装] Legacy 3 JSON 已压平为独立版本");
+        }
+        // 统一版本库下载（对齐主流启动器实现 GameLibrariesTask）
+        const QJsonArray libsArr = versionJson.value(QStringLiteral("libraries")).toArray();
+        if (!libsArr.isEmpty()) {
+            const int downloaded = downloadVersionLibraries(libsArr);
+            if (downloaded > 0)
+                qCInfo(logLoader) << QStringLiteral("[安装] Legacy 3 已下载 %1 个库").arg(downloaded);
+        }
+    }
 
     // 5. Write version JSON
     const QString jsonPath = verDir + QStringLiteral("/") + m_installName + QStringLiteral(".json");
@@ -2003,10 +2171,29 @@ void ModLoaderInstaller::installLegacy2(const QByteArray& jarData, const QJsonOb
     const QString groupPath = QStringLiteral("net/minecraftforge/forge");
     const QString filePrefix = QStringLiteral("forge");
 
-    // 1. Extract universal JAR to libraries/
-    const QString jarDst = m_gameDir + QStringLiteral("/libraries/") + groupPath
+    // 1. Extract universal JAR to libraries/ —— 目标路径对齐主流启动器实现 McLibGet(install.path)：
+    //    versionInfo.libraries 引用 net.minecraftforge:minecraftforge:{fv}，
+    //    写到该路径后库循环 exists 跳过，不重复网络下载（2026-08-07）
+    const QString installPath = profile.value(QStringLiteral("install")).toObject()
+                                    .value(QStringLiteral("path")).toString();
+    QString jarDst = m_gameDir + QStringLiteral("/libraries/") + groupPath
         + QStringLiteral("/") + ver + QStringLiteral("/")
         + filePrefix + QStringLiteral("-") + ver + QStringLiteral(".jar");
+    if (!installPath.isEmpty()) {
+        const QStringList ip = installPath.split(QLatin1Char(':'));
+        if (ip.size() >= 3) {
+            const QString altDir = m_gameDir + QStringLiteral("/libraries/")
+                + QString(ip[0]).replace(QLatin1Char('.'), QLatin1Char('/')) + QStringLiteral("/")
+                + ip[1] + QStringLiteral("/") + ip[2];
+            const QString altJar = altDir + QStringLiteral("/") + ip[1]
+                + QStringLiteral("-") + ip[2] + QStringLiteral(".jar");
+            // 优先写到 versionInfo.libraries 引用的路径（对齐 主流启动器）
+            if (!QFile::exists(altJar)) {
+                QDir().mkpath(altDir);
+                jarDst = altJar;
+            }
+        }
+    }
     QDir().mkpath(QFileInfo(jarDst).absolutePath());
 
     QBuffer buffer;
@@ -2064,68 +2251,12 @@ void ModLoaderInstaller::installLegacy2(const QByteArray& jarData, const QJsonOb
         }
     }
 
-    // Pre-download forge-specific libraries (same as Legacy 1)
-    {
-        QJsonArray libs = vInfo.value(QStringLiteral("libraries")).toArray();
-        if (!libs.isEmpty()) {
-            QNetworkAccessManager localNam;   // 局部 NAM（避免共享单例的跨线程竞态）
-            QNetworkAccessManager* nam = &localNam;
-            int downloaded = 0;
-            for (const auto& lv : libs) {
-                if (!lv.isObject()) continue;
-                QJsonObject libObj = lv.toObject();
-                QString name = libObj.value(QStringLiteral("name")).toString();
-                if (name.isEmpty()) continue;
-                QStringList parts = name.split(QLatin1Char(':'));
-                if (parts.size() < 3) continue;
-                QString group = parts[0].replace(QLatin1Char('.'), QLatin1Char('/'));
-                QString artifact = parts[1];
-                QString version = parts[2];
-                QString ext = QStringLiteral("jar");
-                if (version.contains(QLatin1Char('@'))) {
-                    int atIdx = version.indexOf(QLatin1Char('@'));
-                    ext = version.mid(atIdx + 1);
-                    version = version.left(atIdx);
-                }
-                QString libDir = m_gameDir + QStringLiteral("/libraries/") + group
-                    + QStringLiteral("/") + artifact + QStringLiteral("/") + version;
-                QString libFile = libDir + QStringLiteral("/") + artifact
-                    + QStringLiteral("-") + version + QStringLiteral(".") + ext;
-                if (QFile::exists(libFile)) continue;
-                // 按下载源策略取候选（官方 maven / BMCLAPI 镜像，顺序由全局设置决定）
-                const QStringList urls = mavenCandidates(m_preferOfficial, group, artifact, version, ext);
-                QDir().mkpath(libDir);
-                for (const QString& url : urls) {
-                    QNetworkRequest req;
-                    req.setUrl(QUrl(url));
-                    QNetworkReply* reply = nam->get(req);
-                    QEventLoop loop;
-                    QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-                    QTimer timer;
-                    timer.setSingleShot(true);
-                    QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
-                    timer.start(15000);   // 主线程阻塞场景：单源 15s 上限（双候选最坏 30s，与基线持平）
-                    loop.exec();
-                    const bool ok = reply->error() == QNetworkReply::NoError && timer.isActive();
-                    if (ok) {
-                        timer.stop();
-                        QFile f(libFile);
-                        if (f.open(QIODevice::WriteOnly)) {
-                            f.write(reply->readAll());
-                            f.close();
-                            downloaded++;
-                        }
-                    } else {
-                        qCWarning(logLoader) << QStringLiteral("[安装] Legacy 2 库下载失败: %1").arg(url);
-                        QFile::remove(libFile);
-                    }
-                    reply->deleteLater();
-                    if (ok && QFile::exists(libFile)) break;
-                }
-            }
-            if (downloaded > 0)
-                qCInfo(logLoader) << QStringLiteral("[安装] 已为 Legacy 2 预下载 %1 个库").arg(downloaded);
-        }
+    // 统一版本库下载（对齐主流启动器实现 GameLibrariesTask：rules/natives/多源/跳过已存在，2026-08-07）
+    const QJsonArray libsArr = vInfo.value(QStringLiteral("libraries")).toArray();
+    if (!libsArr.isEmpty()) {
+        const int downloaded = downloadVersionLibraries(libsArr);
+        if (downloaded > 0)
+            qCInfo(logLoader) << QStringLiteral("[安装] 已为 Legacy 2 下载 %1 个库").arg(downloaded);
     }
 
     QString jsonPath = verDir + QStringLiteral("/") + m_installName + QStringLiteral(".json");
