@@ -349,6 +349,7 @@
 
 | 日期 | 说明 |
 |---|---|
+| 2026-08-07 | Legacy 3 根本性修正（bd85c62）：实测 universal.zip（746）非自包含 JAR——client.jar 1933 条目、universal 缺 1688 个混淆类（lg 等）→ NoClassDefFoundError；重写 installLegacy3：游戏 JAR=原版 client.jar 副本 + universal→libraries/forge-{ver}.jar + flatten |
 | 2026-08-07 | 1.4.7 Legacy 3 mainClass 修正（d1939e4）：恒用 net.minecraft.client.Minecraft（实测 FMLRelauncher 无 main，FML 通过 Minecraft.fmlReentry 注入）；删 JAR 扫描逻辑 |
 | 2026-08-07 | 1.4.7+forge 启动崩溃修复（bca513b）：launcher pre-1.6 mainClass 覆盖加 FML 例外（FMLRelauncher 保留）；version_isolation 隔离模式统一返回 game/（删降级 verDir 分支，junction 不再建到 versions/.minecraft）；删 isDirNonEmpty 死代码 |
 | 2026-08-07 | 开启 JVM 标准/错误输出到日志（1cd4bac）：launcher onReadyReadStdout/Stderr 逐行 qCInfo（[JVM 输出]/[JVM 错误输出] 前缀，曾按用户要求关闭）；runBootstrapperSync 改每次迭代 drain 两通道（原依赖 waitForReadyRead 返回值，纯 stderr 进程会阻塞）+ stdout/stderr 写日志；OptiFine 安装器 capturedOutput 实际内容写日志（原只打行数） |
