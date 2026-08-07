@@ -443,11 +443,6 @@ void ModManager::cancelModFileDownload(int downloadId)
     if (it == m_activeModDownloads.end()) return;
     qCInfo(logApp) << QStringLiteral("取消Mod下载 id=%1").arg(downloadId);
     it->cancelled = true;
-    if (it->fd) {
-        it->fd->cancel();
-        it->fd->deleteLater();
-        it->fd = nullptr;
-    }
     if (it->reply) {
         HttpClient::instance().abortDownload(it->reply);
         it->reply = nullptr;
@@ -462,12 +457,6 @@ void ModManager::pauseModFileDownload(int downloadId)
     auto it = m_activeModDownloads.find(downloadId);
     if (it == m_activeModDownloads.end() || it->finished || it->failed) return;
     it->paused = true;
-    if (it->fd) {
-        // 夸父无断点持久化：暂停=放弃在途（received 保留显示，恢复时重新下载）
-        it->fd->cancel();
-        it->fd->deleteLater();
-        it->fd = nullptr;
-    }
     if (it->reply) {
         HttpClient::instance().abortDownload(it->reply);
         it->reply = nullptr;
@@ -489,15 +478,9 @@ void ModManager::resumeModFileDownload(int downloadId)
     QString sha1 = it->sha1;
     qint64 received = it->received;
     int oldId = it->id;
-    const bool wasKuafu = (it->fd != nullptr);
     m_activeModDownloads.erase(it);
-    if (wasKuafu) {
-        // 夸父路径无断点文件：全新下载（走夸父多线程分片）
-        downloadModFile(url, savePath, displayName, expectedSize, sha1, 0, -1);
-    } else {
-        // 驿道断点续传路径
-        downloadModFile(url, savePath, displayName, expectedSize, sha1, received, oldId);
-    }
+    // 驿道断点续传路径（夸父 fd 路径已废弃，2026-08-07 清理）
+    downloadModFile(url, savePath, displayName, expectedSize, sha1, received, oldId);
 }
 
 void ModManager::retryModFileDownload(int downloadId)
@@ -509,11 +492,12 @@ void ModManager::retryModFileDownload(int downloadId)
     QString displayName = it->displayName;
     qint64 expectedSize = it->expectedSize;
     QString sha1 = it->sha1;
+    // 断点续传：擦除前先取 received（erase 后迭代器失效，悬垂读取——2026-08-07 审计修复）
+    qint64 received = it->received;
     QFile::remove(savePath);
     m_activeModDownloads.erase(it);
     emit logMessage(tr("[重试] 重试下载 Mod: %1").arg(displayName));
-    qint64 offset = it->received;
-    downloadModFile(url, savePath, displayName, expectedSize, sha1, offset);
+    downloadModFile(url, savePath, displayName, expectedSize, sha1, received);
 }
 
 // ═══════════════════════════════════════════════════════════

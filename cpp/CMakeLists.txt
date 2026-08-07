@@ -57,7 +57,6 @@ set(SOURCES
     src/core/cf_api.cpp
     src/core/logger.cpp
     src/core/version_manager.cpp
-    src/core/downloader.cpp
     src/core/file_downloader.cpp
     src/core/asset_downloader.cpp
     src/core/version_downloader.cpp
@@ -116,7 +115,6 @@ set(HEADERS
     src/core/cf_api.h
     src/core/logger.h
     src/core/version_manager.h
-    src/core/downloader.h
     src/core/file_downloader.h
     src/core/asset_downloader.h
     src/core/version_downloader.h

@@ -14,8 +14,6 @@ class QNetworkReply;
 class QFile;
 #include "http_client.h"   // HttpClient::DownloadHandle
 
-namespace ShadowDownloader { class FileDownloader; }
-
 namespace ShadowLauncher {
 
 class ResourceFetchEngine;
@@ -257,10 +255,7 @@ private:
         bool finished = false;
         bool failed = false;
         QString errorDetail;
-        HttpClient::DownloadHandle* reply = nullptr;   // 断点续传旧路径（驿道）
-        ShadowDownloader::FileDownloader* fd = nullptr;   // 常规路径（夸父多线程分片）
-        QFile* tmpFile = nullptr;
-        QString tmpPath;
+        HttpClient::DownloadHandle* reply = nullptr;   // 驿道断点续传（2026-08-07 清理：夸父 fd 路径已废弃）
     };
     QMap<int, ActiveModDownload> m_activeModDownloads;
     int m_nextModDownloadId = 1;
