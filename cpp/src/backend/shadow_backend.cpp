@@ -1646,10 +1646,27 @@ QString ShadowBackend::exportLaunchScript(const QString& versionId, const QStrin
                                           int maxMemoryMB, const QString& jvmArgs,
                                           const QString& gameArgs, bool highPerfGpu) {
     if (!m_launch) return {};
-    // 对齐启动流程：注入账号信息 + 版本隔离目录（否则脚本里 ${game_directory} 空
-    // → --gameDir 无值 → 游戏找不到目录无法启动；${auth_player_name} 空 → 占位符）
+    // 对齐启动流程：Java 按版本需求匹配（不能直接用全局 javaPath——26.2-forge 需要
+    // Java 25，全局 Java 17 会导致 UnsupportedClassVersionError class file 69.0）
+    QString resolvedJava = javaPath;
+    if (m_settings) {
+        const int requiredMajor = requiredJavaMajor(versionId);
+        int maxMajor = 0;
+        if (requiredMajor == 17) maxMajor = 21;
+        const QString manualJava = m_settings->javaPath();
+        if (!manualJava.isEmpty() && QFileInfo::exists(manualJava)
+            && m_settings->javaMajor() >= requiredMajor
+            && (maxMajor <= 0 || m_settings->javaMajor() <= maxMajor)) {
+            resolvedJava = manualJava;
+        } else {
+            const QString matched = m_settings->findJavaForVersion(requiredMajor, maxMajor);
+            if (!matched.isEmpty()) resolvedJava = matched;
+        }
+    }
+    if (resolvedJava.isEmpty()) return QString();
+    // 对齐启动流程：注入账号信息 + 版本隔离目录
     if (m_account) {
-        // 对齐启动流程（launch() 内 auth 注入）：离线用 offlineUsername，在线用 username
+        // 离线用 offlineUsername，在线用 username（对齐 launch() 内 auth 注入）
         const bool online = m_account->isOnline();
         const QString name = online ? m_account->username() : m_account->offlineUsername();
         const QString uuid = online ? m_account->accountUuid() : m_account->offlineUuid();
@@ -1657,7 +1674,7 @@ QString ShadowBackend::exportLaunchScript(const QString& versionId, const QStrin
     }
     if (m_settings)
         m_launch->setVersionGameDir(m_settings->getVersionGameDir(versionId));
-    return m_launch->exportLaunchScript(versionId, javaPath, maxMemoryMB,
+    return m_launch->exportLaunchScript(versionId, resolvedJava, maxMemoryMB,
                                         jvmArgs, gameArgs, highPerfGpu);
 }
 
