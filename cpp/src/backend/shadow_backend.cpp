@@ -1646,6 +1646,17 @@ QString ShadowBackend::exportLaunchScript(const QString& versionId, const QStrin
                                           int maxMemoryMB, const QString& jvmArgs,
                                           const QString& gameArgs, bool highPerfGpu) {
     if (!m_launch) return {};
+    // 对齐启动流程：注入账号信息 + 版本隔离目录（否则脚本里 ${game_directory} 空
+    // → --gameDir 无值 → 游戏找不到目录无法启动；${auth_player_name} 空 → 占位符）
+    if (m_account) {
+        // 对齐启动流程（launch() 内 auth 注入）：离线用 offlineUsername，在线用 username
+        const bool online = m_account->isOnline();
+        const QString name = online ? m_account->username() : m_account->offlineUsername();
+        const QString uuid = online ? m_account->accountUuid() : m_account->offlineUuid();
+        m_launch->setAuthInfo(name, uuid, online ? m_account->mcToken() : QString(), online);
+    }
+    if (m_settings)
+        m_launch->setVersionGameDir(m_settings->getVersionGameDir(versionId));
     return m_launch->exportLaunchScript(versionId, javaPath, maxMemoryMB,
                                         jvmArgs, gameArgs, highPerfGpu);
 }

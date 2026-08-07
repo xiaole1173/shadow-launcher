@@ -57,22 +57,35 @@ int main(int argc, char** argv)
         vj[QStringLiteral("id")] = QStringLiteral("1.12.2");
         vj[QStringLiteral("mainClass")] = QStringLiteral("net.minecraft.client.main.Main");
         vj[QStringLiteral("libraries")] = QJsonArray();
-        vj[QStringLiteral("arguments")] = QJsonObject();
+        QJsonObject argsObj;
+        QJsonArray gameArr;
+        gameArr.append(QStringLiteral("--username"));
+        gameArr.append(QStringLiteral("${auth_player_name}"));
+        gameArr.append(QStringLiteral("--gameDir"));
+        gameArr.append(QStringLiteral("${game_directory}"));
+        argsObj[QStringLiteral("game")] = gameArr;
+        vj[QStringLiteral("arguments")] = argsObj;
         QFile jf(gameDir + QStringLiteral("/versions/1.12.2/1.12.2.json"));
         jf.open(QIODevice::WriteOnly); jf.write(QJsonDocument(vj).toJson()); jf.close();
 
         Launcher launcher;
         launcher.setGameDir(gameDir);
         launcher.setVersionGameDir(gameDir);
+        launcher.setAuthInfo(QStringLiteral("Steve"), QStringLiteral("00000000-0000-0000-0000-000000000001"),
+                             QStringLiteral("tok"), false);
         const QString script = launcher.buildLaunchScript(
             QStringLiteral("1.12.2"), QStringLiteral("C:/java/bin/java.exe"),
             2048, QStringLiteral("-Xmx2G"), QStringLiteral("--demo"), false);
         const bool hasEcho = script.contains(QStringLiteral("@echo off"));
         const bool hasCmd = script.contains(QStringLiteral("java.exe"));
         const bool hasMain = script.contains(QStringLiteral("net.minecraft.client.main.Main"));
-        fprintf(stderr, "[2] buildLaunchScript: len=%d echo=%d cmd=%d main=%d\n",
-                script.size(), hasEcho ? 1 : 0, hasCmd ? 1 : 0, hasMain ? 1 : 0);
-        if (!(hasEcho && hasCmd && hasMain)) fail++;
+        const bool hasUser = script.contains(QStringLiteral("Steve"));
+        // --gameDir 后有值（t_script 路径出现）
+        const bool gdOk = script.contains(QStringLiteral("t_script"));
+        fprintf(stderr, "[2] buildLaunchScript: len=%d echo=%d cmd=%d main=%d user=%d gameDirFilled=%d\n",
+                script.size(), hasEcho ? 1 : 0, hasCmd ? 1 : 0, hasMain ? 1 : 0,
+                hasUser ? 1 : 0, gdOk ? 1 : 0);
+        if (!(hasEcho && hasCmd && hasMain && hasUser && gdOk)) fail++;
         QDir(gameDir).removeRecursively();
     }
 

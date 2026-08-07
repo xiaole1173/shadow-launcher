@@ -1576,7 +1576,8 @@ QString LaunchBackend::exportLaunchScript(const QString& versionId, const QStrin
     if (versionId.isEmpty() || javaPath.isEmpty()) return QString();
     Launcher launcher;
     launcher.setGameDir(m_gameDir);
-    launcher.setVersionGameDir(m_versionGameDir);
+    launcher.setVersionGameDir(m_versionGameDir.isEmpty() ? m_gameDir : m_versionGameDir);
+    launcher.setAuthInfo(m_authName, m_authUuid, m_authToken, m_authIsOnline);
     launcher.setAutoLangMode(m_autoLangMode);
     launcher.setDetectedRegion(m_detectedRegion);
     launcher.setResolution(m_windowWidth, m_windowHeight);
