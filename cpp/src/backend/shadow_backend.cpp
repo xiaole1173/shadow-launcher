@@ -3149,6 +3149,9 @@ static QVariantList parseForgeOfficialVersions(const QByteArray& html, const QSt
             continue;
         }
 
+        // 对齐 主流启动器：只保留 installer 类别（universal/client 无法自动安装）2026-08-07
+        if (category != QStringLiteral("installer")) continue;
+
         QVariantMap m;
         m[QStringLiteral("version")] = versionName;
         m[QStringLiteral("type")] = isRecommended ? QStringLiteral("recommended") : QStringLiteral("release");
@@ -3175,15 +3178,21 @@ static QVariantList parseForgeBmclapiVersions(const QByteArray& data, const QStr
         if (ver.isEmpty()) continue;
         QString date = obj.value(QStringLiteral("modified")).toString().left(10);
         QString installerSha1;
+        bool hasInstaller = false;
         if (obj.contains(QStringLiteral("files"))) {
             for (const QJsonValue& fv : obj[QStringLiteral("files")].toArray()) {
                 QJsonObject f = fv.toObject();
-                if (f.value(QStringLiteral("category")).toString() == QStringLiteral("installer")) {
+                const QString cat = f.value(QStringLiteral("category")).toString();
+                if (cat == QStringLiteral("installer")) {
                     installerSha1 = f.value(QStringLiteral("hash")).toString();
+                    hasInstaller = true;
                     break;
                 }
             }
         }
+        // 对齐 主流启动器（PageDownloadInstall L724/757）：只保留 installer 类别，
+        // universal/client（1.6.1 及更早）无法自动安装 → 直接过滤（2026-08-07）
+        if (!hasInstaller) continue;
         QString branch = obj.value(QStringLiteral("branch")).toString();
         if (!branch.isEmpty() && cacheBranchFn)
             cacheBranchFn(mcVersion, ver, branch);
