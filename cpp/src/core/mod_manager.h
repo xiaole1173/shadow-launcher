@@ -217,6 +217,11 @@ public:
 private:
     bool m_busy = false;
     ResourceFetchEngine* m_fetchEngine = nullptr;
+    /// 统一 JSON 拉取入口（2026-08-07 整合）：司南优先（缓存/重试/并发控制），
+    /// 引擎未注入时回退 HttpClient。回调签名与 HttpClient::get 完全一致。
+    void fetchViaSinan(const QString& url, bool cacheable,
+                       std::function<void(int status, const QByteArray& body)> done,
+                       std::function<void(const QString& error)> fail);
     QString buildSearchUrl(
         const QString& query, const QStringList& categories,
         const QStringList& gameVersions, const QStringList& loaders,

@@ -157,7 +157,7 @@ void ModManager::searchModrinthProjects(
     params.addQueryItem(QStringLiteral("index"), sort);
     url.setQuery(params);
 
-    HttpClient::instance().get(url.toString(),
+    fetchViaSinan(url.toString(), true,
         [this](int status, const QByteArray& body) {
             if (status == 200) {
                 int totalHits = 0;
@@ -208,7 +208,7 @@ void ModManager::getModVersions(
 
     url.setQuery(params);
 
-    HttpClient::instance().get(url.toString(),
+    fetchViaSinan(url.toString(), true,
         [this, slug](int status, const QByteArray& body) {
             if (status == 200) {
                 QJsonArray files = parseVersionsResponse(body);
@@ -602,7 +602,7 @@ void ModManager::downloadResourcepack(
                         QStringLiteral("[\"%1\"]").arg(gameVersion));
     versionsUrl.setQuery(vp);
 
-    HttpClient::instance().get(versionsUrl.toString(),
+    fetchViaSinan(versionsUrl.toString(), true,
         [this, slug, gameVersion, minecraftDir](int /*status*/, const QByteArray& data) {
             QJsonArray files = parseVersionsResponse(data);
             if (files.isEmpty()) {
@@ -689,7 +689,7 @@ void ModManager::downloadShader(
                         QStringLiteral("[\"%1\"]").arg(gameVersion));
     versionsUrl.setQuery(vp);
 
-    HttpClient::instance().get(versionsUrl.toString(),
+    fetchViaSinan(versionsUrl.toString(), true,
         [this, slug, gameVersion, minecraftDir](int /*status*/, const QByteArray& data) {
             QJsonArray files = parseVersionsResponse(data);
             if (files.isEmpty()) {
@@ -804,7 +804,7 @@ void ModManager::fetchResourcepackVersions(const QStringList& slugs)
 
             emit logMessage(QStringLiteral("[MODRINTH-BATCH] HTTP GET #%1 slug=%2").arg(i).arg(slug));
 
-            HttpClient::instance().get(url.toString(),
+            fetchViaSinan(url.toString(), true,
                 [this, slug, i, results, processOne](int status, const QByteArray& data) {
                     emit logMessage(QStringLiteral("[MODRINTH-BATCH] #%1 slug=%2 HTTP=%3 size=%4")
                                     .arg(i).arg(slug).arg(status).arg(data.size()));
@@ -949,7 +949,7 @@ void ModManager::fetchModVersions(const QStringList& slugs)
 
             emit logMessage(QStringLiteral("[MODRINTH-MOD-BATCH] HTTP GET #%1 slug=%2").arg(i).arg(slug));
 
-            HttpClient::instance().get(url.toString(),
+            fetchViaSinan(url.toString(), true,
                 [this, slug, i, results, processOne](int status, const QByteArray& data) {
                     QJsonDocument doc = QJsonDocument::fromJson(data);
                     QJsonArray verObjs = doc.array();
@@ -1111,7 +1111,7 @@ void ModManager::fetchShaderVersions(const QStringList& slugs)
 
             emit logMessage(QStringLiteral("[MODRINTH-SHADER-BATCH] HTTP GET #%1 slug=%2").arg(i).arg(slug));
 
-            HttpClient::instance().get(url.toString(),
+            fetchViaSinan(url.toString(), true,
                 [this, slug, i, results, processOne](int status, const QByteArray& data) {
                     QJsonDocument doc = QJsonDocument::fromJson(data);
                     QJsonArray verObjs = doc.array();
@@ -1216,6 +1216,18 @@ void ModManager::cancel()
 // ============================================================
 // URL builder
 // ============================================================
+
+// 统一 JSON 拉取入口（2026-08-07 整合）：司南优先（缓存/重试/并发控制），未注入回退 HttpClient
+void ModManager::fetchViaSinan(const QString& url, bool cacheable,
+                               std::function<void(int, const QByteArray&)> done,
+                               std::function<void(const QString&)> fail)
+{
+    if (m_fetchEngine) {
+        m_fetchEngine->getJson(url, cacheable, std::move(done), std::move(fail));
+    } else {
+        HttpClient::instance().get(url, std::move(done), std::move(fail));
+    }
+}
 
 QString ModManager::buildSearchUrl(
     const QString& query, const QStringList& categories,
@@ -1401,7 +1413,7 @@ void ModManager::getModDependencies(const QString& slug, const QString& gameVers
         url.setQuery(params);
     }
 
-    HttpClient::instance().get(url.toString(),
+    fetchViaSinan(url.toString(), true,
         [this, slug](int status, const QByteArray& body) {
             if (status != 200) {
                 emit logMessage(tr("[MODRINTH] 获取 %1 版本失败: HTTP %2").arg(slug).arg(status));
@@ -1445,7 +1457,7 @@ void ModManager::getModDependencies(const QString& slug, const QString& gameVers
                 QString::fromUtf8(QJsonDocument(QJsonArray::fromStringList(ids)).toJson(QJsonDocument::Compact)));
             projUrl.setQuery(pq);
 
-            HttpClient::instance().get(projUrl.toString(),
+            fetchViaSinan(projUrl.toString(), true,
                 [this, slug, depMap](int pStatus, const QByteArray& pBody) {
                     QJsonArray result;
 
