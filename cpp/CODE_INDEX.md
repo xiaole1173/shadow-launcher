@@ -101,6 +101,13 @@
 - **配套字节修正**：分片中段被切分后 downloadProgress 已按范围封顶计数，但完成时旧代码无条件扣 excess → 超额部分二次扣减 → m_downloadedBytes 欠计（尾部速度/进度显示被拉低）；改为只扣“已计入但超出最终范围”的部分（`counted - finalDone`），未计入超额由新分片另行计数，总量自洽。
 - **本地实测**（FDTest + 自建慢边缘服务器 _slow_tail_server.py：尾部 30% range 16KB/s，其余 2MB/s）：2.5MB 文件 18.3s → 10.4s（MC 模式 64 线程）/ 10.3s（modpack 24 线程），SHA1 校验一致；**迭代教训**：①QList append 扩容使引用/迭代器失效崩溃 → 下标遍历+原始指针；②轮询定时器曾误装进最终兜底块（无 sha1 时永不执行）→ 主请求循环；③看门狗中止触发快速失败守卫 break → prevWatchdogAbort 绕过。
 
+### 超额下载浪费修复（2026-08-07，file_downloader.cpp）
+
+- **问题**：日志实锤 476 次截断，预期 707MB 实际收到 1968MB，白白浪费 1261MB（178%）——全部是 206 状态但服务器返回远超请求范围的数据
+- **根因**：tryAddThread 加速切分只缩小 th->downloadEnd，但 in-flight HTTP 请求仍按旧 range 拉数据（首线程请求全文件被切分后服务器仍发完整文件，如 26.2.jar 起始=0 预期=12.9MB 实际=39MB）→ worker 等整条旧响应收完再截断丢弃
+- **修复（对齐主流启动器实现 ModNet.vb 流式语义：DownloadUndone=0 即断开）**：worker 在 downloadProgress 里检测 206 响应已收满本线程范围（received >= downloadEnd-downloadStart）→ 立即 reply->abort() 止损；数据前缀完整（截断写盘逻辑裁剪到范围），不丢进度、不需重试、不计 FailCount；200 全文件响应（isFullFile 优化）不触发
+- **效果**：超额从整个旧 range（可达全文件）降到约一个网络包；已编译通过
+
 ### 双引擎架构（保留）
 - 支持库 >1MB → 夸父（分片加速）；≤1MB → 山海经（独立并发）；阶段 B assets 追加到山海经（appendTasks）
 - 完成判定：m_assetTasksDone 仅由 allFinished 置位（山海经小库+assets 全完成才算）
@@ -342,7 +349,7 @@
 
 | 日期 | 说明 |
 |---|---|
-| 2026-08-06 | 修导出内容空白（用户实测）：exportContext 的 ShowRules 判定过严——要求“目录存在且非空”，主流启动器 只要一级条目存在（空 mods/config 目录也显示选项）；用户环境 mods/config 空目录 + 无 options.txt → 全部隐藏 → options=[] → 界面空白；改为目录存在即显示（空目录导出时无文件自然不打包）（modpack_exporter.cpp） |
+| 2026-08-07 | 超额下载浪费修复（file_downloader.cpp）：日志实锤 476 次截断浪费 1261MB（178%）——根因 tryAddThread 切分后 in-flight 请求仍按旧 range 拉数据（首线程请求全文件被切分后服务器仍发完整文件）；修复为 worker downloadProgress 检测 206 已收满本线程范围即 abort 止损（对齐 主流启动器 流式 DownloadUndone=0 即断语义），数据前缀完整不丢进度不重试；超额从整个旧 range 降到约一个网络包 |
 | 2026-08-06 | 导出五轮复比对：修资源包子项精确模式哈希泄漏（勾选子项时未勾选 zip 不再进 files[]/直装——collectMods 按 rpSubs 限定范围）；确认安装侧 modpack_parser 按 path 通用下载（resourcepacks 引用安全）（modpack_exporter.cpp） |
 | 2026-08-06 | 导出四轮复比对再修：①子项父勾选检查（父未勾选时子项规则不再泄漏导出——BUG）②存档按修改时间倒序、子项文件夹时间倒序+黑名单过滤+texturepacks 合并（主流启动器 ReloadSubOptions）③包名空兕底版本名（主流启动器 StartExport 不拦截空名）④哈希收集扩展：mods 压缩包变体（zip/rar/disabled/old）+ resourcepacks zip 也走在线匹配（主流启动器 packs/resource 语义），files[] path 通用化（modpack_exporter.cpp/ExportModpackSection.qml） |
 | 2026-08-06 | 导出三轮复比对再修 6 项：①downloads 排序方向（主流启动器 非 Modrinth 优先，原反了）②配置 PackPath 应用（读取后直接导出不弹窗）③清除配置覆盖入口（主流启动器 ResetConfigOverrides）④配置 UncheckedOptions 还原未勾选状态 ⑤打包进度 100ms 节流（大包防信号风暴）⑥取消导出静默（不弹“失败”误导）（modpack_exporter.cpp/ExportModpackSection.qml） |

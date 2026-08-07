@@ -708,6 +708,7 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
         for (int attempt = 0; attempt < attemptLimit && !sourceOk; ++attempt) {
             if (m_cancelled.loadRelaxed()) goto cleanup;
             bool watchdogAbortedThisAttempt = false;   // 本次尝试被看门狗中止
+            bool rangeFilled = false;                    // 本线程范围已收满（超额止损 abort，数据完整）
 
             int timeoutMs;
             // ── 自适应超时（主流启动器语义）──
@@ -830,6 +831,30 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
                     const qint64 fileTotal = (file->fileSize > 0) ? file->fileSize : total;
                     emit fileProgress(th->sourceUrl, file->localName, fileDone, fileTotal, file->localPath);
                 }
+
+                // ── 超额止损（2026-08-07）──
+                // 根因：tryAddThread 加速切分只缩小 th->downloadEnd，in-flight 请求仍按
+                // 旧 range 拉数据（首线程请求全文件被切分后服务器仍发完整文件）→
+                // worker 等整条旧响应收完再截断，超额浪费实测 178%（1261MB/707MB）。
+                // 主流启动器 对照（ModNet.vb）：流式边收边写，DownloadUndone=0 即 Exit While
+                // 断开连接——收满即停，不多收一字节。此处 206 响应已收满本线程范围
+                // （received >= downloadEnd-downloadStart）→ 立即 abort 止损；
+                // 数据前缀完整（截断写盘逻辑会裁剪到范围），不丢进度、不需重试。
+                // 200 全文件响应（isFullFile 优化）不触发：respStatus==200 走整文件逻辑。
+                const int respStatus206 = reply->attribute(
+                    QNetworkRequest::HttpStatusCodeAttribute).toInt();
+                if (!rangeFilled && respStatus206 == 206
+                    && !file->isUnknownSize && !file->isNoSplit) {
+                    const qint64 thRange = th->downloadEnd - th->downloadStart;
+                    if (thRange > 0 && received >= thRange) {
+                        rangeFilled = true;
+                        qCInfo(logDownload)
+                            << QStringLiteral("[夸父] 超额止损 文件=%1 起始=%2 范围=%3 已收=%4")
+                                   .arg(file->localName).arg(th->downloadStart).arg(thRange).arg(received);
+                        reply->abort();
+                        loop.quit();
+                    }
+                }
             });
 
             // ── 尾程看门狗轮询（2026-08-05）──
@@ -871,7 +896,11 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
                 goto cleanup;
             }
 
-            if (timedOut || reply->error() != QNetworkReply::NoError) {
+            // 超额止损（2026-08-07）：主动 abort 不算失败——数据已收满本线程范围，
+            // 跳过失败分支直接进入成功收尾（readAll 缓冲数据 → 截断写盘）。
+            if (rangeFilled) {
+                // 数据完整（>= 本线程范围），不重试、不计 FailCount
+            } else if (timedOut || reply->error() != QNetworkReply::NoError) {
                 qCWarning(logDownload) << QStringLiteral("[夸父] 请求失败 URL=%1 错误=%2 重试=%3")
                     .arg(url, timedOut ? QStringLiteral("超时") : reply->errorString())
                     .arg(attempt + 1);
@@ -918,7 +947,10 @@ void FileDownloader::runWorker(std::shared_ptr<DownloadThread> th,
             // 优先用服务器返回的 Content-Length 做预期判断（它才是实际响应体大小）
             // file->fileSize 是 API 解析值，可能偏大（如清华镜像 API 195.6MB 实际 195.0MB）
             qint64 expectedSize = contentLen > 0 ? contentLen : (file->fileSize > 0 ? file->fileSize : 0);
-            if (expectedSize > 0 && data.size() < expectedSize) {
+            // 超额止损场景：data 是旧 range 响应的前缀（>= 本线程范围），
+            // Content-Length 是旧 range 长度（更大）——跳过完整性检查，
+            // 截断写盘逻辑会裁剪到当前范围（2026-08-07）。
+            if (!rangeFilled && expectedSize > 0 && data.size() < expectedSize) {
                 qCWarning(logDownload) << QStringLiteral("[夸父] 下载数据不完整 URL=%1 预期=%2(Content-Length) 实际=%3")
                     .arg(url).arg(expectedSize).arg(data.size());
                 sourceOk = false;
