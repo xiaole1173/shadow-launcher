@@ -8384,7 +8384,23 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
             for (int i = 0; i < ds->steps.size(); ++i) {
                 if (ds->steps[i].toMap().value(QStringLiteral("name")).toString()
                         .contains(QStringLiteral("安装器库"))) {
-                    updateStep(installId, i, QStringLiteral("completed"), 100);
+                    // Legacy 3 无 install_profile.json → 已标 skipped，不再覆盖为 completed
+                    if (ds->steps[i].toMap().value(QStringLiteral("status")).toString()
+                            != QStringLiteral("skipped"))
+                        updateStep(installId, i, QStringLiteral("completed"), 100);
+                    break;
+                }
+            }
+        });
+    // Legacy 3（无 install_profile.json）：安装器库步骤直接跳过（不闪"完成"误导）
+    connect(ctx->installer, &ModLoaderInstaller::installerLibsSkipped, this,
+        [this, installId]() {
+            auto* ds = dlSession(installId);
+            if (!ds) return;
+            for (int i = 0; i < ds->steps.size(); ++i) {
+                if (ds->steps[i].toMap().value(QStringLiteral("name")).toString()
+                        .contains(QStringLiteral("安装器库"))) {
+                    updateStep(installId, i, QStringLiteral("skipped"), 0);
                     break;
                 }
             }

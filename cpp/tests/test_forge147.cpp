@@ -31,6 +31,12 @@ int main(int argc, char** argv)
         [](const QString& msg) {
             fprintf(stderr, "[ML] %s\n", msg.toUtf8().constData());
         });
+    QObject::connect(ml, &ShadowLauncher::ModLoaderInstaller::installerLibsFileProgress,
+        [](int done, int total) {
+            fprintf(stderr, "[ML] libsProgress %d/%d\n", done, total);
+        });
+    QObject::connect(ml, &ShadowLauncher::ModLoaderInstaller::installerLibsSkipped,
+        []() { fprintf(stderr, "[ML] libsSkipped\n"); });
     QObject::connect(ml, &ShadowLauncher::ModLoaderInstaller::progressChanged,
         [](int step, int total, const QString& status) {
             fprintf(stderr, "[ML] progress %d/%d %s\n", step, total, status.toUtf8().constData());

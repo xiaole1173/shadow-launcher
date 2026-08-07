@@ -631,6 +631,16 @@ if(SHADOW_BUILD_MODPACK_SELFTEST)
     )
     target_include_directories(Forge147Test PRIVATE src)
     target_link_libraries(Forge147Test PRIVATE Qt6::Core Qt6::Network Qt6::Concurrent Qt6::Gui Qt6::GuiPrivate)
+
+    # forgeStepLibs Legacy 3 skipped 信号验证（无 install_profile.json 不卡死）
+    add_executable(LibSkipTest
+        tests/test_libskip.cpp
+        src/core/mod_loader_installer.cpp
+        src/core/http_client.cpp
+        src/utils/logger.cpp
+    )
+    target_include_directories(LibSkipTest PRIVATE src)
+    target_link_libraries(LibSkipTest PRIVATE Qt6::Core Qt6::Network Qt6::Concurrent Qt6::Gui Qt6::GuiPrivate)
 endif()
 
 # ============================================================

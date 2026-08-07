@@ -1538,6 +1538,27 @@ static bool libraryAllowed(const QJsonObject& libObj) {
 // 返回下载成功数（失败不致命，版本 JSON 仍写入，启动时再补）。
 int ModLoaderInstaller::downloadVersionLibraries(const QJsonArray& libs) {
     int downloaded = 0;
+    // 预计算需要下载的任务数（rules 过滤 + 已存在跳过）→ 文件级进度上报（2026-08-07）
+    int needTotal = 0;
+    for (const auto& lv : libs) {
+        if (!lv.isObject()) continue;
+        const QJsonObject lo = lv.toObject();
+        const QString nm = lo.value(QStringLiteral("name")).toString();
+        if (nm.isEmpty()) continue;
+        if (!libraryAllowed(lo)) continue;
+        QStringList pp = nm.split(QLatin1Char(':'));
+        if (pp.size() < 3) continue;
+        QString ver = pp[2];
+        if (ver.contains(QLatin1Char('@'))) ver = ver.left(ver.indexOf(QLatin1Char('@')));
+        const QString cls = (pp.size() >= 4) ? pp[3] : QString();
+        const QString clsSfx = cls.isEmpty() ? QString() : (QStringLiteral("-") + cls);
+        const QString f = m_gameDir + QStringLiteral("/libraries/") + pp[0].replace(QLatin1Char('.'), QLatin1Char('/'))
+            + QStringLiteral("/") + pp[1] + QStringLiteral("/") + ver + QStringLiteral("/")
+            + pp[1] + QStringLiteral("-") + ver + clsSfx + QStringLiteral(".jar");
+        if (!QFile::exists(f)) needTotal++;
+    }
+    int needDone = 0;
+    if (needTotal > 0) emit installerLibsFileProgress(0, needTotal);
     QNetworkAccessManager localNam;   // 局部 NAM（避免共享单例的跨线程竞态）
     for (const auto& lv : libs) {
         if (m_cancelled) break;
@@ -1619,6 +1640,8 @@ int ModLoaderInstaller::downloadVersionLibraries(const QJsonArray& libs) {
                     f.write(reply->readAll());
                     f.close();
                     downloaded++;
+                    needDone++;
+                    if (needTotal > 0) emit installerLibsFileProgress(needDone, needTotal);
                 }
             } else {
                 qCWarning(logLoader) << QStringLiteral("[安装] 版本库下载失败: %1").arg(url);
@@ -1640,6 +1663,31 @@ void ModLoaderInstaller::forgeStepLibs(const QByteArray& jarData)
 {
     if (m_installerLibsRunning || m_installerLibsDone) return;
     m_installerLibsRunning = true;
+
+    // Legacy 3（MC<1.5）：安装程序无 install_profile.json，没有安装器库可下。
+    // 直接标记跳过（不发 installerLibsStarted，避免步骤闪一下"完成"误导用户）。
+    {
+        QBuffer probe;
+        probe.setData(jarData);
+        if (probe.open(QIODevice::ReadOnly)) {
+            QZipReader reader(&probe);
+            const QByteArray prof = reader.fileData(QStringLiteral("install_profile.json"));
+            reader.close();
+            probe.close();
+            if (prof.isEmpty()) {
+                m_installerLibsRunning = false;
+                m_installerLibsDone = true;
+                emit installerLibsSkipped();
+                qCInfo(logLoader) << QStringLiteral("[安装] 无 install_profile.json（Legacy 3）→ 安装器库步骤跳过");
+                if (m_pendingInstallAfterLibs && !m_cancelled) {
+                    m_pendingInstallAfterLibs = false;
+                    if (!m_cachedJar.isEmpty()) forgeStep3_install(m_cachedJar);
+                }
+                return;
+            }
+        }
+    }
+
     emit installerLibsStarted();
 
     struct LibTask { QStringList urls; QString savePath; };
