@@ -142,13 +142,6 @@ bool VersionIsolation::isVersionIsolated(const QString& versionId) const
 }
 
 // ── 检查目录是否非空（排除旧代码 mkpath 产物）──
-static bool isDirNonEmpty(const QString& path)
-{
-    QDir dir(path);
-    // entryList 返回 . 和 .. 之外的所有条目
-    return !dir.entryList(QDir::AllEntries | QDir::NoDotAndDotDot).isEmpty();
-}
-
 // ============================================================
 // Get version game directory
 // ============================================================
@@ -162,11 +155,12 @@ QString VersionIsolation::getVersionGameDir(const QString& versionId) const
                                + versionId;
         const QString gameDir = verDir + QStringLiteral("/game");
 
-        // 方案 C：有 game/ 子目录且非空 → 标准隔离模式
-        //         无 game/ 子目录或为空（旧代码 mkpath 产物）→ 降级到版本根目录
-        if (QDir(gameDir).exists() && isDirNonEmpty(gameDir))
-            return gameDir;
-        return verDir;
+        // 隔离模式统一返回 game/（不存在则创建）——消除"降级到版本根目录"分支：
+        // 降级会让 launcher 的 .minecraft junction 逻辑 cdUp 过头，junction 建到
+        // versions/.minecraft → 版本目录（2026-08-07 实测 1.4.7 启动时 versions 根
+        // 出现 <JUNCTION> .minecraft → versions/1.4.7-forge-... 且 MC 找不到主类崩溃）
+        QDir().mkpath(gameDir);
+        return gameDir;
     }
 
     // Shared mode: all versions use the base game directory

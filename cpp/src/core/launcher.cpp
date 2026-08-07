@@ -1095,11 +1095,18 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
         mainClass = QStringLiteral("net.minecraft.client.main.Main");
     }
     // Pre-1.6 JSONs may have mainClass hijacked to launchwrapper.Launch by version APIs,
-    // but the actual JAR doesn't contain launchwrapper — use Minecraft's original main class
+    // but the actual JAR doesn't contain launchwrapper — use Minecraft's original main class.
+    // ⚠ 例外：Forge 老版本（1.4.7 等）的 mainClass 是 FMLRelauncher（FML 引导器，
+    //   不是 hijack）——覆盖会丢 FML 初始化 → “找不到主类 net.minecraft.client.Minecraft”
+    //   + versions 目录异常创建 .minecraft 快捷方式（MC 把版本目录当工作目录）。
+    //   2026-08-07 实测 1.4.7+forge 启动崩溃，仅当 mainClass 非 FML/Forge 才覆盖。
     static const QRegularExpression pre16Ver(QStringLiteral(R"(^1\.(\d+))"));
     QRegularExpressionMatch pre16Match = pre16Ver.match(versionId);
     const bool isPre16 = pre16Match.hasMatch() && pre16Match.captured(1).toInt() < 6;
-    if (isPre16) {
+    const bool isFmlMain = mainClass.contains(QStringLiteral("FMLRelauncher"))
+                        || mainClass.contains(QStringLiteral("fml.relauncher"))
+                        || mainClass.contains(QStringLiteral("forge"));
+    if (isPre16 && !isFmlMain) {
         mainClass = QStringLiteral("net.minecraft.client.Minecraft");
     }
     args << mainClass;
