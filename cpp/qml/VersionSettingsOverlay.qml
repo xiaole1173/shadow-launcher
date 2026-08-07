@@ -630,8 +630,9 @@ Rectangle {
                                     Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                 }
 
-                                opacity: model.enabled === false ? 0.55 : 0
-                                Component.onCompleted: opacity = model.enabled === false ? 0.55 : 1
+                                // 禁用态浅色：绑定驱动（勿用 Component.onCompleted 赋值——会破坏绑定，
+                                // 导致 setProperty 后 opacity 不刷新；2026-08-08 修复）
+                                opacity: model.enabled === false ? 0.55 : 1.0
                                 Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
 
                                 RowLayout {
@@ -729,10 +730,15 @@ Rectangle {
                                                         if (backend && currentSelectedVersion) {
                                                             var fn = model.fileName || ""
                                                             var en = model.enabled !== false
-                                                            backend.setModEnabled(fn, currentSelectedVersion, !en)
-                                                            // setProperty 只更新 enabled role（保留其他字段）→ 按钮文字/卡片样式即时刷新，无重建闪烁
-                                                            modListModel.setProperty(index, "enabled", !en)
-                                                            toastManager.show(en ? "已禁用: " + fn : "已启用: " + fn)
+                                                            var newEnabled = !en
+                                                            backend.setModEnabled(fn, currentSelectedVersion, newEnabled)
+                                                            // 同步更新 enabled + fileName（启用→剥 .disabled，禁用→追加 .disabled），
+                                                            // 使模型与磁盘一致：浅色/按钮即时刷新 + 后续删除/再 toggle 不会因旧名失败
+                                                            modListModel.setProperty(index, "enabled", newEnabled)
+                                                            var newFn = newEnabled ? fn : fn.replace(/\.disabled$/i, "")
+                                                            if (newFn !== fn)
+                                                                modListModel.setProperty(index, "fileName", newFn)
+                                                            toastManager.show(newEnabled ? "已启用: " + newFn : "已禁用: " + newFn)
                                                         }
                                                     }
                                                 }
