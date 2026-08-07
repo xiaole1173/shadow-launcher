@@ -350,6 +350,7 @@
 
 | 日期 | 说明 |
 |---|---|
+| 2026-08-07 | 前置模组三项修复（ModDetailPage.qml/mod_manager.cpp/resource_backend.cpp/cf_api.cpp，8cddb02）：①required/optional 排序（Modrinth getModDependencies 与 CF resolveCfDependencies 均 stable_sort required 在前；QJsonArray 迭代器代理不支持 swap → 先转 std::vector）②依赖缓存 _depsCache（slug→deps，返回上一级秒开不再 10s+ 网络重请求；CF 分支也补 _versionCache 版本缓存）③CF overlay 前置加载不出——根因是镜像 files 端点依赖被误判恒空（实测带依赖，样本恰好全是无依赖 mod）；新增 fetchModDependencies（/mods/{id} latestFiles[0].dependencies，双源镜像优先官方降级，官方 key 解密可直连实测）；relationType 只收 2=required/3=optional 跳过 1=embedded/4=incompatible/5=include；resolveCfDependencies 串行改 4 路并发保序（上限 8→24 覆盖 Mekanism 全家桶）；依赖获取统一在 onModDetailSlugChanged（勿提前 return） |
 | 2026-08-07 | 启动界面版本号自适应缩小（HomePage.qml，78c505e）：长版本号溢出展示框；RowLayout 改 anchors.fill 撑满容器（防循环）+ TextMetrics 16px 基准测量 + 按可用宽比例缩放字号（上限16px不放大/下限9px），不用省略号（用户要求缩小而非 Elide）；qml.exe 实测无 binding loop、渲染断言 PASS |
 | 2026-08-07 | 超额止损数据丢失修复（file_downloader.cpp，d8098b2）：实测 QNetworkReply::abort() 清空未读缓冲（abort 后 readAll 返回 0）→ 改为 abort 前先 readAll 保存到 rangeData；止损条件改严格大于避免正常 206 误触发；本地 4 场景（MC/modpack 慢速止损、严格 range、200 全文件）SHA1 全部匹配 |
 | 2026-08-07 | 超额下载浪费修复（file_downloader.cpp，7ec05bd）：日志实锤 476 次截断浪费 1261MB（178%）——根因 tryAddThread 切分后 in-flight 请求仍按旧 range 拉数据（首线程请求全文件被切分后服务器仍发完整文件）；修复为 worker downloadProgress 检测 206 已收满本线程范围即 abort 止损（对齐 主流启动器 流式 DownloadUndone=0 即断语义），数据前缀完整不丢进度不重试；超额从整个旧 range 降到约一个网络包 |
