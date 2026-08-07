@@ -2135,30 +2135,13 @@ void ModLoaderInstaller::forgeStep3_route(const QByteArray& jarData) {
 void ModLoaderInstaller::installLegacy3(const QByteArray& jarData) {
     emit progressChanged(3, m_totalSteps, QStringLiteral("安装旧版 Forge（Legacy 3：自包含 JAR）..."));
 
-    // 1. Scan JAR contents to determine main class
-    QBuffer buffer;
-    buffer.setData(jarData);
-    buffer.open(QIODevice::ReadOnly);
-    QZipReader reader(&buffer);
-
-    bool hasFMLRelauncher = false;
-    bool hasLaunchwrapper = false;
-    const auto& entries = reader.fileInfoList();
-    for (const auto& e : entries) {
-        if (e.filePath == QStringLiteral("cpw/mods/fml/relauncher/FMLRelauncher.class"))
-            hasFMLRelauncher = true;
-        if (e.filePath == QStringLiteral("net/minecraft/launchwrapper/Launch.class"))
-            hasLaunchwrapper = true;
-    }
-    reader.close();
-
-    QString mainClass;
-    if (hasFMLRelauncher)
-        mainClass = QStringLiteral("cpw.mods.fml.relauncher.FMLRelauncher");
-    else if (hasLaunchwrapper)
-        mainClass = QStringLiteral("net.minecraft.launchwrapper.Launch");
-    else
-        mainClass = QStringLiteral("net.minecraft.client.Minecraft");
+    // 1. mainClass 恒为 net.minecraft.client.Minecraft（2026-08-07 实测修正）：
+    //    Legacy 3 = MC<1.5 自包含 JAR，老版本 MC 入口就是 Minecraft。
+    //    ⚠ 不能用 FMLRelauncher：1.4.7 universal 里 FMLRelauncher 无 main 方法
+    //    （只有 handleClientRelaunch/handleServerRelaunch/appletEntry，FML 通过
+    //    Minecraft.fmlReentry(ArgsWrapper) 回调注入）→ JVM 报"找不到 main 方法"。
+    //    launchwrapper 是 1.6+ 的，Legacy 3 永远不会出现。
+    const QString mainClass = QStringLiteral("net.minecraft.client.Minecraft");
 
     qCInfo(logLoader) << QStringLiteral("[安装] Legacy 3: mainClass=%1").arg(mainClass);
 
