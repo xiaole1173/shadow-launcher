@@ -427,6 +427,7 @@ public:
     Q_INVOKABLE void fetchResourcepackVersionsCf(const QString& modId, const QString& gameVersion = {}, const QString& loader = {});
     /// CF 详情页前置依赖解析（Modrinth 优先映射），结果经 cfDependenciesResolved 回传
     Q_INVOKABLE void resolveCfDependencies(const QString& modId, const QVariantList& deps);
+    Q_INVOKABLE void fetchCfDependencies(const QString& modId);
 
     // Mod file download
     Q_INVOKABLE int downloadModFile(const QString& url, const QString& savePath, const QString& displayName,

@@ -225,14 +225,16 @@ void CfApi::fetchFilesAsVersions(const QString& modId, const QString& gameVersio
                     if (ho.value(QStringLiteral("algo")).toInt() == 1)
                         fileEntry.insert(QStringLiteral("sha1"), ho.value(QStringLiteral("value")).toString());
                 }
-                // CF 依赖：relationType 2=required, 3=optional → 与 Modrinth dependency_type 对齐
+                // CF 依赖：relationType 2=required, 3=optional → 与 Modrinth dependency_type 对齐；
+                // 1=embedded(内嵌库)/4=incompatible(不兼容)/5=include(包含) 不属前置，跳过（2026-08-07 修正）
                 QVariantList depList;
                 const QJsonArray deps = f.value(QStringLiteral("dependencies")).toArray();
                 for (const QJsonValue& dv : deps) {
                     const QJsonObject dObj = dv.toObject();
+                    const int rel = dObj.value(QStringLiteral("relationType")).toInt();
+                    if (rel != 2 && rel != 3) continue;
                     QVariantMap dep;
                     dep.insert(QStringLiteral("project_id"), QString::number((qlonglong)dObj.value(QStringLiteral("modId")).toDouble()));
-                    const int rel = dObj.value(QStringLiteral("relationType")).toInt();
                     dep.insert(QStringLiteral("dependency_type"),
                                rel == 3 ? QStringLiteral("optional") : QStringLiteral("required"));
                     depList.append(dep);
@@ -299,6 +301,50 @@ void CfApi::fetchModInfo(const QString& modId,
                                 .toObject().value(QStringLiteral("thumbnailUrl")).toString());
             }
             if (done) done(info);
+        },
+        fail);
+}
+
+void CfApi::fetchModDependencies(const QString& modId,
+                                 std::function<void(const QVariantList&)> done,
+                                 JsonFail fail)
+{
+    if (!m_engine) { if (fail) fail(QStringLiteral("无司南引擎")); return; }
+    // 双源实测（2026-08-07）：镜像与官方 /mods/{id} 的 latestFiles 均带 dependencies；
+    // 走 mod 详情端点而非 files 端点，是为与版本列表解耦（依赖不依赖版本筛选参数）
+    const QString mirrorUrl = kCfMirrorBase + QStringLiteral("/mods/") + modId;
+    const QString officialUrl = kCfOfficialBase + QStringLiteral("/mods/") + modId;
+
+    getJsonWithFallback(mirrorUrl, officialUrl, true,
+        [done](int status, const QByteArray& body) {
+            QVariantList deps;
+            if (status == 200) {
+                QJsonDocument doc = QJsonDocument::fromJson(body);
+                const QJsonObject obj = doc.object().value(QStringLiteral("data")).toObject();
+                // 依赖取 latestFiles 第一项（CF 依赖是 mod 级，最新文件即代表全部依赖）
+                const QJsonArray files = obj.value(QStringLiteral("latestFiles")).toArray();
+                if (!files.isEmpty()) {
+                    const QJsonArray depArr = files.first().toObject()
+                        .value(QStringLiteral("dependencies")).toArray();
+                    QSet<QString> seen;
+                    for (const QJsonValue& dv : depArr) {
+                        const QJsonObject dObj = dv.toObject();
+                        // relationType：1=embedded/2=required/3=optional/4=incompatible/5=include
+                        const int rel = dObj.value(QStringLiteral("relationType")).toInt();
+                        if (rel != 2 && rel != 3) continue;   // 只收 must/optional，跳过其余（2026-08-07 修正）
+                        const QString pid = QString::number(
+                            (qlonglong)dObj.value(QStringLiteral("modId")).toDouble());
+                        if (pid.isEmpty() || pid == QStringLiteral("0") || seen.contains(pid)) continue;
+                        seen.insert(pid);
+                        QVariantMap dep;
+                        dep.insert(QStringLiteral("project_id"), pid);
+                        dep.insert(QStringLiteral("dependency_type"),
+                                   rel == 3 ? QStringLiteral("optional") : QStringLiteral("required"));
+                        deps.append(dep);
+                    }
+                }
+            }
+            if (done) done(deps);
         },
         fail);
 }

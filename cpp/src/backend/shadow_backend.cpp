@@ -2532,6 +2532,10 @@ void ShadowBackend::resolveCfDependencies(const QString& modId, const QVariantLi
     m_resource->resolveCfDependencies(modId, deps);
 }
 
+void ShadowBackend::fetchCfDependencies(const QString& modId) {
+    m_resource->fetchCfDependencies(modId);
+}
+
 // ── 整合包：双源搜索 / 详情版本 / 下载→自动导入 ──
 void ShadowBackend::searchModpacksEx(const QString& query, const QString& loader,
     const QString& category, const QStringList& gameVersions,

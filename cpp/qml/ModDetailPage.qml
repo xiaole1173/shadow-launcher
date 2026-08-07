@@ -43,6 +43,8 @@ Rectangle {
     property bool modDetailDepsLoading: false
     property bool showDeps: false
     property var modNavStack: []
+    // ── 前置模组缓存 (slug → deps)：返回上一级时避免重新网络请求（2026-08-07 修复）──
+    property var _depsCache: ({})
 
     // ── 版本列表入场动画 ──
     property bool _versionListEnter: false
@@ -59,6 +61,8 @@ Rectangle {
             modDetailDepsLoading = false
             modDetailDependencies = deps || []
             showDeps = (deps && deps.length > 0)
+            // 写入缓存：返回上一级再进入时秒开（2026-08-07 修复）
+            _depsCache[slug] = modDetailDependencies
         }
     }
 
@@ -78,42 +82,67 @@ Rectangle {
     // ── Trigger version fetch ──
     onModDetailSlugChanged: {
         if (modDetailSlug && backend) {
+            var isCf = /^\d+$/.test(modDetailSlug)
             // ── CurseForge 详情（slug 为纯数字 modId）──
-            if (/^\d+$/.test(modDetailSlug)) {
-                modDetailLoading = true
-                modDetailRawVersions = []
-                modDetailVersionMap = {}
-                expandedGroups = []
-                showTestVersions = false
-                _versionListEnter = true
-                backend.fetchModVersionsCf(modDetailSlug)
-                return
-            }
-            // ── 检查缓存 ──
-            var cached = _versionCache[modDetailSlug]
-            if (cached) {
-                modDetailLoading = false
-                modDetailRawVersions = cached.raw
-                modDetailVersionMap = cached.map
-                expandedGroups = []
-                showTestVersions = false
-                _versionListEnter = true
+            if (isCf) {
+                var cachedCf = _versionCache[modDetailSlug]
+                if (cachedCf) {
+                    modDetailLoading = false
+                    modDetailRawVersions = cachedCf.raw
+                    modDetailVersionMap = cachedCf.map
+                    expandedGroups = []
+                    showTestVersions = false
+                    _versionListEnter = true
+                } else {
+                    modDetailLoading = true
+                    modDetailRawVersions = []
+                    modDetailVersionMap = {}
+                    expandedGroups = []
+                    showTestVersions = false
+                    _versionListEnter = true
+                    backend.fetchModVersionsCf(modDetailSlug)
+                }
             } else {
-                modDetailLoading = true
-                modDetailRawVersions = []
-                modDetailVersionMap = {}
-                expandedGroups = []
-                showTestVersions = false
-                _versionListEnter = false
-                backend.fetchModVersions([modDetailSlug])
+                // ── 检查版本缓存 ──
+                var cached = _versionCache[modDetailSlug]
+                if (cached) {
+                    modDetailLoading = false
+                    modDetailRawVersions = cached.raw
+                    modDetailVersionMap = cached.map
+                    expandedGroups = []
+                    showTestVersions = false
+                    _versionListEnter = true
+                } else {
+                    modDetailLoading = true
+                    modDetailRawVersions = []
+                    modDetailVersionMap = {}
+                    expandedGroups = []
+                    showTestVersions = false
+                    _versionListEnter = false
+                    backend.fetchModVersions([modDetailSlug])
+                }
             }
 
-            // Fetch dependencies
+            // Fetch dependencies（CF 与 Modrinth 统一在此处理，勿提前 return——2026-08-07 修复）
             if (backend.modManager) {
-                modDetailDepsLoading = true
-                modDetailDependencies = []
-                showDeps = false
-                backend.modManager.getModDependencies(modDetailSlug)
+                // 缓存命中：直接显示，不重新请求（返回上一级时秒开）
+                var cachedDeps = _depsCache[modDetailSlug]
+                if (cachedDeps) {
+                    modDetailDependencies = cachedDeps
+                    showDeps = (cachedDeps && cachedDeps.length > 0)
+                    modDetailDepsLoading = false
+                } else {
+                    modDetailDepsLoading = true
+                    modDetailDependencies = []
+                    showDeps = false
+                    if (isCf) {
+                        // CF 详情：走 mod 详情端点拉依赖（与版本列表解耦，双源均带 latestFiles.dependencies）
+                        if (backend.fetchCfDependencies)
+                            backend.fetchCfDependencies(modDetailSlug)
+                    } else {
+                        backend.modManager.getModDependencies(modDetailSlug)
+                    }
+                }
             }
         }
     }
@@ -678,42 +707,16 @@ Rectangle {
             root._versionCache[root.modDetailSlug] = { raw: arr, map: map }
             if (arr.length > 0) root._versionListEnter = true
 
-            // ── CF 详情前置模组：依赖从 files[0].dependencies 提取（Modrinth 走 getModDependencies 信号）──
-            if (/^\d+$/.test(root.modDetailSlug)) {
-                var cfDeps = []
-                var seenDep = {}
-                for (var di = 0; di < versions.length && cfDeps.length < 8; di++) {
-                    var dd = details ? details[versions[di]] : null
-                    if (!dd) continue
-                    var dfiles = dd.files
-                    var depsArr = (dfiles && dfiles.length > 0 && dfiles[0].dependencies) ? dfiles[0].dependencies : []
-                    for (var dj = 0; dj < depsArr.length; dj++) {
-                        var dep = depsArr[dj]
-                        var pid = dep.project_id
-                        if (!pid || seenDep[pid]) continue
-                        seenDep[pid] = true
-                        cfDeps.push({
-                            project_id: pid,
-                            dependency_type: dep.dependency_type || "required",
-                            title: "",   // CF 依赖只有 modId，名称需额外请求（此处显示 modId）
-                            slug: ""
-                        })
-                    }
-                }
-                if (cfDeps.length > 0) {
-                    // 异步解析：CF 名称/图标 → Modrinth 优先映射（命中用 Modrinth 数据）
-                    root.modDetailDepsLoading = true
-                    root.showDeps = true
-                    if (backend && backend.resolveCfDependencies)
-                        backend.resolveCfDependencies(root.modDetailSlug, cfDeps)
-                }
-            }
+            // CF 详情前置模组已在 onModDetailSlugChanged 走 fetchCfDependencies
+            // （/mods/{id} latestFiles 提取；镜像与官方双源均带依赖，2026-08-07 实测）
         }
         function onCfDependenciesResolved(modId, deps) {
             if (modId !== root.modDetailSlug) return
             root.modDetailDepsLoading = false
             root.modDetailDependencies = deps || []
             root.showDeps = (deps && deps.length > 0)
+            // 写入缓存：返回上一级再进入时秒开（2026-08-07 修复）
+            root._depsCache[modId] = root.modDetailDependencies
         }
         function onModVersionsProgress(done, total) {
             if (root.modDetailSlug === "") return

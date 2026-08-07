@@ -1660,18 +1660,50 @@ void ResourceBackend::fetchResourcepackVersionsCf(const QString& modId, const QS
 // 每个 dep：先取 CF 名称/图标（fetchModInfo），再按名称在 Modrinth 检索
 // （searchModrinthForDep，镜像空→官方降级）；命中 → 用 Modrinth slug/title/icon
 // （点击进 Modrinth 详情页）；未命中 → 保留 CF 数据（slug=数字 id，可进 CF 详情）。
+
+// CF 详情页直接拉依赖：镜像 files 端点 dependencies 恒空，mod 详情端点
+// （/mods/{id} latestFiles）才带依赖（实测 2026-08-07）→ 拉出后走 resolveCfDependencies
+void ResourceBackend::fetchCfDependencies(const QString& modId)
+{
+    if (!m_cfApi) { emit cfDependenciesResolved(modId, {}); return; }
+    m_cfApi->fetchModDependencies(modId,
+        [this, modId](const QVariantList& deps) {
+            if (deps.isEmpty()) { emit cfDependenciesResolved(modId, {}); return; }
+            resolveCfDependencies(modId, deps);
+        },
+        [this, modId](const QString&) { emit cfDependenciesResolved(modId, {}); });
+}
+
 void ResourceBackend::resolveCfDependencies(const QString& modId, const QVariantList& deps)
 {
-    const int total = qMin(deps.size(), 8);
+    const int total = qMin(deps.size(), 24);   // 上限提到 24：Mekanism 全家桶 24 个依赖场景（2026-08-07）
     if (!m_cfApi || total <= 0) { emit cfDependenciesResolved(modId, {}); return; }
 
-    auto out = std::make_shared<QVariantList>();
+    constexpr int kWorkers = 4;   // 与司南引擎并发数一致（2026-08-07）
+
+    // 4 路并发保序：按 idx 占位写入，全部完成后再组装排序（2026-08-07 并发化提速）
+    auto out = std::make_shared<std::vector<QVariantMap>>(total);
+    auto pending = std::make_shared<int>(total);
     auto proc = std::make_shared<std::function<void(int)>>();
-    *proc = [this, modId, deps, total, out, proc](int idx) {
-        if (idx >= total) {
-            emit cfDependenciesResolved(modId, *out);
-            return;
-        }
+
+    auto finishIfAll = [this, modId, total, out, pending]() {
+        if (--(*pending) > 0) return;
+        QVariantList list;
+        list.reserve(total);
+        for (const QVariantMap& e : *out) list.append(e);
+        // 必须前置在前、可选前置在后（2026-08-07 修复，与 Modrinth 一致）
+        std::stable_sort(list.begin(), list.end(),
+            [](const QVariant& a, const QVariant& b) {
+                const QString ta = a.toMap().value(QStringLiteral("dependency_type")).toString();
+                const QString tb = b.toMap().value(QStringLiteral("dependency_type")).toString();
+                if (ta == tb) return false;
+                return ta == QStringLiteral("required");
+            });
+        emit cfDependenciesResolved(modId, list);
+    };
+
+    *proc = [this, modId, deps, total, out, pending, proc, finishIfAll](int idx) {
+        if (idx >= total) return;
         const QVariantMap dep = deps[idx].toMap();
         const QString pid = dep.value(QStringLiteral("project_id")).toString();
         const QString depType = dep.value(QStringLiteral("dependency_type"),
@@ -1688,16 +1720,17 @@ void ResourceBackend::resolveCfDependencies(const QString& modId, const QVariant
             return e;
         };
         m_cfApi->fetchModInfo(pid,
-            [this, out, proc, idx, depType, pid, fallbackEntry](const QVariantMap& info) {
+            [this, out, proc, finishIfAll, idx, depType, pid, fallbackEntry](const QVariantMap& info) {
                 const QString cfName = info.value(QStringLiteral("name")).toString();
                 if (cfName.isEmpty()) {
-                    out->append(fallbackEntry());
-                    (*proc)(idx + 1);
+                    (*out)[idx] = fallbackEntry();
+                    finishIfAll();
+                    (*proc)(idx + kWorkers);   // 拉下一个同槽位任务
                     return;
                 }
                 // 有 CF 名称 → 尝试 Modrinth 映射
                 searchModrinthForDep(cfName,
-                    [this, out, proc, idx, depType, pid, info, cfName, fallbackEntry](const QVariantMap& mr) {
+                    [this, out, proc, finishIfAll, idx, depType, pid, info, cfName, fallbackEntry](const QVariantMap& mr) {
                         QVariantMap entry;
                         entry[QStringLiteral("project_id")] = pid;
                         entry[QStringLiteral("dependency_type")] = depType;
@@ -1717,17 +1750,21 @@ void ResourceBackend::resolveCfDependencies(const QString& modId, const QVariant
                             entry[QStringLiteral("description")] = info.value(QStringLiteral("summary")).toString();
                             entry[QStringLiteral("source")] = QStringLiteral("CurseForge");
                         }
-                        out->append(entry);
-                        (*proc)(idx + 1);
+                        (*out)[idx] = entry;
+                        finishIfAll();
+                        (*proc)(idx + kWorkers);   // 拉下一个同槽位任务
                     });
             },
-            [out, proc, idx, fallbackEntry](const QString&) {
+            [out, proc, finishIfAll, idx, fallbackEntry](const QString&) {
                 // CF 信息获取失败：保留原始数字 id
-                out->append(fallbackEntry());
-                (*proc)(idx + 1);
+                (*out)[idx] = fallbackEntry();
+                finishIfAll();
+                (*proc)(idx + kWorkers);   // 拉下一个同槽位任务
             });
     };
-    (*proc)(0);
+
+    for (int i = 0; i < qMin(kWorkers, total); ++i)
+        (*proc)(i);
 }
 
 // 按名称在 Modrinth 检索（镜像空→官方降级）；命中取归一化标题精确匹配，

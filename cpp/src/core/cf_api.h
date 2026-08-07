@@ -48,6 +48,13 @@ public:
                       std::function<void(const QVariantMap& info)> done,
                       JsonFail fail);
 
+    /// CF 模组依赖（/mods/{modId} 的 latestFiles[0].dependencies）
+    /// → [{project_id, dependency_type}]；镜像 files 端点 dependencies 恒空
+    /// （实测 2026-08-07），mod 详情端点的 latestFiles 才带依赖字段
+    void fetchModDependencies(const QString& modId,
+                              std::function<void(const QVariantList& deps)> done,
+                              JsonFail fail);
+
     /// CF 搜索条目 → 统一结果模型（slug=数字id，source=CurseForge）
     static QVariantMap toUnified(const QJsonObject& mod);
 

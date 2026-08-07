@@ -102,6 +102,9 @@ public:
     /// CF 详情页前置依赖解析：先取 CF 名称/图标，再按名称在 Modrinth 检索映射
     /// （命中 → Modrinth slug/title/icon，点击进 Modrinth 详情；未命中 → 保留 CF 数据）
     Q_INVOKABLE void resolveCfDependencies(const QString& modId, const QVariantList& deps);
+    /// CF 详情页直接拉依赖（/mods/{id} latestFiles）：镜像 files 端点 dependencies 恒空，
+    /// mod 详情端点的 latestFiles 才带依赖（实测 2026-08-07）→ 拉出后走 resolveCfDependencies 映射
+    Q_INVOKABLE void fetchCfDependencies(const QString& modId);
 
 signals:
     void downloadProgressChanged(int completed, int total, const QString& fileName);

@@ -21,6 +21,7 @@
 #include <QTimer>
 #include <functional>
 #include <memory>
+#include <vector>
 
 namespace ShadowLauncher {
 
@@ -1478,6 +1479,21 @@ void ModManager::getModDependencies(const QString& slug, const QString& gameVers
 
                             result.append(depObj);
                         }
+
+                        // 必须前置在前、可选前置在后（2026-08-07 修复）
+                        // QJsonArray::iterator 的 QJsonValueRef 代理不支持 std::swap → 先转 vector 再排序
+                        std::vector<QJsonObject> vec;
+                        vec.reserve(result.size());
+                        for (const QJsonValue& v : result) vec.push_back(v.toObject());
+                        std::stable_sort(vec.begin(), vec.end(),
+                            [](const QJsonObject& a, const QJsonObject& b) {
+                                const QString ta = a.value(QStringLiteral("dependency_type")).toString();
+                                const QString tb = b.value(QStringLiteral("dependency_type")).toString();
+                                if (ta == tb) return false;
+                                return ta == QStringLiteral("required");
+                            });
+                        result = QJsonArray();
+                        for (const QJsonObject& o : vec) result.append(o);
                     } else {
                         // Fallback: emit with just project IDs
                         for (auto it = depMap.begin(); it != depMap.end(); ++it) {
