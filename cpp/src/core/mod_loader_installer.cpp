@@ -2133,55 +2133,92 @@ void ModLoaderInstaller::forgeStep3_route(const QByteArray& jarData) {
 // ═══════════════════════════════════════════════════════════════
 
 void ModLoaderInstaller::installLegacy3(const QByteArray& jarData) {
-    emit progressChanged(3, m_totalSteps, QStringLiteral("安装旧版 Forge（Legacy 3：自包含 JAR）..."));
+    emit progressChanged(3, m_totalSteps, QStringLiteral("安装旧版 Forge（Legacy 3：原版 JAR + universal 库）..."));
 
-    // 1. mainClass 恒为 net.minecraft.client.Minecraft（2026-08-07 实测修正）：
-    //    Legacy 3 = MC<1.5 自包含 JAR，老版本 MC 入口就是 Minecraft。
-    //    ⚠ 不能用 FMLRelauncher：1.4.7 universal 里 FMLRelauncher 无 main 方法
-    //    （只有 handleClientRelaunch/handleServerRelaunch/appletEntry，FML 通过
-    //    Minecraft.fmlReentry(ArgsWrapper) 回调注入）→ JVM 报"找不到 main 方法"。
-    //    launchwrapper 是 1.6+ 的，Legacy 3 永远不会出现。
+    // ═══ 2026-08-07 重大修正：Legacy 3 不是"自包含 JAR" ═══
+    // 实测（1.4.7-6.6.2.534）：
+    //   universal.zip 746 条目 / 原版 client.jar 1933 条目
+    //   universal 独有(forge 新增) 501，client 独有 1688（lg 等混淆类全在 client）
+    //   universal 的 Minecraft.class 引用 lg → NoClassDefFoundError
+    // → universal 只是 forge 补丁（FML 类 + 部分 MC 覆盖），必须搭配原版 client.jar。
+    // 正确结构（对齐 主流启动器 方式 B）：游戏 JAR = 原版 client.jar，
+    //   universal → libraries/net/minecraftforge/forge/{ver}/forge-{ver}.jar（classpath 补丁）。
     const QString mainClass = QStringLiteral("net.minecraft.client.Minecraft");
 
-    qCInfo(logLoader) << QStringLiteral("[安装] Legacy 3: mainClass=%1").arg(mainClass);
+    // 1. 原版 client.jar：merged 流程 MC 下载已装到 versions/{mc}/{mc}.jar
+    //    （独立安装 ensureVanillaInstalled 也会装）；不存在则失败提示
+    const QString vanillaJar = versionsDir() + QStringLiteral("/") + m_mcVersion
+                               + QStringLiteral("/") + m_mcVersion + QStringLiteral(".jar");
+    if (!QFileInfo::exists(vanillaJar)) {
+        qCWarning(logLoader) << QStringLiteral("[安装] Legacy 3: 原版 JAR 缺失: %1").arg(vanillaJar);
+        emit finished(false, QStringLiteral("Legacy 3: 原版游戏 JAR 缺失（%1）").arg(m_mcVersion));
+        m_running = false;
+        return;
+    }
 
-    // 2. Create version directory
-    const QString verDir = versionsDir() + QStringLiteral("/") + m_installName;
-    QDir().mkpath(verDir);
-
-    // 3. Copy JAR data to version folder (this IS the game JAR)
-    const QString jarPath = verDir + QStringLiteral("/") + m_installName + QStringLiteral(".jar");
+    // 2. universal → libraries（对齐 Legacy 2 的 install.path 路径模式）
+    const QString ver = m_mcVersion + QStringLiteral("-") + m_loaderVersion
+        + (m_forgeBranch.isEmpty() ? QString() : QStringLiteral("-") + m_forgeBranch);
+    const QString uniDir = m_gameDir + QStringLiteral("/libraries/net/minecraftforge/forge/")
+                           + ver;
+    const QString uniJar = uniDir + QStringLiteral("/forge-") + ver + QStringLiteral(".jar");
+    QDir().mkpath(uniDir);
     {
-        QFile jf(jarPath);
-        if (jf.open(QIODevice::WriteOnly)) {
-            jf.write(jarData);
-            jf.close();
-            qCInfo(logLoader) << QStringLiteral("[安装] Legacy 3: 已写入版本 JAR: %1").arg(jarPath);
+        QFile uf(uniJar);
+        if (uf.open(QIODevice::WriteOnly)) {
+            uf.write(jarData);
+            uf.close();
+            qCInfo(logLoader) << QStringLiteral("[安装] Legacy 3: universal 已写入库: %1").arg(uniJar);
         } else {
-            emit finished(false, QStringLiteral("Legacy 3: 无法写入版本 JAR"));
+            emit finished(false, QStringLiteral("Legacy 3: 无法写入 universal 库"));
             m_running = false;
             return;
         }
     }
 
-    // 4. Create version JSON — 对齐 主流启动器/主流启动器：inheritsFrom 中间态 → flatten 拍平
-    //    （合并原版 libraries + 删 inheritsFrom → 独立版本，原版清理后仍可启动；
-    //     2026-08-07 统一 Legacy 2/3 路线）
+    // 3. 版本 JAR = 原版 client.jar 副本（独立版本，不依赖原版文件夹）
+    const QString verDir = versionsDir() + QStringLiteral("/") + m_installName;
+    QDir().mkpath(verDir);
+    const QString jarPath = verDir + QStringLiteral("/") + m_installName + QStringLiteral(".jar");
+    {
+        QFile sf(vanillaJar);
+        QFile df(jarPath);
+        if (sf.open(QIODevice::ReadOnly) && df.open(QIODevice::WriteOnly)) {
+            df.write(sf.readAll());
+            df.close();
+            sf.close();
+            qCInfo(logLoader) << QStringLiteral("[安装] Legacy 3: 已复制原版 JAR 为版本 JAR: %1").arg(jarPath);
+        } else {
+            emit finished(false, QStringLiteral("Legacy 3: 无法复制原版 JAR"));
+            m_running = false;
+            return;
+        }
+    }
+
+    // 4. Create version JSON — inheritsFrom 中间态 → flatten 拍平
     QJsonObject versionJson;
     versionJson[QStringLiteral("id")] = m_installName;
     versionJson[QStringLiteral("type")] = QStringLiteral("release");
     versionJson[QStringLiteral("mainClass")] = mainClass;
     versionJson[QStringLiteral("inheritsFrom")] = m_mcVersion;
-    versionJson[QStringLiteral("jar")] = m_installName;  // use our JAR (self-contained)
+    versionJson[QStringLiteral("jar")] = m_installName;  // 版本 JAR（原版副本）
     versionJson[QStringLiteral("minimumLauncherVersion")] = 4;
-    versionJson[QStringLiteral("libraries")] = QJsonArray();
+    // libraries：加入 universal 补丁库（classpath 顺序在 flatten 原版库之后）
+    {
+        QJsonObject forgeLib;
+        forgeLib[QStringLiteral("name")] = QStringLiteral("net.minecraftforge:forge:") + ver;
+        forgeLib[QStringLiteral("url")] = QStringLiteral("https://files.minecraftforge.net/maven/");
+        QJsonArray libs;
+        libs.append(forgeLib);
+        versionJson[QStringLiteral("libraries")] = libs;
+    }
     {
         QJsonObject flattened = flattenVersionJson(m_gameDir, versionJson);
         if (flattened != versionJson) {
             versionJson = flattened;
             qCInfo(logLoader) << QStringLiteral("[安装] Legacy 3 JSON 已压平为独立版本");
         }
-        // 统一版本库下载（对齐主流启动器实现 GameLibrariesTask）
+        // 统一版本库下载（universal 已本地写入 → exists 跳过；补原版库缺失）
         const QJsonArray libsArr = versionJson.value(QStringLiteral("libraries")).toArray();
         if (!libsArr.isEmpty()) {
             const int downloaded = downloadVersionLibraries(libsArr);
@@ -2205,7 +2242,7 @@ void ModLoaderInstaller::installLegacy3(const QByteArray& jarData) {
         }
     }
 
-    qCInfo(logLoader) << QStringLiteral("[安装] Legacy 3 安装完成: %1（自包含 JAR）").arg(m_installName);
+    qCInfo(logLoader) << QStringLiteral("[安装] Legacy 3 安装完成: %1（原版 JAR + universal 库）").arg(m_installName);
     emit finished(true, QString());
     m_running = false;
 }
