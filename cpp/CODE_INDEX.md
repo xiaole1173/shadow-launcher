@@ -295,7 +295,7 @@
 | `VersionCard.qml` | 115 | 版本卡片（列表项）。 |
 | `DetailVersionCard.qml` | 173 | 版本详情卡（概览）。 |
 | `DetailInfoCard.qml` | 110 | 通用信息卡（详情页统计项）。 |
-| `VersionSelectOverlay.qml` | 521 | 版本选择浮层（左栏版本/模组/占用卡 + 右侧详情）。 |
+| VersionSelectOverlay.qml | 404 | 版本选择浮层（单卡片占满整页：已安装版本列表 + 顶部工具行 标题/刷新/搜索/导入整合包/安装/排序/筛选；2026-08-07 左侧版本文件夹卡片已删）。 |
 | `VersionSettingsOverlay.qml` | 1490 | **版本设置浮层（实际生效）**：7 分区（概览0/启动配置1/内存2/Mod管理3/资源包4/存档5/工具6），各分区内容 + 顶部启动按钮。概览快捷入口 2026-08-03 分类重做：统一 ShadowButton + 文件夹/日志/其他分组；Mod 文件夹按钮 visible 内联白名单判定（lt ∈ Forge/Fabric/NeoForge/Quilt，与 sidebar Mod 管理同款写法，原版必隐藏）；光影包/config 按钮已移除。 |
 | `VersionLaunchSection.qml` | 599 | 启动配置分区（Java/参数/GPU）。 |
 | `VersionMemorySection.qml` | 251 | 内存分区。 |
@@ -349,6 +349,7 @@
 
 | 日期 | 说明 |
 |---|---|
+| 2026-08-07 | 版本选择页删减优化（VersionSelectOverlay.qml/shadow_backend.{h,cpp}，6894d9d，+20/-249）：删左侧"版本文件夹"大卡片（游戏文件夹列表/添加文件夹按钮/磁盘剩余xGB条）→ 右侧版本列表卡片占满整页；导入整合包按钮改用通用 ShadowButton 迁至顶部工具行（标题/刷新/搜索/导入/安装/排序/筛选平齐）。C++ 清理：删 Q_PROPERTY gameDirInfo/gameDirectories/diskFree/diskPercent + Q_INVOKABLE refreshGameDirInfo/setGameDir/removeGameDir + 实现（QStorageInfo 磁盘查询/QTimer 版本统计/同步6后端）+ m_gameDirInfo 成员；保留 gameDir 属性/gameDirChanged 信号（AppBackend 真实源转发，大量 QML 读 gameDir）/openGameDir。验证：编译通过 + qml.exe 布局断言 card_full=true/header_overlap=false + 窗口宽度 640-960 搜索框无挤压 |
 | 2026-08-07 | 下载模块全面审计（任务A）+ 死代码删减（任务B，3a1e1f6，+6/-443）：任务A结论——所有下载已合理归属引擎（MC→盘古→夸父+山海经、整合包→女娲→精卫、Java→夸父单线程、Mod/资源包/光影→驿道 downloadWithReply，2026-08-02 回退有历史注释；版本管线内部竞速/修复/OptiFine、女娲 POST 批量解析、启动侧 manifest/更新/皮肤各有语义不宜强整合，司南仅 GET 不整合 POST）。任务B——删除 downloader.h/.cpp（Phase 2.3 遗留单文件下载器，全仓零引用） + CMakeLists 移除；mod_manager 清理夸父 fd 死分支（创建路径早已被驿道取代，wasKuafu 恒 false）+ tmpFile/tmpPath 死字段；顺带修 retryModFileDownload 悬垂迭代器（erase 后读 it->received UB，改擦除前取）。验证：Release 编译全绿（含测试项目）、FDTest 夸父 20MB ok=1 回归、全仓无 Downloader 残留 |
 | 2026-08-07 | Modrinth 侧统一接入司南引擎（mod_manager.{h,cpp}，a1105ab）：用户问详情页版本列表是否走司南——调查结论 CF 侧全走（getJsonWithFallback），Modrinth 侧版本列表/依赖/下载前查询仍直接 HttpClient。新增统一入口 fetchViaSinan(url, cacheable, done, fail)（司南优先 getJson，未注入回退 HttpClient，签名同构零语义损失）；9 处调用点替换：fetchModVersions/fetchResourcepackVersions/fetchShaderVersions（详情页版本列表×3）+ getModVersions + downloadResourcepack/downloadShader 下载前查询×2 + getModDependencies 两段 + searchModrinthProjects。语义等价（非 200 从 done 改走 fail，各 fail 回调已有对应处理）且司南多一次重试；效果：详情页往返版本/依赖 300s 缓存秒开 |
 | 2026-08-07 | 前置模组三项修复（ModDetailPage.qml/mod_manager.cpp/resource_backend.cpp/cf_api.cpp，8cddb02）：①required/optional 排序（Modrinth getModDependencies 与 CF resolveCfDependencies 均 stable_sort required 在前；QJsonArray 迭代器代理不支持 swap → 先转 std::vector）②依赖缓存 _depsCache（slug→deps，返回上一级秒开不再 10s+ 网络重请求；CF 分支也补 _versionCache 版本缓存）③CF overlay 前置加载不出——根因是镜像 files 端点依赖被误判恒空（实测带依赖，样本恰好全是无依赖 mod）；新增 fetchModDependencies（/mods/{id} latestFiles[0].dependencies，双源镜像优先官方降级，官方 key 解密可直连实测）；relationType 只收 2=required/3=optional 跳过 1=embedded/4=incompatible/5=include；resolveCfDependencies 串行改 4 路并发保序（上限 8→24 覆盖 Mekanism 全家桶）；依赖获取统一在 onModDetailSlugChanged（勿提前 return） |
