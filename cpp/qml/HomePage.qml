@@ -990,9 +990,31 @@ Rectangle {
                 color: StyleTokens.bgSecondary; border.color: currentSelectedVersion ? StyleTokens.accentSubtle : "#0e1118"
                 border.width: currentSelectedVersion ? 1 : 0
                 RowLayout {
-                    anchors.centerIn: parent; spacing: 8
+                    // 长版本号自适应缩小（2026-08-07）：RowLayout 撑满容器（非 centerIn，
+                    // 避免文本撑宽 RowLayout 形成循环），TextMetrics 以 16px 基准测量，
+                    // 按容器可用宽（box-48: margins/dot/spacing）比例缩放字号，
+                    // 上限 16px 不放大、下限 9px 保可读；不用省略号（用户要求缩小而非 Elide）
+                    anchors.fill: parent
+                    anchors.leftMargin: 16; anchors.rightMargin: 16
+                    spacing: 8
                     Rectangle { width: 8; height: 8; radius: StyleTokens.radiusSm; color: StyleTokens.accentLight; visible: currentSelectedVersion !== "" }
-                    Text { text: currentSelectedVersion || "未选择版本"; font.pixelSize: StyleTokens.fontSizeLg; font.weight: Font.Bold; color: currentSelectedVersion ? "#8aa8f0" : "#787c90" }
+                    TextMetrics {
+                        id: verTm
+                        font.pixelSize: StyleTokens.fontSizeLg
+                        font.weight: Font.Bold
+                        text: currentSelectedVersion || "未选择版本"
+                    }
+                    Text {
+                        Layout.fillWidth: true
+                        text: verTm.text
+                        // 可用宽 = RowLayout 宽（容器-32 margins=328）- dot(8) - spacing(8) = parent.width - 48
+                        // （实测 RowLayout anchors.fill 后 width=328，parent.width-48=280 恰好放下缩放文本）
+                        font.pixelSize: Math.max(9, Math.min(StyleTokens.fontSizeLg,
+                            Math.round(StyleTokens.fontSizeLg * (parent.width - 48) / Math.max(1, verTm.width))))
+                        font.weight: Font.Bold
+                        color: currentSelectedVersion ? "#8aa8f0" : "#787c90"
+                        verticalAlignment: Text.AlignVCenter
+                    }
                 }
             }
 
