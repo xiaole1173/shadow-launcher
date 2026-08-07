@@ -349,6 +349,7 @@
 
 | 日期 | 说明 |
 |---|---|
+| 2026-08-07 | 1.4.7+forge 启动崩溃修复（bca513b）：launcher pre-1.6 mainClass 覆盖加 FML 例外（FMLRelauncher 保留）；version_isolation 隔离模式统一返回 game/（删降级 verDir 分支，junction 不再建到 versions/.minecraft）；删 isDirNonEmpty 死代码 |
 | 2026-08-07 | 开启 JVM 标准/错误输出到日志（1cd4bac）：launcher onReadyReadStdout/Stderr 逐行 qCInfo（[JVM 输出]/[JVM 错误输出] 前缀，曾按用户要求关闭）；runBootstrapperSync 改每次迭代 drain 两通道（原依赖 waitForReadyRead 返回值，纯 stderr 进程会阻塞）+ stdout/stderr 写日志；OptiFine 安装器 capturedOutput 实际内容写日志（原只打行数） |
 | 2026-08-07 | merged 1.4.7 主文件下载失败修复（f9ad0e4）：fallback 链补 universal.zip/client.zip 三后缀（回滚时丢 9bca7f5）；新增 Yidao147Test 回归（驿道下载 universal.zip PK 魔数） |
 | 2026-08-07 | forge 下载驿道化 + versionInfo.libraries 并入安装器库（4031685，+161/-180）：merged 主文件下载（裸 QNAM）→驿道（downloadViaYidao 临时文件→内存，进度/100KB 校验/fallback/取消保留，loaderDlReply→loaderDlHandle）；downloadVersionLibraries 同步 QNAM→驿道（QEventLoop+15s 兑底）；forgeStepLibs 并入 versionInfo.libraries（1.7.10 0→17 任务提前并行）；tv/twitch→libraries.minecraft.net 映射；删 LibSkipTest 残留目标 |
