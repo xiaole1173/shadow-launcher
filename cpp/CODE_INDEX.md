@@ -349,6 +349,7 @@
 
 | 日期 | 说明 |
 |---|---|
+| 2026-08-07 | merged 1.4.7 主文件下载失败修复（f9ad0e4）：fallback 链补 universal.zip/client.zip 三后缀（回滚时丢 9bca7f5）；新增 Yidao147Test 回归（驿道下载 universal.zip PK 魔数） |
 | 2026-08-07 | forge 下载驿道化 + versionInfo.libraries 并入安装器库（4031685，+161/-180）：merged 主文件下载（裸 QNAM）→驿道（downloadViaYidao 临时文件→内存，进度/100KB 校验/fallback/取消保留，loaderDlReply→loaderDlHandle）；downloadVersionLibraries 同步 QNAM→驿道（QEventLoop+15s 兑底）；forgeStepLibs 并入 versionInfo.libraries（1.7.10 0→17 任务提前并行）；tv/twitch→libraries.minecraft.net 映射；删 LibSkipTest 残留目标 |
 | 2026-08-07 | Legacy 2/3 安装器库步骤评估 + QML 进度可见性（96d791c）：新增 installerLibsSkipped 信号（Legacy 3 无 install_profile.json → 步骤标跳过不闪完成）；downloadVersionLibraries 加文件级进度（installerLibsFileProgress done/total）；version_backend skipped 联动（installerLibsDone 跳过已 skipped）；DownloadQueueCard 灰点+已跳过标签 |
 | 2026-08-07 | Legacy 2/3 合并统一旧版安装路线（mod_loader_installer.{h,cpp}，6639ebf，+281/-83，对齐 主流启动器/主流启动器）：新增 downloadVersionLibraries() 统一库下载（rules 判定 + natives/classifier 三级提取 + files.minecraftforge.net 兜底 + 跳过已存在）；Legacy 2 universal 提取路径对齐主流启动器实现 McLibGet(install.path)（不再网络下载 minecraftforge）；Legacy 3 补 flatten 拍平（原裸 inheritsFrom+空 libraries，merged 删原版后断裂）；forgeStep1 竞速改顺序尝试（installer 优先，防抢 universal 按 installer 校验失败）；officialMavenBaseForGroup 补老版本映射。验证：1.5.2/1.4.7/1.6.4 全 ok=1，natives×2、nightly rules 排除、flatten 后 inheritsFrom=(none) |
