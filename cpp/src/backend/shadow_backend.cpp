@@ -3211,6 +3211,17 @@ static QVariantList parseForgeBmclapiVersions(const QByteArray& data, const QStr
 void ShadowBackend::queryForgeVersions(const QString& mcVersion) {
     m_modLoaderQueriesCancelled = false;
 
+    // 1.5 及更早（1.0~1.5.x）：老式 Forge 安装格式，FML 4.x 运行时依赖 fmllibs
+    // （argo-2.25/guava-12.0.1/asm-all-4.0/bcprov-jdk15on-147 等），官方源
+    // files.minecraftforge.net/fmllibs/ 已死（404 实测）→ 装完也启动不了。
+    // 从根源杜绝：列表层直接过滤（对齐 主流启动器，2026-08-07）
+    static const QRegularExpression legacyForgeVer(QStringLiteral(R"(^1\.[0-5](?:\.|$))"));
+    if (legacyForgeVer.match(mcVersion).hasMatch()) {
+        qCInfo(logApp) << QStringLiteral("[加载器] Forge 版本列表过滤: MC %1（1.5 及更早不支持自动安装）").arg(mcVersion);
+        emit forgeVersionsReady(QVariantList());
+        return;
+    }
+
     struct SourceReq { bool done = false; QByteArray data; };
     struct DualState { SourceReq bmcl; SourceReq official; bool parsedBmcl = false; bool parsedOfficial = false; QVariantList bmclResult; QVariantList officialResult; bool emitted = false; };
     auto state = std::make_shared<DualState>();
