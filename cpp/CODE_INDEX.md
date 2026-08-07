@@ -350,6 +350,7 @@
 
 | 日期 | 说明 |
 |---|---|
+| 2026-08-07 | 启动界面版本号自适应缩小（HomePage.qml，78c505e）：长版本号溢出展示框；RowLayout 改 anchors.fill 撑满容器（防循环）+ TextMetrics 16px 基准测量 + 按可用宽比例缩放字号（上限16px不放大/下限9px），不用省略号（用户要求缩小而非 Elide）；qml.exe 实测无 binding loop、渲染断言 PASS |
 | 2026-08-07 | 超额止损数据丢失修复（file_downloader.cpp，d8098b2）：实测 QNetworkReply::abort() 清空未读缓冲（abort 后 readAll 返回 0）→ 改为 abort 前先 readAll 保存到 rangeData；止损条件改严格大于避免正常 206 误触发；本地 4 场景（MC/modpack 慢速止损、严格 range、200 全文件）SHA1 全部匹配 |
 | 2026-08-07 | 超额下载浪费修复（file_downloader.cpp，7ec05bd）：日志实锤 476 次截断浪费 1261MB（178%）——根因 tryAddThread 切分后 in-flight 请求仍按旧 range 拉数据（首线程请求全文件被切分后服务器仍发完整文件）；修复为 worker downloadProgress 检测 206 已收满本线程范围即 abort 止损（对齐 主流启动器 流式 DownloadUndone=0 即断语义），数据前缀完整不丢进度不重试；超额从整个旧 range 降到约一个网络包 |
 | 2026-08-06 | 导出五轮复比对：修资源包子项精确模式哈希泄漏（勾选子项时未勾选 zip 不再进 files[]/直装——collectMods 按 rpSubs 限定范围）；确认安装侧 modpack_parser 按 path 通用下载（resourcepacks 引用安全）（modpack_exporter.cpp） |
