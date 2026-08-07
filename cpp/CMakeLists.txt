@@ -631,6 +631,15 @@ if(SHADOW_BUILD_MODPACK_SELFTEST)
     )
     target_include_directories(Forge147Test PRIVATE src)
     target_link_libraries(Forge147Test PRIVATE Qt6::Core Qt6::Network Qt6::Concurrent Qt6::Gui Qt6::GuiPrivate)
+
+    # 驿道下载 1.4.7 universal.zip（merged fallback 目标）完整性验证
+    add_executable(Yidao147Test
+        tests/test_yidao147.cpp
+        src/core/http_client.cpp
+        src/utils/logger.cpp
+    )
+    target_include_directories(Yidao147Test PRIVATE src)
+    target_link_libraries(Yidao147Test PRIVATE Qt6::Core Qt6::Network Qt6::Concurrent)
 endif()
 
 # ============================================================

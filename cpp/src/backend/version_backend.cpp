@@ -5303,8 +5303,12 @@ if (!loaderDlUrl.isEmpty()) {
                     QString baseVer = loaderVersion;
                     if (!baseVer.startsWith(mcVersion + QLatin1Char('-')))
                         baseVer = mcVersion + QStringLiteral("-") + loaderVersion;
+                    // 老版本无 installer.jar（1.4.7 只有 universal.zip，1.2.x 只有 client.zip）→
+                    // 每 base×ver 生成 3 后缀，对齐 forgeStep1 语义（2026-08-07）
                     auto addFb = [&](const QString& base, const QString& ver) {
                         fallbackUrls << QStringLiteral("%1/net/minecraftforge/forge/%2/forge-%2-installer.jar").arg(base, ver);
+                        fallbackUrls << QStringLiteral("%1/net/minecraftforge/forge/%2/forge-%2-universal.zip").arg(base, ver);
+                        fallbackUrls << QStringLiteral("%1/net/minecraftforge/forge/%2/forge-%2-client.zip").arg(base, ver);
                     };
                     QString branchVer = baseVer;
                     if (!forgeInstallerBranch.isEmpty()) branchVer += QStringLiteral("-") + forgeInstallerBranch;
