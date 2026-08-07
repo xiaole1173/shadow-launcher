@@ -730,6 +730,8 @@ Rectangle {
                                                             var fn = model.fileName || ""
                                                             var en = model.enabled !== false
                                                             backend.setModEnabled(fn, currentSelectedVersion, !en)
+                                                            // setProperty 只更新 enabled role（保留其他字段）→ 按钮文字/卡片样式即时刷新，无重建闪烁
+                                                            modListModel.setProperty(index, "enabled", !en)
                                                             toastManager.show(en ? "已禁用: " + fn : "已启用: " + fn)
                                                         }
                                                     }
