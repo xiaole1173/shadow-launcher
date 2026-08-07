@@ -1514,8 +1514,9 @@ void VersionBackend::cancelVersionInstall(const QString& versionId)
             // 它们的完成回调 capture 裸 ctx*，ctx 一旦 delete 即悬垂崩溃。
             // abort 同步触发 finished（排队）→ 回调在 destroy 前执行（ctx 存活）→
             // 回调内检查 ctx->failed（本分支已置 true）提前返回。
-            if (ctx->loaderDlReply) {
-                ctx->loaderDlReply->abort();
+            if (ctx->loaderDlHandle) {
+                ctx->loaderDlHandle->abort();
+                ctx->loaderDlHandle = nullptr;
             }
             if (ctx->fabricApiReply) {
                 ctx->fabricApiReply->abort();
@@ -5202,166 +5203,144 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
             : QStringLiteral("https://bmclapi2.bangbang93.com/maven/net/neoforged/neoforge/%1/neoforge-%1-installer.jar").arg(loaderVersion);
     }
 
-    if (!loaderDlUrl.isEmpty()) {
-        auto* nam = new QNetworkAccessManager(this);
+if (!loaderDlUrl.isEmpty()) {
         int loaderDlStepIdx = 4;
 
         qDebug() << "[Coordinator] Loader download:" << loaderDlUrl;
-        {
-            QUrl qurl(loaderDlUrl);
-            QNetworkRequest req(qurl);
-            req.setRawHeader("User-Agent", "ShadowLauncher/1.0");
-            req.setTransferTimeout(300000);
-            req.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::AlwaysNetwork);
-            QNetworkReply* reply = nam->get(req);
-            if (ctx) ctx->loaderDlReply = reply;   // 供取消时 abort（回调 capture 裸 ctx*）
 
-            auto speedState = QSharedPointer<QPair<qint64,qint64>>::create(0,0);
+        // ── 驿道下载（2026-08-07：merged 主文件从裸 QNAM 整合到驿道）──
+        // downloadWithReply 下载到临时文件（>4MB 自动分片，驿道内建停滞检测/重试）；
+        // 完成回调读入内存 → handleLoaderData（原语义完整保留：进度/100KB 校验/fallback/取消）。
+        auto handleLoaderData = [this, installName, loaderType, mcVersion, loaderVersion, forgeInstallerBranch, loaderDlStepIdx, ctx](const QByteArray& data) {
+            if (data.size() < 102400) {
+                qWarning() << "[Coordinator] Loader download too small:" << data.size();
+                updateStep(installName, loaderDlStepIdx, QStringLiteral("failed"), 0, data.size(), 0);
+                ctx->failed = true;
+                ctx->errorMessage = tr("下载文件异常");
+                if (ctx->mcDownloadDone) finishInstall(installName);
+                return;
+            }
+            if (!m_downloadSessions.contains(installName)) return;
 
-            connect(reply, &QNetworkReply::downloadProgress, this,
-                    [this, installName, loaderDlStepIdx, speedState](qint64 recv, qint64 total) {
-                updateStep(installName, loaderDlStepIdx, QStringLiteral("active"),
-                           total > 0 ? (int)(recv * 100 / total) : 0, recv, total);
-                qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
-                qint64 delta = recv - speedState->first;
-                qint64 timeDelta = nowMs - speedState->second;
-                qint64 instant = 0;
-                if (timeDelta >= 200 && speedState->second > 0 && delta > 0) {
-                    instant = delta * 1000 / timeDelta;
-                    ensureSession(installName);
+            ensureSession(installName);
+            auto* ds = dlSession(installName);
+            ds->loaderDownloadData = data;
+
+            updateStep(installName, loaderDlStepIdx, QStringLiteral("completed"), 100, data.size(), data.size());
+            int verifyStep = loaderDlStepIdx + 1;
+            if (ds->steps.size() > verifyStep) {
+                showStep(installName, verifyStep);
+                updateStep(installName, verifyStep, QStringLiteral("active"), 0);
+            }
+
+            ctx->installer->setGameDir(ctx->tempDir);
+            ctx->installer->setForgeBranch(forgeInstallerBranch);
+
+            // CRITICAL: feed JAR data to installer BEFORE marking ready
+            if (loaderType == QStringLiteral("neoforge")) {
+                ctx->installer->installNeoForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
+            } else {
+                ctx->installer->installForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
+            }
+
+            // ⚠ 不在此时设 loaderJarReady / 触发 proceedToLoaderInstall：
+            // Forge/NeoForge 的 installXxxFromData 是异步的（SHA1 校验走网络 fallback），
+            // verify 完成才发 waitingForMC → 那里统一设 loaderJarReady + proceed。
+            // 提前设会竞态：MC 已完成时立即 forgeContinueInstall → m_cachedJar 还没缓存 →
+            // "没有缓存的 Forge 安装程序，无法继续" → 安装停摆（盘古并行化后 MC 更快，竞态必现）。
+        };
+
+        // 单源下载封装（驿道）：临时文件 → 读内存 → done(data) 或 fail
+        auto downloadViaYidao = [this, installName, loaderDlStepIdx, ctx](const QString& url,
+                                    std::function<void(const QByteArray&)> onData,
+                                    std::function<void()> onFail) {
+            const QString tmpPath = QDir::tempPath() + QStringLiteral("/sl_loader_")
+                + QString::number(QRandomGenerator::global()->generate() % 1000000) + QStringLiteral(".jar");
+            auto speedState = QSharedPointer<QPair<qint64,qint64>>::create(0, 0);
+            HttpClient::DownloadHandle* h = HttpClient::instance().downloadWithReply(url, tmpPath,
+                [this, installName, loaderDlStepIdx, speedState](qint64 recv, qint64 total) {
+                    updateStep(installName, loaderDlStepIdx, QStringLiteral("active"),
+                               total > 0 ? (int)(recv * 100 / total) : 0, recv, total);
+                    qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+                    qint64 delta = recv - speedState->first;
+                    qint64 timeDelta = nowMs - speedState->second;
+                    qint64 instant = 0;
+                    if (timeDelta >= 200 && speedState->second > 0 && delta > 0)
+                        instant = delta * 1000 / timeDelta;
+                    speedState->first = recv;
+                    speedState->second = nowMs;
+                    if (auto* ds = dlSession(installName)) {
+                        ds->mlBytesDl = recv;
+                        ds->mlBytesAll = total;
+                        if (instant > 0) ds->mlSpeed = instant;
+                    }
+                },
+                [this, installName, tmpPath, ctx, onData, onFail](bool ok, const QString& err) {
+                    if (ctx) ctx->loaderDlHandle = nullptr;
+                    if (!ok) {
+                        qWarning() << "[Coordinator] Loader download failed (驿道):" << err;
+                        QFile::remove(tmpPath);
+                        onFail();
+                        return;
+                    }
+                    QFile f(tmpPath);
+                    QByteArray data;
+                    if (f.open(QIODevice::ReadOnly)) { data = f.readAll(); f.close(); }
+                    QFile::remove(tmpPath);
+                    if (data.size() < 102400) { onFail(); return; }
+                    onData(data);
+                });
+            if (ctx) ctx->loaderDlHandle = h;   // 供取消时 abort
+        };
+
+        // 主 URL（下载源策略决定官方/镜像）
+        downloadViaYidao(loaderDlUrl,
+            [handleLoaderData](const QByteArray& data) { handleLoaderData(data); },
+            [this, installName, loaderType, loaderVersion, mcVersion, forgeInstallerBranch, loaderDlStepIdx, ctx, downloadViaYidao, handleLoaderData]() {
+                // 主 URL 失败 → fallback 链（与主 URL 同一套版本 ID 语义）
+                QStringList fallbackUrls;
+                if (loaderType == QStringLiteral("forge")) {
+                    QString baseVer = loaderVersion;
+                    if (!baseVer.startsWith(mcVersion + QLatin1Char('-')))
+                        baseVer = mcVersion + QStringLiteral("-") + loaderVersion;
+                    auto addFb = [&](const QString& base, const QString& ver) {
+                        fallbackUrls << QStringLiteral("%1/net/minecraftforge/forge/%2/forge-%2-installer.jar").arg(base, ver);
+                    };
+                    QString branchVer = baseVer;
+                    if (!forgeInstallerBranch.isEmpty()) branchVer += QStringLiteral("-") + forgeInstallerBranch;
+                    addFb(QStringLiteral("https://bmclapi2.bangbang93.com/maven"), baseVer);
+                    addFb(QStringLiteral("https://maven.minecraftforge.net"), branchVer);
+                    addFb(QStringLiteral("https://maven.minecraftforge.net"), baseVer);
+                } else if (loaderType == QStringLiteral("neoforge")) {
+                    fallbackUrls << QStringLiteral("https://maven.neoforged.net/releases/net/neoforged/neoforge/%1/neoforge-%1-installer.jar").arg(loaderVersion);
                 }
-                speedState->first = recv;
-                speedState->second = nowMs;
-                // 速度/字节集成到卡片（mlSpeed 由 byteProgress 语义一致）
-                if (auto* ds = dlSession(installName)) {
-                    ds->mlBytesDl = recv;
-                    ds->mlBytesAll = total;
-                    if (instant > 0) ds->mlSpeed = instant;
-                }
-            });
 
-            connect(reply, &QNetworkReply::finished, this,
-                    [this, nam, reply, installName, loaderType, loaderVersion, mcVersion, forgeInstallerBranch, loaderDlStepIdx, ctx]() {
-                reply->deleteLater();
-                if (ctx) ctx->loaderDlReply = nullptr;
-
-                auto handleLoaderData = [this, nam, installName, loaderType, mcVersion, loaderVersion, forgeInstallerBranch, loaderDlStepIdx, ctx](const QByteArray& data) {
-                    if (data.size() < 102400) {
-                        qWarning() << "[Coordinator] Loader download too small:" << data.size();
-                        nam->deleteLater();
-                        updateStep(installName, loaderDlStepIdx, QStringLiteral("failed"), 0, data.size(), 0);
+                auto fbIdx = QSharedPointer<int>::create(0);
+                auto tryFb = QSharedPointer<std::function<void()>>::create();
+                *tryFb = [=]() {
+                    if (*fbIdx >= fallbackUrls.size()) {
+                        if (ctx->failed) {
+                            // 取消中：不再 fallback / 不再收尾（取消分支已处理卡片与通知）
+                            updateStep(installName, loaderDlStepIdx, QStringLiteral("failed"), 0, 0, 0);
+                            return;
+                        }
+                        qWarning() << "[Coordinator] Loader download FAILED (all fallbacks)";
+                        emit logMessage(QStringLiteral(" %1 下载失败: 所有源均不可用").arg(loaderType));
+                        emit logMessage(tr("⚠ %1 下载失败，将以原版安装").arg(loaderType));
+                        updateStep(installName, loaderDlStepIdx, QStringLiteral("failed"), 0, 0, 0);
                         ctx->failed = true;
-                        ctx->errorMessage = tr("下载文件异常");
+                        ctx->errorMessage = tr("所有源均不可用");
                         if (ctx->mcDownloadDone) finishInstall(installName);
                         return;
                     }
-
-                    nam->deleteLater();
-                    if (!m_downloadSessions.contains(installName)) return;
-
-                    ensureSession(installName);
-                    auto* ds = dlSession(installName);
-                    ds->loaderDownloadData = data;
-
-                    updateStep(installName, loaderDlStepIdx, QStringLiteral("completed"), 100, data.size(), data.size());
-                    int verifyStep = loaderDlStepIdx + 1;
-                    if (ds->steps.size() > verifyStep) {
-                        showStep(installName, verifyStep);
-                        updateStep(installName, verifyStep, QStringLiteral("active"), 0);
-                    }
-
-                    ctx->installer->setGameDir(ctx->tempDir);
-                    ctx->installer->setForgeBranch(forgeInstallerBranch);
-
-                    // CRITICAL: feed JAR data to installer BEFORE marking ready
-                    if (loaderType == QStringLiteral("neoforge")) {
-                        ctx->installer->installNeoForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
-                    } else {
-                        ctx->installer->installForgeFromData(data, ds->mcVersion, ds->loaderVer, installName);
-                    }
-
-                    // ⚠ 不在此时设 loaderJarReady / 触发 proceedToLoaderInstall：
-                    // Forge/NeoForge 的 installXxxFromData 是异步的（SHA1 校验走网络 fallback），
-                    // verify 完成才发 waitingForMC → 那里统一设 loaderJarReady + proceed。
-                    // 提前设会竞态：MC 已完成时立即 forgeContinueInstall → m_cachedJar 还没缓存 →
-                    // "没有缓存的 Forge 安装程序，无法继续" → 安装停摆（盘古并行化后 MC 更快，竞态必现）。
+                    const QString url = fallbackUrls[(*fbIdx)++];
+                    qWarning() << "[Coordinator] Trying fallback:" << url;
+                    downloadViaYidao(url,
+                        [handleLoaderData](const QByteArray& data) { handleLoaderData(data); },
+                        [tryFb]() { (*tryFb)(); });
                 };
-
-                if (reply->error() != QNetworkReply::NoError) {
-                    // Build fallback URLs（与主 URL 同一套版本 ID 语义：完整 ID 直接用，纯版本拼 MC）
-                    QStringList fallbackUrls;
-                    if (loaderType == QStringLiteral("forge")) {
-                        QString baseVer = loaderVersion;
-                        if (!baseVer.startsWith(mcVersion + QLatin1Char('-')))
-                            baseVer = mcVersion + QStringLiteral("-") + loaderVersion;
-                        auto addFb = [&](const QString& base, const QString& ver) {
-                            fallbackUrls << QStringLiteral("%1/net/minecraftforge/forge/%2/forge-%2-installer.jar").arg(base, ver);
-                        };
-                        QString branchVer = baseVer;
-                        if (!forgeInstallerBranch.isEmpty()) branchVer += QStringLiteral("-") + forgeInstallerBranch;
-                        addFb(QStringLiteral("https://bmclapi2.bangbang93.com/maven"), baseVer);
-                        addFb(QStringLiteral("https://maven.minecraftforge.net"), branchVer);
-                        addFb(QStringLiteral("https://maven.minecraftforge.net"), baseVer);
-                    } else if (loaderType == QStringLiteral("neoforge")) {
-                        fallbackUrls << QStringLiteral("https://maven.neoforged.net/releases/net/neoforged/neoforge/%1/neoforge-%1-installer.jar").arg(loaderVersion);
-                    }
-
-                    auto fbIdx = QSharedPointer<int>::create(0);
-                    auto tryFb = QSharedPointer<std::function<void()>>::create();
-                    *tryFb = [=]() {
-                        if (*fbIdx >= fallbackUrls.size()) {
-                            if (ctx->failed) {
-                                // 取消中：不再 fallback / 不再收尾（取消分支已处理卡片与通知）
-                                nam->deleteLater();
-                                updateStep(installName, loaderDlStepIdx, QStringLiteral("failed"), 0, 0, 0);
-                                return;
-                            }
-                            qWarning() << "[Coordinator] Loader download FAILED (all fallbacks)";
-                            emit logMessage(QStringLiteral(" %1 下载失败: 所有源均不可用").arg(loaderType));
-                            emit logMessage(tr("\u26a0 %1 下载失败，将以原版安装").arg(loaderType));
-                            nam->deleteLater();
-                            updateStep(installName, loaderDlStepIdx, QStringLiteral("failed"), 0, 0, 0);
-                            ctx->failed = true;
-                            ctx->errorMessage = tr("所有源均不可用");
-                            if (ctx->mcDownloadDone) finishInstall(installName);
-                            return;
-                        }
-
-                        QString url = fallbackUrls[(*fbIdx)++];
-                        qWarning() << "[Coordinator] Trying fallback:" << url;
-                        QUrl qurlFb(url);
-                        QNetworkRequest reqFb(qurlFb);
-                        reqFb.setRawHeader("User-Agent", "ShadowLauncher/1.0");
-                        reqFb.setTransferTimeout(300000);
-                        QNetworkReply* r = nam->get(reqFb);
-
-                        auto speedStateFb = QSharedPointer<QPair<qint64,qint64>>::create(0, 0);
-                        connect(r, &QNetworkReply::downloadProgress, this,
-                            [this, installName, loaderDlStepIdx, speedStateFb](qint64 recv, qint64 total) {
-                                updateStep(installName, loaderDlStepIdx, QStringLiteral("active"),
-                                           total > 0 ? (int)(recv * 100 / total) : 0, recv, total);
-                                qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
-                                qint64 delta = recv - speedStateFb->first;
-                                if (delta > 0) { speedStateFb->first = recv; speedStateFb->second = nowMs; }
-                            });
-
-                        connect(r, &QNetworkReply::finished, this,
-                            [=]() {
-                                r->deleteLater();
-                                if (r->error() != QNetworkReply::NoError) { (*tryFb)(); return; }
-                                QByteArray data = r->readAll();
-                                if (data.size() < 102400) { (*tryFb)(); return; }
-                                handleLoaderData(data);
-                            });
-                    };
-                    (*tryFb)();
-                    return;
-                }
-
-                QByteArray data = reply->readAll();
-                handleLoaderData(data);
+                (*tryFb)();
             });
-        }
     }
 }
 void VersionBackend::installOptifine(const QString& mcVersion, const QString& optifineVersion,

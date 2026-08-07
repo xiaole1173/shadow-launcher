@@ -1479,7 +1479,9 @@ static QString officialMavenBaseForGroup(const QString& group) {
         // 老版本（1.6.4 以下）Minecraft 系库只在 libraries.minecraft.net（repo1 404，2026-08-07 实测）
         || group.startsWith(QLatin1String("net/minecraft")) || group.startsWith(QLatin1String("lzma"))
         || group.startsWith(QLatin1String("net/java")) || group.startsWith(QLatin1String("argo"))
-        || group.startsWith(QLatin1String("com/paulscode")) || group.startsWith(QLatin1String("net/sf/jopt-simple")))
+        || group.startsWith(QLatin1String("com/paulscode")) || group.startsWith(QLatin1String("net/sf/jopt-simple"))
+        // 1.7.10 twitch 直播库只在 libraries.minecraft.net（实测 mojang 200 / repo1·files 404，2026-08-07）
+        || group.startsWith(QLatin1String("tv/twitch")))
         return QStringLiteral("https://libraries.minecraft.net");
     return QStringLiteral("https://repo1.maven.org/maven2");
 }
@@ -1572,7 +1574,6 @@ int ModLoaderInstaller::downloadVersionLibraries(const QJsonArray& libs) {
     }
     int needDone = 0;
     if (needTotal > 0) emit installerLibsFileProgress(0, needTotal);
-    QNetworkAccessManager localNam;   // 局部 NAM（避免共享单例的跨线程竞态）
     for (const auto& lv : libs) {
         if (m_cancelled) break;
         if (!lv.isObject()) continue;
@@ -1634,33 +1635,32 @@ int ModLoaderInstaller::downloadVersionLibraries(const QJsonArray& libs) {
 
         const QStringList urls = mavenCandidates(m_preferOfficial, group, artifact, version, ext, classifier);
         QDir().mkpath(libDir);
+        // 驿道下载（2026-08-07：安装阶段库补漏从同步 QNAM 整合到驿道）。
+        // 同步语义保留（调用点在安装 worker 内）：QEventLoop 等驿道 done 回调 +
+        // 15s 兜底超时（超时 abort 该源，走下一镜像）；驿道内建停滞检测/分片/重试。
         for (const QString& url : urls) {
-            QNetworkRequest req;
-            req.setUrl(QUrl(url));
-            QNetworkReply* reply = localNam.get(req);
             QEventLoop loop;
-            QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+            bool doneOk = false;
             QTimer timer;
             timer.setSingleShot(true);
             QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+            HttpClient::DownloadHandle* h = HttpClient::instance().downloadWithReply(
+                url, libFile,
+                [](qint64, qint64) {},
+                [&loop, &doneOk](bool ok, const QString&) { doneOk = ok; loop.quit(); });
             timer.start(15000);
             loop.exec();
-            const bool ok = reply->error() == QNetworkReply::NoError && timer.isActive();
+            const bool ok = doneOk && timer.isActive();
+            if (!ok && h) h->abort();   // 超时/失败：取消在途下载（含分片）
             if (ok) {
                 timer.stop();
-                QFile f(libFile);
-                if (f.open(QIODevice::WriteOnly)) {
-                    f.write(reply->readAll());
-                    f.close();
-                    downloaded++;
-                    needDone++;
-                    if (needTotal > 0) emit installerLibsFileProgress(needDone, needTotal);
-                }
+                downloaded++;
+                needDone++;
+                if (needTotal > 0) emit installerLibsFileProgress(needDone, needTotal);
             } else {
                 qCWarning(logLoader) << QStringLiteral("[安装] 版本库下载失败: %1").arg(url);
                 QFile::remove(libFile);
             }
-            reply->deleteLater();
             if (ok && QFile::exists(libFile)) break;
         }
     }
@@ -1719,13 +1719,15 @@ void ModLoaderInstaller::forgeStepLibs(const QByteArray& jarData)
         reader.close();
         if (!profData.isEmpty()) {
             QJsonObject merged = QJsonDocument::fromJson(profData).object();
-            if (!verData.isEmpty()) {
-                QJsonObject verObj = QJsonDocument::fromJson(verData).object();
-                for (auto it = verObj.begin(); it != verObj.end(); ++it)
-                    if (!merged.contains(it.key())) merged[it.key()] = it.value();
-                QJsonArray profLibs = merged.value(QStringLiteral("libraries")).toArray();
-                const QJsonArray verLibs = verObj.value(QStringLiteral("libraries")).toArray();
-                for (const auto& vl : verLibs) {
+            // 库来源合并（去重，2026-08-07）：
+            //   1) install_profile.json 顶层 libraries（新版本）
+            //   2) version.json 的 libraries（Bootstrapper 路线）
+            //   3) versionInfo.libraries（老版本 1.7.10 及更早：顶层 libraries 为空、
+            //      库全在这里——不并入则"下载安装器库"步骤 0 任务，全部推迟到
+            //      安装阶段同步串行下载 → 慢；并入后提前并行下载，与 MC 下载并行）
+            QJsonArray profLibs = merged.value(QStringLiteral("libraries")).toArray();
+            auto appendUnique = [&profLibs](const QJsonArray& more) {
+                for (const auto& vl : more) {
                     const QString vlName = vl.toObject().value(QStringLiteral("name")).toString();
                     if (vlName.isEmpty()) continue;
                     bool found = false;
@@ -1733,8 +1735,17 @@ void ModLoaderInstaller::forgeStepLibs(const QByteArray& jarData)
                         if (pl.toObject().value(QStringLiteral("name")).toString() == vlName) { found = true; break; }
                     if (!found) profLibs.append(vl);
                 }
-                merged[QStringLiteral("libraries")] = profLibs;
+            };
+            if (!verData.isEmpty()) {
+                QJsonObject verObj = QJsonDocument::fromJson(verData).object();
+                for (auto it = verObj.begin(); it != verObj.end(); ++it)
+                    if (!merged.contains(it.key())) merged[it.key()] = it.value();
+                appendUnique(verObj.value(QStringLiteral("libraries")).toArray());
             }
+            // versionInfo.libraries（老版本 install_profile 内嵌 versionInfo 对象）
+            appendUnique(merged.value(QStringLiteral("versionInfo")).toObject()
+                             .value(QStringLiteral("libraries")).toArray());
+            merged[QStringLiteral("libraries")] = profLibs;
             const QJsonArray libs = merged.value(QStringLiteral("libraries")).toArray();
             auto bmclapiMirror = [](const QString& officialUrl) -> QString {
                 QString result = officialUrl;

@@ -24,6 +24,7 @@
 
 #include "../utils/types.h"
 #include "../session/download_session.h"
+#include "../core/http_client.h"
 
 namespace ShadowLauncher {
 
@@ -109,9 +110,9 @@ struct MergedInstallContext {
     VersionDownloader* mcDownloader = nullptr;
     ModLoaderInstaller* installer = nullptr;
 
-    // In-flight network replies owned by this context (aborted on cancel BEFORE
+    // In-flight network downloads owned by this context (aborted on cancel BEFORE
     // the context is destroyed — their completion callbacks capture raw ctx*).
-    QNetworkReply* loaderDlReply = nullptr;    // Forge/NeoForge installer JAR download
+    HttpClient::DownloadHandle* loaderDlHandle = nullptr;  // Forge/NeoForge installer JAR (驿道)
     QNetworkReply* fabricApiReply = nullptr;   // Fabric API download
     QVector<QNetworkReply*> optifineJarReplies;  // OptiFine JAR race replies (BMCLAPI+official)
 
