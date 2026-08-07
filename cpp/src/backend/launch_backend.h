@@ -38,6 +38,9 @@ public:
                             const QString& jvmArgs = {}, const QString& gameArgs = {},
                             bool highPerfGpu = false,
                             int windowWidth = 854, int windowHeight = 480);
+    Q_INVOKABLE QString exportLaunchScript(const QString& versionId, const QString& javaPath,
+                                           int maxMemoryMB, const QString& jvmArgs = {},
+                                           const QString& gameArgs = {}, bool highPerfGpu = false);
     Q_INVOKABLE void cancelLaunch();
     Q_INVOKABLE void killGameProcess();  // kill ALL running games
     Q_INVOKABLE void killGameByPid(qint64 pid);  // kill one game by PID

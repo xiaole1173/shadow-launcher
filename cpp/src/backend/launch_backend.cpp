@@ -1568,5 +1568,21 @@ void LaunchBackend::cleanupCrashArtifacts()
     m_jvmFullLogPath.clear();
 }
 
+// ── 启动脚本导出（脱机启动/排障，2026-08-07）──
+QString LaunchBackend::exportLaunchScript(const QString& versionId, const QString& javaPath,
+                                          int maxMemoryMB, const QString& jvmArgs,
+                                          const QString& gameArgs, bool highPerfGpu)
+{
+    if (versionId.isEmpty() || javaPath.isEmpty()) return QString();
+    Launcher launcher;
+    launcher.setGameDir(m_gameDir);
+    launcher.setVersionGameDir(m_versionGameDir);
+    launcher.setAutoLangMode(m_autoLangMode);
+    launcher.setDetectedRegion(m_detectedRegion);
+    launcher.setResolution(m_windowWidth, m_windowHeight);
+    return launcher.buildLaunchScript(versionId, javaPath, maxMemoryMB,
+                                      jvmArgs, gameArgs, highPerfGpu);
+}
+
 } // namespace ShadowLauncher
 

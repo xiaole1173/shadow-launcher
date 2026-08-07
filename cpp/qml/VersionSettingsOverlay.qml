@@ -470,6 +470,26 @@ Rectangle {
                             if (backend) { backend.copyVersionPath(currentSelectedVersion); toastManager.show("已复制版本路径") }
                         }
                     }
+
+                    ShadowButton {
+                        Layout.preferredWidth: 130; Layout.preferredHeight: 32
+                        text: qsTr("导出启动脚本"); iconSource: "icons/lucide/terminal.svg"; iconSize: 14
+                        accentColor: "#2a5a40"
+                        font.pixelSize: StyleTokens.fontSizeSm
+                        onClicked: {
+                            if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }
+                            if (!backend) return
+                            var jp = backend.javaPath || ""
+                            if (!jp) { toastManager.show("未设置 Java 路径"); return }
+                            launchScriptDialog.versionId = currentSelectedVersion
+                            launchScriptDialog.javaPath = jp
+                            launchScriptDialog.maxMemoryMb = backend.maxMemoryMb || 2048
+                            launchScriptDialog.jvmArgs = backend.jvmArgs || ""
+                            launchScriptDialog.gameArgs = backend.gameArgs || ""
+                            launchScriptDialog.highPerfGpu = backend.highPerfGpu || false
+                            launchScriptDialog.open()
+                        }
+                    }
                 }
 
                 Item { Layout.fillHeight: true }
@@ -610,8 +630,8 @@ Rectangle {
                                     Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                 }
 
-                                opacity: 0
-                                Component.onCompleted: opacity = 1
+                                opacity: model.enabled === false ? 0.55 : 0
+                                Component.onCompleted: opacity = model.enabled === false ? 0.55 : 1
                                 Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
 
                                 RowLayout {
@@ -639,7 +659,7 @@ Rectangle {
 
                                         // Name
                                         Text {
-                                            text: model.modName || model.fileName
+                                            text: (model.enabled === false ? (model.modName || model.fileName) + "（已禁用）" : (model.modName || model.fileName))
                                             font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Medium; color: StyleTokens.textSecondary
                                             elide: Text.ElideRight; Layout.fillWidth: true
                                         }
@@ -684,6 +704,38 @@ Rectangle {
                                                 font.pixelSize: StyleTokens.fontSizeXs; color: "#586080"
                                             }
                                             Item { Layout.fillWidth: true }
+
+                                            // Toggle enable/disable (rename *.jar ↔ *.jar.disabled, 2026-08-07)
+                                            Rectangle {
+                                                width: 44; height: 22; radius: StyleTokens.radiusSm
+                                                color: toggleBtnH.hovered ? "#2a3550" : "#1a2130"
+                                                border.color: toggleBtnH.hovered ? StyleTokens.accent : "#2a3450"
+                                                border.width: 1
+                                                opacity: cardHover.hovered ? 1.0 : 0.0
+                                                Behavior on opacity { NumberAnimation { duration: 200 } }
+                                                Behavior on color { ColorAnimation { duration: 150 } }
+                                                Behavior on border.color { ColorAnimation { duration: 150 } }
+                                                scale: toggleBtnM.pressed ? 0.9 : 1.0
+                                                Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: model.enabled === false ? qsTr("启用") : qsTr("禁用")
+                                                    font.pixelSize: StyleTokens.fontSizeXs
+                                                    color: model.enabled === false ? "#6ab04c" : "#a0a8c0"
+                                                }
+                                                MouseArea {
+                                                    id: toggleBtnM; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; hoverEnabled: true
+                                                    onClicked: {
+                                                        if (backend && currentSelectedVersion) {
+                                                            var fn = model.fileName || ""
+                                                            var en = model.enabled !== false
+                                                            backend.setModEnabled(fn, currentSelectedVersion, !en)
+                                                            toastManager.show(en ? "已禁用: " + fn : "已启用: " + fn)
+                                                        }
+                                                    }
+                                                }
+                                                HoverHandler { id: toggleBtnH }
+                                            }
 
                                             // Delete button (visible on hover)
                                             ShadowIconButton {
@@ -1463,6 +1515,45 @@ function _showToast(msg) {
                 }
             }
         }
+
+    // 导出启动脚本 FileDialog（2026-08-07）
+    FileDialog {
+        id: launchScriptDialog
+        title: qsTr("导出启动脚本")
+        fileMode: FileDialog.SaveFile
+        nameFilters: ["批处理脚本 (*.bat)"]
+        defaultSuffix: "bat"
+        currentFile: currentSelectedVersion ? (currentSelectedVersion + "_launch.bat") : ""
+        property string versionId: ""
+        property string javaPath: ""
+        property int maxMemoryMb: 2048
+        property string jvmArgs: ""
+        property string gameArgs: ""
+        property bool highPerfGpu: false
+        onAccepted: {
+            var sel = launchScriptDialog.selectedFile
+            var path = ""
+            if (typeof sel === "string") {
+                path = sel
+            } else if (sel && typeof sel.toString === "function") {
+                path = sel.toString()
+            }
+            if (path.indexOf("file:///") === 0) path = path.substring(8)
+            if (!path.toLowerCase().endsWith(".bat")) path = path + ".bat"
+            if (!backend) return
+            var script = backend.exportLaunchScript(launchScriptDialog.versionId,
+                                                    launchScriptDialog.javaPath,
+                                                    launchScriptDialog.maxMemoryMb,
+                                                    launchScriptDialog.jvmArgs,
+                                                    launchScriptDialog.gameArgs,
+                                                    launchScriptDialog.highPerfGpu)
+            if (!script) { toastManager.show("生成启动脚本失败"); return }
+            if (backend.saveTextFile(path, script))
+                toastManager.show("启动脚本已导出: " + path)
+            else
+                toastManager.show("写入启动脚本失败")
+        }
+    }
 
     // Export FileDialog
     FileDialog {

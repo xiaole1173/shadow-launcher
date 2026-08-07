@@ -12,7 +12,7 @@
 namespace ShadowLauncher {
 
 struct LocalModEntry {
-    QString fileName;      // e.g. "sodium-fabric-0.6.10.jar"
+    QString fileName;      // e.g. "sodium-fabric-0.6.10.jar" (disabled: "sodium-fabric-0.6.10.jar.disabled")
     QString modName;       // e.g. "Sodium"
     QString modId;         // e.g. "sodium"
     QString version;       // e.g. "0.6.10"
@@ -23,6 +23,7 @@ struct LocalModEntry {
     qint64 fileSize = 0;
     QString fileSizeText;  // e.g. "892 KB"
     bool valid = false;    // JAR parse succeeded
+    bool enabled = true;   // false = file renamed to *.jar.disabled (2026-08-07)
 };
 
 struct LocalResourcePackEntry {
@@ -54,6 +55,9 @@ public:
 
     // Delete a mod by filename
     bool deleteMod(const QString& fileName, const QString& versionId);
+
+    // Enable/disable a mod (rename *.jar ↔ *.jar.disabled, aligned with 主流启动器/主流启动器)
+    bool setModEnabled(const QString& fileName, const QString& versionId, bool enabled);
 
     // Open the mods folder in explorer
     bool openModsFolder(const QString& versionId);

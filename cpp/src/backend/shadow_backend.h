@@ -524,6 +524,13 @@ public:
     Q_INVOKABLE void pickJava() { browseJava(); }
     Q_INVOKABLE void checkFileChanges() {}
     Q_INVOKABLE void deleteMod(const QString& filename, const QString& versionId = {});
+    Q_INVOKABLE void setModEnabled(const QString& filename, const QString& versionId = {}, bool enabled = true);
+    /// 导出启动脚本（.bat）——转发 launchBackend（2026-08-07）
+    Q_INVOKABLE QString exportLaunchScript(const QString& versionId, const QString& javaPath,
+                                           int maxMemoryMB, const QString& jvmArgs = {},
+                                           const QString& gameArgs = {}, bool highPerfGpu = false);
+    /// 写文本文件（QML 侧无直接文件写 API，2026-08-07）
+    Q_INVOKABLE bool saveTextFile(const QString& path, const QString& content);
     Q_INVOKABLE void deleteResourcePack(const QString& filename, const QString& versionId = {});
     Q_INVOKABLE bool importResourcePack(const QString& filePath, const QString& versionId = {});
     Q_INVOKABLE bool importMod(const QString& filePath, const QString& versionId = {});

@@ -1384,6 +1384,70 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
     return args;
 }
 
+QString Launcher::buildLaunchScript(const QString& versionId, const QString& javaPath,
+                                    int maxMemoryMB, const QString& jvmArgs,
+                                    const QString& gameArgs, bool highPerfGpu)
+{
+    // 复用 start() 的成员设置 + 版本 JSON 读取（不启动进程，仅组装命令行）
+    m_jvmArgs = jvmArgs;
+    m_gameArgs = gameArgs;
+    m_highPerfGpu = highPerfGpu;
+    m_currentVersionId = versionId;
+
+    // Java 主版本探测（buildArgs 的 --add-opens 需要）
+    {
+        QProcess javap;
+        javap.start(javaPath, {QStringLiteral("-version")});
+        javap.waitForFinished(5000);
+        QString output = QString::fromLocal8Bit(javap.readAllStandardError());
+        if (output.isEmpty()) output = QString::fromLocal8Bit(javap.readAllStandardOutput());
+        // version "1.8.0_xxx" / "17.0.19" 提取主版本
+        int vi = output.indexOf(QLatin1Char('"'));
+        int vj = vi >= 0 ? output.indexOf(QLatin1Char('"'), vi + 1) : -1;
+        if (vi >= 0 && vj > vi) {
+            QString ver = output.mid(vi + 1, vj - vi - 1);
+            ver.replace(QLatin1Char('_'), QLatin1Char('.'));
+            QStringList parts = ver.split(QLatin1Char('.'));
+            if (!parts.isEmpty()) {
+                int v = parts[0].toInt();
+                if (v == 1 && parts.size() >= 2) v = parts[1].toInt();
+                m_javaMajorVersion = v;
+            }
+        }
+    }
+
+    // 读版本 JSON
+    QString jsonPath = m_gameDir + QStringLiteral("/versions/") + versionId
+                       + QStringLiteral("/") + versionId + QStringLiteral(".json");
+    QFile jsonFile(jsonPath);
+    if (!jsonFile.open(QIODevice::ReadOnly)) {
+        qCWarning(logApp) << "[启动] 导出脚本失败: 无法读取版本配置" << jsonPath;
+        return QString();
+    }
+    QJsonParseError parseErr;
+    QJsonDocument doc = QJsonDocument::fromJson(jsonFile.readAll(), &parseErr);
+    jsonFile.close();
+    if (parseErr.error != QJsonParseError::NoError || !doc.isObject())
+        return QString();
+    QJsonObject versionJson = doc.object();
+
+    const QStringList args = buildArgs(versionId, maxMemoryMB, versionJson);
+    if (args.isEmpty()) return QString();
+
+    // 组装 .bat（UTF-8 输出 + 完整命令行 + 错误暂停）
+    const QString workDir = QDir::toNativeSeparators(
+        m_versionGameDir.isEmpty() ? m_gameDir : m_versionGameDir);
+    QString script;
+    script += QStringLiteral("@echo off\r\n");
+    script += QStringLiteral("chcp 65001 >nul\r\n");
+    script += QStringLiteral("rem Shadow Launcher start script - version %1\r\n").arg(versionId);
+    script += QStringLiteral("rem Generated: %1\r\n").arg(QDateTime::currentDateTime().toString(Qt::ISODate));
+    script += QStringLiteral("cd /d \"%1\"\r\n").arg(workDir);
+    script += QStringLiteral("\"%1\" %2\r\n").arg(QDir::toNativeSeparators(javaPath), args.join(QLatin1Char(' ')));
+    script += QStringLiteral("pause\r\n");
+    return script;
+}
+
 // ============================================================
 // Private Helpers — Natives Extraction
 // ============================================================

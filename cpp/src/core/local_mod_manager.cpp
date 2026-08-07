@@ -84,9 +84,16 @@ QVariantList LocalModManager::scanMods(const QString& versionId)
         if (!modDir.exists()) continue;
 
         const QFileInfoList files = modDir.entryInfoList(
-            {QStringLiteral("*.jar"), QStringLiteral("*.JAR")}, QDir::Files, QDir::Name);
+            {QStringLiteral("*.jar"), QStringLiteral("*.JAR"),
+             QStringLiteral("*.jar.disabled"), QStringLiteral("*.JAR.disabled")},
+            QDir::Files, QDir::Name);
         for (const QFileInfo& fi : files) {
-            LocalModEntry entry = parseJar(fi.absoluteFilePath());
+            // 禁用态（*.jar.disabled）：剥后缀后解析，标记 enabled=false（2026-08-07）
+            bool isDisabled = fi.fileName().endsWith(QStringLiteral(".disabled"), Qt::CaseInsensitive);
+            QString parsePath = fi.absoluteFilePath();
+            if (isDisabled)
+                parsePath = parsePath.left(parsePath.size() - 9);   // 剥 ".disabled"
+            LocalModEntry entry = parseJar(parsePath);
             if (!entry.valid) {
                 // Minimal entry from filename
                 entry.fileName = fi.fileName();
@@ -95,6 +102,10 @@ QVariantList LocalModManager::scanMods(const QString& versionId)
                 entry.fileSizeText = formatFileSize(fi.size());
                 entry.valid = true; // still show it
             }
+            entry.fileName = fi.fileName();   // 保留真实文件名（含 .disabled）
+            entry.fileSize = fi.size();
+            entry.fileSizeText = formatFileSize(fi.size());
+            entry.enabled = !isDisabled;
             result.append(entryToMap(entry));
         }
         break; // Only scan the first existing dir (version-isolated takes priority)
@@ -151,6 +162,39 @@ bool LocalModManager::deleteMod(const QString& fileName, const QString& versionI
             emit modsChanged(versionId);
             return true;
         }
+    }
+    return false;
+}
+
+bool LocalModManager::setModEnabled(const QString& fileName, const QString& versionId, bool enabled)
+{
+    QString dir = modsDir(versionId);
+    QString path = dir + QStringLiteral("/") + fileName;
+    if (!QFile::exists(path)) {
+        path = m_gameDir + QStringLiteral("/mods/") + fileName;
+    }
+    if (!QFile::exists(path)) {
+        qCWarning(logMgr) << QStringLiteral("[本地Mod] 启禁用失败 文件不存在: %1").arg(fileName);
+        return false;
+    }
+    const bool isDisabled = path.endsWith(QStringLiteral(".disabled"), Qt::CaseInsensitive);
+    if (enabled == !isDisabled) return true;   // 已是目标状态
+
+    QString newPath;
+    if (enabled) {
+        newPath = path.left(path.size() - 9);   // 剥 ".disabled"
+    } else {
+        newPath = path + QStringLiteral(".disabled");
+    }
+    if (QFile::exists(newPath)) {
+        qCWarning(logMgr) << QStringLiteral("[本地Mod] 启禁用失败 目标已存在: %1").arg(newPath);
+        return false;
+    }
+    if (QFile::rename(path, newPath)) {
+        qCInfo(logMgr) << QStringLiteral("[本地Mod] %1 成功 → %2")
+            .arg(enabled ? QStringLiteral("启用") : QStringLiteral("禁用"), newPath);
+        emit modsChanged(versionId);
+        return true;
     }
     return false;
 }
@@ -478,6 +522,7 @@ QVariantMap LocalModManager::entryToMap(const LocalModEntry& e) const
     m[QStringLiteral("loader")]      = e.loader;
     m[QStringLiteral("fileSize")]    = e.fileSize;
     m[QStringLiteral("fileSizeText")]= e.fileSizeText;
+    m[QStringLiteral("enabled")]     = e.enabled;
     return m;
 }
 

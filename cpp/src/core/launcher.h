@@ -60,6 +60,11 @@ public:
         m_isOnline = isOnline;
     }
 
+    /// 生成启动脚本（.bat 文本，脱机启动/排障用，2026-08-07）——复用 buildArgs 完整参数组装
+    QString buildLaunchScript(const QString& versionId, const QString& javaPath,
+                              int maxMemoryMB, const QString& jvmArgs, const QString& gameArgs,
+                              bool highPerfGpu);
+
 signals:
     void launchProgress(const QString& message);
     void launchFinished(bool success, const QString& errorMsg);

@@ -640,6 +640,18 @@ if(SHADOW_BUILD_MODPACK_SELFTEST)
     )
     target_include_directories(Yidao147Test PRIVATE src)
     target_link_libraries(Yidao147Test PRIVATE Qt6::Core Qt6::Network Qt6::Concurrent)
+
+    # Mod 启禁用 + 启动脚本导出验证
+    add_executable(ToggleScriptTest
+        tests/test_toggle_script.cpp
+        src/core/local_mod_manager.cpp
+        src/core/launcher.cpp
+        src/core/mc_language.cpp
+        src/core/http_client.cpp
+        src/utils/logger.cpp
+    )
+    target_include_directories(ToggleScriptTest PRIVATE src)
+    target_link_libraries(ToggleScriptTest PRIVATE Qt6::Core Qt6::Network Qt6::Concurrent Qt6::Gui Qt6::GuiPrivate)
 endif()
 
 # ============================================================

@@ -1642,6 +1642,22 @@ QString ShadowBackend::exportCrashLogs(const QString& destDir) {
     return m_launch->exportCrashLogs(destDir);
 }
 
+QString ShadowBackend::exportLaunchScript(const QString& versionId, const QString& javaPath,
+                                          int maxMemoryMB, const QString& jvmArgs,
+                                          const QString& gameArgs, bool highPerfGpu) {
+    if (!m_launch) return {};
+    return m_launch->exportLaunchScript(versionId, javaPath, maxMemoryMB,
+                                        jvmArgs, gameArgs, highPerfGpu);
+}
+
+bool ShadowBackend::saveTextFile(const QString& path, const QString& content) {
+    QFile f(path);
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Text)) return false;
+    f.write(content.toUtf8());
+    f.close();
+    return true;
+}
+
 void ShadowBackend::openPath(const QString& path) {
     if (m_launch) m_launch->openPath(path);
 }
@@ -1851,6 +1867,13 @@ void ShadowBackend::deleteMod(const QString& filename, const QString& versionId)
     if (!m_localMods) return;
     if (m_localMods->deleteMod(filename, versionId))
         emit logMessage(QStringLiteral("已删除 Mod: ") + filename);
+}
+
+void ShadowBackend::setModEnabled(const QString& filename, const QString& versionId, bool enabled)
+{
+    if (!m_localMods) return;
+    if (m_localMods->setModEnabled(filename, versionId, enabled))
+        emit logMessage(QStringLiteral("%1 Mod: %2").arg(enabled ? QStringLiteral("已启用") : QStringLiteral("已禁用"), filename));
 }
 
 void ShadowBackend::deleteResourcePack(const QString& filename, const QString& versionId)
