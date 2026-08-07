@@ -78,7 +78,6 @@
 #include <webp/decode.h>
 #include <webp/encode.h>
 #include <QSettings>
-#include <QStorageInfo>
 #include <QTextStream>
 #include <QTimer>
 #include <QUrl>
@@ -1231,68 +1230,6 @@ void ShadowBackend::refreshVersionDetails()
     });  // end outer QTimer::singleShot lambda
 }
 
-void ShadowBackend::refreshGameDirInfo()
-{
-    QTimer::singleShot(0, this, [this]() {
-    QDir gameDir(m_app->gameDir());
-    QVariantMap info;
-
-    // Count installed versions (fast: only directory entries, no file traversal)
-    QString versionsPath = gameDir.absoluteFilePath(QStringLiteral("versions"));
-    QDir versionsDir(versionsPath);
-    int versionCount = 0;
-
-    if (versionsDir.exists()) {
-        const QStringList entries = versionsDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
-        for (const QString& versionId : entries) {
-            QString jarPath = versionsDir.filePath(versionId + QStringLiteral("/") + versionId + QStringLiteral(".jar"));
-            if (QFileInfo::exists(jarPath)) versionCount++;
-        }
-    }
-    info[QStringLiteral("versionCount")] = versionCount;
-
-    // Count mods (fast: only mods directory, top-level jar count)
-    QString modsPath = gameDir.absoluteFilePath(QStringLiteral("mods"));
-    QDir modsDir(modsPath);
-    int modCount = 0;
-    if (modsDir.exists()) {
-        QDirIterator modIt(modsPath, QStringList() << QStringLiteral("*.jar"), QDir::Files);
-        while (modIt.hasNext()) { modIt.next(); modCount++; }
-    }
-    info[QStringLiteral("modCount")] = modCount;
-
-    // Fast size estimation: only count top-level entries, not recursive traversal
-    // (Recursive QDirIterator on the game directory can take seconds with large assets/objects/)
-    QString sizeDisplay;
-    {
-        qint64 totalSize = 0;
-        const auto topFiles = gameDir.entryInfoList(QDir::Files | QDir::NoDotAndDotDot);
-        for (const QFileInfo& fi : topFiles)
-            totalSize += fi.size();
-        const auto topDirs = gameDir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
-        for (const QFileInfo& di : topDirs) {
-            // Only count files directly inside top-level dirs, not recursive
-            QDir sd(di.absoluteFilePath());
-            const auto sf = sd.entryInfoList(QDir::Files | QDir::NoDotAndDotDot);
-            for (const QFileInfo& f : sf)
-                totalSize += f.size();
-        }
-
-        if (totalSize >= 1073741824) {
-            sizeDisplay = QString::number(totalSize / 1073741824.0, 'f', 2) + QStringLiteral(" GB");
-        } else if (totalSize >= 1048576) {
-            sizeDisplay = QString::number(totalSize / 1048576.0, 'f', 1) + QStringLiteral(" MB");
-        } else {
-            sizeDisplay = QString::number(totalSize / 1024.0, 'f', 0) + QStringLiteral(" KB");
-        }
-    }
-    info[QStringLiteral("sizeDisplay")] = sizeDisplay;
-
-    m_gameDirInfo = info;
-    emit gameDirChanged();
-    });
-}
-
 QVariantMap ShadowBackend::systemMemoryInfo() const {
     return m_settings->getMemoryStatus();
 }
@@ -1602,30 +1539,6 @@ QString ShadowBackend::resolveRpIconUrl(const QString &url)
 void ShadowBackend::cacheRpIconBatchAsync(const QStringList &urls)
 {
     if (m_fetchEngine) m_fetchEngine->prefetchIcons(urls);
-}
-
-qint64 ShadowBackend::diskFree() const
-{
-    QStorageInfo storage(m_app->gameDir());
-    if (storage.isValid() && storage.bytesAvailable() > 0) {
-        return storage.bytesAvailable();
-    }
-    // Fallback: query root drive
-    QStorageInfo root(QDir::rootPath());
-    return root.isValid() ? root.bytesAvailable() : 100LL * 1024 * 1024 * 1024;
-}
-
-int ShadowBackend::diskPercent() const
-{
-    QStorageInfo storage(m_app->gameDir());
-    if (storage.isValid() && storage.bytesTotal() > 0) {
-        return static_cast<int>(100.0 * (1.0 - static_cast<double>(storage.bytesAvailable()) / storage.bytesTotal()));
-    }
-    QStorageInfo root(QDir::rootPath());
-    if (root.isValid() && root.bytesTotal() > 0) {
-        return static_cast<int>(100.0 * (1.0 - static_cast<double>(root.bytesAvailable()) / root.bytesTotal()));
-    }
-    return 30;
 }
 
 // ── Helper: get the game directory for a given version ID ──
@@ -3017,17 +2930,6 @@ void ShadowBackend::setTheme(const QString& theme) {
     m_app->setTheme(theme);
 }
 
-void ShadowBackend::setGameDir(const QString& dir) {
-    m_app->setGameDir(dir);
-    // Sync all backends to the new directory
-    m_version->setGameDir(dir);
-    m_settings->setMinecraftDir(dir);
-    m_settings->setIsolationGameDir(dir);
-    m_localMods->setGameDir(dir);
-    m_launch->setGameDir(dir);
-    if (auto* exp = qobject_cast<ModpackExporter*>(m_modpackExporter))
-        exp->setGameDir(dir);
-}
 
 // ============================================================
 // Q_INVOKABLE methods — Version management

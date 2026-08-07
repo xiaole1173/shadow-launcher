@@ -144,11 +144,7 @@ class ShadowBackend : public QObject {
     Q_PROPERTY(QVariantList downloadQueue READ downloadQueue NOTIFY downloadQueueChanged)
     Q_PROPERTY(QVariantList activeDownloads READ activeDownloads NOTIFY downloadQueueChanged)
 
-    // ── Game info ──
-    Q_PROPERTY(QVariantMap gameDirInfo READ gameDirInfo NOTIFY gameDirChanged)
-    Q_PROPERTY(QVariantList gameDirectories READ gameDirectories CONSTANT)
-    Q_PROPERTY(qint64 diskFree READ diskFree CONSTANT)
-    Q_PROPERTY(int diskPercent READ diskPercent CONSTANT)
+    // ── Game info（2026-08-07 清理：版本文件夹卡片已删，gameDirInfo/gameDirectories/diskFree/diskPercent 随左侧卡片移除）──
     Q_PROPERTY(bool autoMemoryEnabled READ autoMemoryEnabled NOTIFY memorySettingsChanged)
     Q_PROPERTY(QVariantMap systemMemoryInfo READ systemMemoryInfo NOTIFY memorySettingsChanged)
     Q_PROPERTY(QVariantList availableCapes READ availableCapes CONSTANT)
@@ -278,11 +274,6 @@ public:
     QString privacyAgreementHtml() const;
     QString termsAgreementHtml() const;
 
-    // ── Game info stubs ──
-    QVariantMap gameDirInfo() const { return m_gameDirInfo; }
-    QVariantList gameDirectories() const { return {}; }
-    qint64 diskFree() const;
-    int diskPercent() const;
     bool autoMemoryEnabled() const;
     QVariantMap systemMemoryInfo() const;
     QString gameArgs() const;
@@ -358,7 +349,6 @@ public:
     Q_INVOKABLE void refreshInstalled();
     Q_INVOKABLE void refreshInstalledList();
     Q_INVOKABLE void refreshVersionDetails();
-    Q_INVOKABLE void refreshGameDirInfo();
     Q_INVOKABLE void installVersion(const QString& versionId);
     Q_INVOKABLE void cancelVersionInstall(const QString& versionId);
     Q_INVOKABLE void dismissCard(const QString& installId);
@@ -489,7 +479,6 @@ public:
     Q_INVOKABLE void setSelectedVersion(const QString& versionId);
     Q_INVOKABLE void setTheme(const QString& theme);
     Q_INVOKABLE QVariantMap checkAll(const QString& versionId);
-    Q_INVOKABLE void setGameDir(const QString& dir);
     Q_INVOKABLE int getAutoMemory();
     Q_INVOKABLE void setAutoMemoryEnabled(bool enabled);
 
@@ -541,7 +530,6 @@ public:
     Q_INVOKABLE void deleteSave(const QString& saveName, const QString& versionId = {});
     Q_INVOKABLE void migrateVersion(const QString& versionId);
     Q_INVOKABLE void openConfigFolder() { openGameDir({}); }
-    Q_INVOKABLE void removeGameDir(int) {}
     Q_INVOKABLE void cancelQueuedDownload(const QString& versionId);
     Q_INVOKABLE void verifyVersion(const QString& versionId);
     Q_INVOKABLE void cleanCorruptVersion(const QString& versionId);
@@ -819,7 +807,6 @@ private:
     QVariantMap m_lastCrash;
     QString m_verifyReportPath;
     QString m_gameDir;
-    QVariantMap m_gameDirInfo;
     QVariantList m_versionDetails;
     QVariantMap m_currentVersionSummary;
 

@@ -9,7 +9,6 @@ Rectangle {
     id: versionSelectOverlay
     readonly property bool hasBg: backend && typeof backend.customBgPath === "string" && backend.customBgPath.length > 0
     anchors.fill: parent; color: hasBg ? "transparent" : StyleTokens.bgPrimary; z: 5
-    property int activeGameDirIndex: 0
     property var backend: null
     property var toastManager: null
     property var appWindow: null
@@ -31,7 +30,7 @@ Rectangle {
         id: deferRefreshTimer
         interval: 80
         onTriggered: {
-            if (backend) { backend.refreshInstalledList(); backend.refreshGameDirInfo() }
+            if (backend) { backend.refreshInstalledList() }
         }
     }
 
@@ -44,140 +43,7 @@ Rectangle {
         opacity: 0
         Component.onCompleted: vsContent.opacity = 1
         Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
-        Rectangle {
-            Layout.preferredWidth: Math.min(220, parent.width * 0.35); Layout.fillHeight: true
-            color: StyleTokens.bgSecondary; radius: StyleTokens.radiusLg; border.color: StyleTokens.bgInput
-            ColumnLayout {
-                anchors.fill: parent; anchors.margins: 14; spacing: 6
-                Text { text: qsTr("游戏文件夹"); font.pixelSize: StyleTokens.fontSizeXs; color: "#9ca0b4"; font.letterSpacing: 1.5 }
-                ListModel { id: gameDirModel }
-                Component.onCompleted: {
-                    var dirs = backend ? backend.gameDirectories : []
-                    for (var d = 0; d < dirs.length; d++) {
-                        gameDirModel.append({ path: dirs[d], display: d === 0 ? ".minecraft（默认）" : dirs[d] })
-                    }
-                }
-                Connections {
-                    target: backend; enabled: backend !== null
-                    function onGameDirChanged() {
-                        gameDirModel.clear()
-                        var dirs = backend.gameDirectories
-                        for (var d = 0; d < dirs.length; d++) {
-                            gameDirModel.append({ path: dirs[d], display: d === 0 ? ".minecraft（默认）" : dirs[d] })
-                        }
-                    }
-                }
-                ScrollView {
-                    Layout.fillWidth: true; Layout.preferredHeight: Math.min(gameDirModel.count * 36 + 4, 160)
-                    clip: true
-                    ListView {
-                        id: gameDirList
-                        anchors.fill: parent
-                        model: gameDirModel
-                        spacing: 2
-                        delegate: Rectangle {
-                            id: dirItem
-                            width: gameDirList.width
-                            height: 36; radius: StyleTokens.radiusMd
-                            color: dirMouse.containsMouse ? StyleTokens.bgCard : (versionSelectOverlay.activeGameDirIndex === index ? "#0e131a" : "transparent")
-                            border.color: versionSelectOverlay.activeGameDirIndex === index ? "#2a4eb8" : "transparent"
-                            scale: dirMouse.containsMouse ? 1.02 : 1.0
-                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-
-                            // ── Staggered entrance ──
-                            opacity: 0
-                            Component.onCompleted: dirItem.opacity = 1
-                            Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
-                            Text {
-                                anchors.left: parent.left; anchors.leftMargin: 12
-                                anchors.right: parent.right; anchors.rightMargin: 8
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: model.display
-                                font.pixelSize: StyleTokens.fontSizeSm
-                                color: versionSelectOverlay.activeGameDirIndex === index ? "#8aa8f0" : "#c0c8d8"
-                                elide: Text.ElideRight
-                                maximumLineCount: 1
-                            }
-                            ToolTip {
-                                visible: dirMouse.containsMouse
-                                text: model.path || model.display
-                                delay: 600
-                            }
-                            MouseArea {
-                                id: dirMouse; anchors.fill: parent; hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                acceptedButtons: Qt.LeftButton | Qt.RightButton
-                                onClicked: {
-                                    versionSelectOverlay.activeGameDirIndex = index
-                                    if (backend) { backend.setGameDir(index); toastManager.show("正在扫描版本...") }
-                                }
-                                onPressed: function(mouse) {
-                                    if (mouse.button === Qt.RightButton) {
-                                        if (index === 0) {
-                                            if (backend) backend.openGameDir()
-                                        } else {
-                                            confirmDialog.title = "移除文件夹"
-                                            confirmDialog.message = "确定要移除 " + model.display + " 吗？\n（不会删除本地文件）"
-                                            confirmDialog.onAccept = function() { if (backend) backend.removeGameDir(index) }
-                                            confirmDialog.visible = true
-                                        }
-                                        mouse.accepted = true
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                Item { height: 4; width: 1 }
-                Rectangle { Layout.fillWidth: true; height: 30; radius: StyleTokens.radiusMd; color: "transparent"; border.color: StyleTokens.bgElevated; border.width: 1
-                    scale: addDirHover.containsMouse ? 1.03 : 1.0
-                    Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                    Text { anchors.centerIn: parent; text: qsTr("+ 添加文件夹"); font.pixelSize: StyleTokens.fontSizeSm; color: addDirHover.containsMouse ? "#b0b8e0" : "#9498a8" }
-                    MouseArea {
-                        id: addDirHover
-                        anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                        onClicked: { toastManager.show("功能开发中，请前往文件夹手动添加") }
-                    }
-                }
-                Rectangle { Layout.fillWidth: true; height: 30; radius: StyleTokens.radiusMd; color: "transparent"; border.color: StyleTokens.bgElevated; border.width: 1
-                    scale: importHover.containsMouse ? 1.03 : 1.0
-                    Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                    Text { anchors.centerIn: parent; text: qsTr("导入整合包"); font.pixelSize: StyleTokens.fontSizeSm; color: importHover.containsMouse ? "#b0b8e0" : "#9498a8" }
-                    MouseArea {
-                        id: importHover
-                        anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            var importOverlay = appWindow ? appWindow.modpackImportOverlay : null
-                            if (importOverlay) {
-                                importOverlay.show()
-                            } else if (toastManager) {
-                                toastManager.show("无法打开导入面板", "error")
-                            }
-                        }
-                    }
-                }
-
-                // Disk space bar
-                Rectangle {
-                    Layout.fillWidth: true; height: 36; radius: StyleTokens.radiusMd; color: StyleTokens.bgPrimary
-                    Rectangle { anchors.left: parent.left; anchors.leftMargin: 10; anchors.verticalCenter: parent.verticalCenter
-                        width: 14; height: 14; radius: StyleTokens.radiusMd
-                        color: backend && backend.diskPercent > 90 ? "#c05050" : (backend && backend.diskPercent > 70 ? "#e0a040" : StyleTokens.success)
-                    }
-                    Text {
-                        anchors.left: parent.left; anchors.leftMargin: 30; anchors.verticalCenter: parent.verticalCenter
-                        text: {
-                            if (!backend) return "磁盘信息不可用"
-                            var pct = backend.diskPercent
-                            var freeGb = (backend.diskFree / 1073741824).toFixed(1)
-                            var status = pct > 95 ? "危险" : (pct > 80 ? "偏低" : "正常")
-                            return "剩余 " + freeGb + " GB  (" + status + ")"
-                        }
-                        font.pixelSize: StyleTokens.fontSizeSm; color: "#808898"
-                    }
-                }
-            }
-        }
+        // ── 版本列表卡片：占满整页（2026-08-07 左侧“版本文件夹”卡片已移除）──
         Rectangle {
             Layout.fillWidth: true; Layout.fillHeight: true
             color: StyleTokens.bgSecondary; radius: StyleTokens.radiusLg; border.color: StyleTokens.bgInput
@@ -186,7 +52,6 @@ Rectangle {
                 anchors.fill: parent; anchors.margins: 12; spacing: 6
 
                 // Header row: title + refresh + search + sort
-                property bool installBtnPressed: false
                 RowLayout {
                     Layout.fillWidth: true; spacing: 8
                     Text { text: qsTr("已安装版本"); font.pixelSize: StyleTokens.fontSizeXs; color: "#9ca0b4"; font.letterSpacing: 1.5 }
@@ -202,6 +67,23 @@ Rectangle {
                         id: searchField
                         Layout.fillWidth: true
                         placeholderText: qsTr("搜索版本...")
+                    }
+                    // Import modpack button — 通用组件样式，与搜索栏平齐（2026-08-07 自左侧卡片迁入）
+                    ShadowButton {
+                        id: importPackBtn
+                        text: qsTr("导入整合包")
+                        iconSource: "icons/lucide/package.svg"
+                        iconSize: 14
+                        accentColor: StyleTokens.accent
+                        btnWidth: 96
+                        onClicked: {
+                            var importOverlay = appWindow ? appWindow.modpackImportOverlay : null
+                            if (importOverlay) {
+                                importOverlay.show()
+                            } else if (toastManager) {
+                                toastManager.show("无法打开导入面板", "error")
+                            }
+                        }
                     }
                     // Install button — shortcut to download new versions
                     ShadowIconButton {
