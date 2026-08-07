@@ -88,16 +88,16 @@ QVariantList LocalModManager::scanMods(const QString& versionId)
              QStringLiteral("*.jar.disabled"), QStringLiteral("*.JAR.disabled")},
             QDir::Files, QDir::Name);
         for (const QFileInfo& fi : files) {
-            // 禁用态（*.jar.disabled）：剥后缀后解析，标记 enabled=false（2026-08-07）
+            // 禁用态（*.jar.disabled）：仍用真实路径解析 JAR 内容（.disabled 只是标志，
+            // 文件本身还是 zip 可读），fileName 保留真实名 + enabled=false（2026-08-08 修复）
             bool isDisabled = fi.fileName().endsWith(QStringLiteral(".disabled"), Qt::CaseInsensitive);
-            QString parsePath = fi.absoluteFilePath();
-            if (isDisabled)
-                parsePath = parsePath.left(parsePath.size() - 9);   // 剥 ".disabled"
-            LocalModEntry entry = parseJar(parsePath);
+            LocalModEntry entry = parseJar(fi.absoluteFilePath());
             if (!entry.valid) {
-                // Minimal entry from filename
+                // Minimal entry from filename（剥 .disabled 后取名字）
+                QString baseName = fi.fileName();
+                if (isDisabled) baseName = baseName.left(baseName.size() - 9);
                 entry.fileName = fi.fileName();
-                entry.modName = fi.completeBaseName();
+                entry.modName = QFileInfo(baseName).completeBaseName();
                 entry.fileSize = fi.size();
                 entry.fileSizeText = formatFileSize(fi.size());
                 entry.valid = true; // still show it

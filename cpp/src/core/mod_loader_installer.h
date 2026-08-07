@@ -67,6 +67,9 @@ public:
     bool installWorkerBusy() const { return m_installWorkerRunning.load(); }
     /// bootstrapper java 进程是否在跑（取消时删 tempDir 前检查）
     bool bootstrapperRunning() const { return m_bootstrapperWatcher && m_bootstrapperWatcher->isRunning(); }
+    /// 同步安装执行中（installLegacy2/1 主线程跑，含 QEventLoop 等驿道下载）：
+    /// 取消时删 tempDir 前必须检查，否则撞上写文件崩溃（2026-08-08）
+    bool syncInstallRunning() const { return m_syncInstallRunning; }
     void cancel();
 
     // Fabric parallel install: start downloading MC + Fabric at the same time
@@ -96,8 +99,6 @@ signals:
     // 安装器库下载开始/完成（供版本后端联动步骤状态）
     void installerLibsStarted();
     void installerLibsDone();
-    // 安装器库无需下载（Legacy 3：无 install_profile.json，0 文件）→ 步骤标记跳过
-    void installerLibsSkipped();
     // 安装器库文件级进度（done/total）——步骤右侧显示“剩余 x 个文件”
     void installerLibsFileProgress(int done, int total);
 
@@ -156,18 +157,15 @@ private:
 
     void forgeStep1_downloadInstaller();
     void forgeStep2_verify(const QByteArray& jarData);
-    /// 统一版本库下载（Legacy 2/3 共用，对齐主流启动器实现 GameLibrariesTask）：
+    /// 统一版本库下载（Legacy 2 共用，对齐主流启动器实现 GameLibrariesTask）：
     /// rules 检查 + natives classifier + 多源 + 跳过已存在（2026-08-07）
     int downloadVersionLibraries(const QJsonArray& libs);
     void neoStep1_downloadInstaller();
     void neoStep2_verify(const QByteArray& jarData);
-    // Extract & install — four-way branch (Legacy3 / Legacy2 / Legacy1 / Bootstrapper)
+    // Extract & install — three-way branch (Legacy2 / Legacy1 / Bootstrapper)
     void forgeStep3_install(const QByteArray& jarData);
     void forgeStep3_prepareImpl(const QByteArray& jarData, const QString& mavenVer);  // worker 内执行
-    void forgeStep3_route(const QByteArray& jarData);                                  // 主线程：决策四分支
-    // Legacy 3: no install_profile.json → universal/client zip IS the game JAR
-    // For MC < 1.5 (Forge 3.x~6.x) where the "installer" is a complete forge-patched client
-    void installLegacy3(const QByteArray& jarData);
+    void forgeStep3_route(const QByteArray& jarData);                                  // 主线程：决策三分支
     // Legacy 2: has "install" field → universal JAR + inheritsFrom JSON
     void installLegacy2(const QByteArray& jarData, const QJsonObject& profile);
     // Legacy 1: has "json" field, no install, no processors → maven/ + version JSON
@@ -251,6 +249,9 @@ private:
     bool m_running = false;
     QString m_expectedForgeSha1;   // cached from Forge version list (skip SHA1 network request)
     bool m_cancelled = false;
+    // 同步安装执行中（installLegacy2/1 主线程跑，含 QEventLoop 等驿道下载）：
+    // destroyMergedContext 的 workerBusy 检查需覆盖它，否则取消时删 tempDir 撞上写文件崩溃
+    bool m_syncInstallRunning = false;
     // In-flight HttpClient replies (downloadToFile). Aborted in cancel() so their
     // completion callbacks run while `this` is still alive (destroyed right after
     // cancel() by destroyMergedContext).

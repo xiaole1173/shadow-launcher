@@ -1,4 +1,4 @@
-// Forge 旧版安装集成测试（Legacy 2/3 统一路线验证）
+// Forge 旧版安装集成测试（Legacy 2 路线验证；Legacy 3 已随 1.5.2- 屏蔽移除）
 // 用法: Forge147Test <mcVersion> <forgeVersion> [gameDir]
 #include <QCoreApplication>
 #include <QTimer>
@@ -35,8 +35,6 @@ int main(int argc, char** argv)
         [](int done, int total) {
             fprintf(stderr, "[ML] libsProgress %d/%d\n", done, total);
         });
-    QObject::connect(ml, &ShadowLauncher::ModLoaderInstaller::installerLibsSkipped,
-        []() { fprintf(stderr, "[ML] libsSkipped\n"); });
     QObject::connect(ml, &ShadowLauncher::ModLoaderInstaller::progressChanged,
         [](int step, int total, const QString& status) {
             fprintf(stderr, "[ML] progress %d/%d %s\n", step, total, status.toUtf8().constData());

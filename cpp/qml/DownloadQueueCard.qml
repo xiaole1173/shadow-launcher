@@ -268,7 +268,6 @@ Rectangle {
                         if (s === "completed") return "#3fb950"
                         if (s === "active") return StyleTokens.accent
                         if (s === "failed") return StyleTokens.errorLight
-                        if (s === "skipped") return "#4a5a6a"
                         return "#2a3a4a"
                     }
                 }
@@ -279,14 +278,6 @@ Rectangle {
                     color: StyleTokens.textSecondary
                     elide: Text.ElideRight
                     Layout.fillWidth: true
-                }
-
-                // Skipped label（Legacy 3 无安装器库等场景）
-                Text {
-                    text: qsTr("已跳过")
-                    font.pixelSize: StyleTokens.fontSizeXs
-                    color: "#6a7a8a"
-                    visible: modelData.status === "skipped"
                 }
 
                 // Percentage text (only shown when there's actual progress)

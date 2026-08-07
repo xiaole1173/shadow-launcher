@@ -9,6 +9,8 @@
 #include "core/local_mod_manager.h"
 #include "core/launcher.h"
 #include "utils/logger.h"
+#include <private/qzipwriter_p.h>
+#include <QBuffer>
 
 using namespace ShadowLauncher;
 
@@ -46,6 +48,47 @@ int main(int argc, char** argv)
         fprintf(stderr, "[1] setModEnabled: disable=%d disabledFile=%d scanDisabled=%d enable=%d enabledFile=%d\n",
                 ok1 ? 1 : 0, disabledExists ? 1 : 0, scanDisabled ? 1 : 0, ok2 ? 1 : 0, enabledExists ? 1 : 0);
         if (!(ok1 && disabledExists && scanDisabled && ok2 && enabledExists)) fail++;
+        QDir(gameDir + QStringLiteral("/mods")).removeRecursively();
+    }
+
+    // ── 1b. disabled 后缀下仍能解析 JAR 内容（2026-08-08 修复）──
+    {
+        const QString gameDir = QStringLiteral("t_toggle2");
+        QDir().mkpath(gameDir + QStringLiteral("/mods"));
+        QFile::remove(gameDir + QStringLiteral("/mods/realmod.jar.disabled"));
+        // 构造真实 zip：含 fabric.mod.json（QZipWriter，Qt6::GuiPrivate）
+        {
+            QBuffer zbuf;
+            zbuf.open(QIODevice::WriteOnly);
+            QZipWriter zw(&zbuf);
+            zw.addFile(QStringLiteral("fabric.mod.json"),
+                QJsonDocument(QJsonObject{
+                    {QStringLiteral("id"), QStringLiteral("realmod")},
+                    {QStringLiteral("name"), QStringLiteral("Real Mod")},
+                    {QStringLiteral("version"), QStringLiteral("1.2.3")},
+                }).toJson());
+            zw.close();
+            QFile f(gameDir + QStringLiteral("/mods/realmod.jar.disabled"));
+            f.open(QIODevice::WriteOnly); f.write(zbuf.data()); f.close();
+        }
+        LocalModManager lmm;
+        lmm.setGameDir(gameDir);
+        QVariantList scan = lmm.scanMods(QString());
+        bool found = false;
+        for (const QVariant& v : scan) {
+            QVariantMap m = v.toMap();
+            if (m.value(QStringLiteral("fileName")).toString() != QStringLiteral("realmod.jar.disabled")) continue;
+            found = true;
+            // 关键：disabled 文件也必须解析出 modId/name/version（真实路径直接读 zip）
+            bool idOk = m.value(QStringLiteral("modId")).toString() == QStringLiteral("realmod");
+            bool nameOk = m.value(QStringLiteral("modName")).toString() == QStringLiteral("Real Mod");
+            bool verOk = m.value(QStringLiteral("version")).toString() == QStringLiteral("1.2.3");
+            bool disabledOk = m.value(QStringLiteral("enabled")).toBool() == false;
+            fprintf(stderr, "[1b] disabled parse: id=%d name=%d ver=%d disabled=%d\n",
+                    idOk ? 1 : 0, nameOk ? 1 : 0, verOk ? 1 : 0, disabledOk ? 1 : 0);
+            if (!(idOk && nameOk && verOk && disabledOk)) fail++;
+        }
+        if (!found) { fprintf(stderr, "[1b] disabled mod not found in scan\n"); fail++; }
         QDir(gameDir + QStringLiteral("/mods")).removeRecursively();
     }
 

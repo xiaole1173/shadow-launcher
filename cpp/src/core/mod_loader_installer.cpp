@@ -1309,8 +1309,9 @@ void ModLoaderInstaller::forgeStep1_downloadInstaller() {
     if (!m_forgeBranch.isEmpty())
         vBranch = mc + "-" + fv + "-" + m_forgeBranch;
 
-    // TrueRace: fire all source × version × category patterns concurrently
-    // Categories: installer.jar (modern), universal.zip (MC 1.3.x-1.4.x), client.zip (MC 1.2.x)
+    // 顺序尝试各源 × 版本格式（2026-08-07 起改顺序尝试：installer.jar 优先，
+    // 1.5.2 及更早版本已全部屏蔽（列表层过滤，对齐 主流启动器 只保留 installer 类别），
+    // universal.zip/client.zip 类别不再需要)
     const QStringList bases = {
         QStringLiteral("https://maven.minecraftforge.net"),
         QStringLiteral("https://bmclapi2.bangbang93.com/maven")
@@ -1321,9 +1322,7 @@ void ModLoaderInstaller::forgeStep1_downloadInstaller() {
         vOld
     };
     const QStringList catExts = {
-        QStringLiteral("installer.jar"),
-        QStringLiteral("universal.zip"),
-        QStringLiteral("client.zip")
+        QStringLiteral("installer.jar")
     };
 
     QStringList urlList;
@@ -1344,10 +1343,8 @@ void ModLoaderInstaller::forgeStep1_downloadInstaller() {
 
     qCInfo(logLoader) << QStringLiteral("[安装] Forge 顺序下载: %1 个地址").arg(urlList.size());
 
-    // 2026-08-07 修复：竞速并发抢第一个 200 会拿错类别（1.5.2 有 installer.jar 和
-    // universal.zip 都 200，可能抢到 universal.zip → 按 installer SHA1 校验失败）。
-    // 改顺序尝试：URL 列表已按 installer.jar → universal.zip → client.zip 排列，
-    // 逐个下载，第一个成功即停（1.5.2 先得 installer，1.4.7 installer 404 后得 universal）。
+    // 2026-08-07 起改顺序尝试（installer.jar 优先）；1.5.2 及更早全部屏蔽后
+    // universal/client 类别不再存在，installer.jar 必定可命中。
     // Use browser UA for Forge Maven (Cloudflare blocks ShadowLauncher/1.0)
     const std::string oldUA = HttpClient::instance().config().userAgent;
     HttpClient::instance().setUserAgent(QString::fromLatin1(ShadowLauncher::kDefaultUserAgent));
@@ -1648,10 +1645,22 @@ int ModLoaderInstaller::downloadVersionLibraries(const QJsonArray& libs) {
                 url, libFile,
                 [](qint64, qint64) {},
                 [&loop, &doneOk](bool ok, const QString&) { doneOk = ok; loop.quit(); });
+            // 取消轮询：m_cancelled 时立即 abort 驿道下载并退出（不等 15s 超时）
+            QTimer cancelPoll;
+            cancelPoll.setInterval(200);
+            QObject::connect(&cancelPoll, &QTimer::timeout, &loop,
+                [&loop, &h, this]() {
+                    if (m_cancelled) {
+                        if (h) h->abort();
+                        loop.quit();
+                    }
+                });
             timer.start(15000);
+            cancelPoll.start();
             loop.exec();
+            cancelPoll.stop();
             const bool ok = doneOk && timer.isActive();
-            if (!ok && h) h->abort();   // 超时/失败：取消在途下载（含分片）
+            if (!ok && h) h->abort();   // 超时/失败/取消：终止在途下载（含分片）
             if (ok) {
                 timer.stop();
                 downloaded++;
@@ -1661,6 +1670,7 @@ int ModLoaderInstaller::downloadVersionLibraries(const QJsonArray& libs) {
                 qCWarning(logLoader) << QStringLiteral("[安装] 版本库下载失败: %1").arg(url);
                 QFile::remove(libFile);
             }
+            if (m_cancelled) break;   // 取消：不再试下一镜像
             if (ok && QFile::exists(libFile)) break;
         }
     }
@@ -1676,30 +1686,6 @@ void ModLoaderInstaller::forgeStepLibs(const QByteArray& jarData)
 {
     if (m_installerLibsRunning || m_installerLibsDone) return;
     m_installerLibsRunning = true;
-
-    // Legacy 3（MC<1.5）：安装程序无 install_profile.json，没有安装器库可下。
-    // 直接标记跳过（不发 installerLibsStarted，避免步骤闪一下"完成"误导用户）。
-    {
-        QBuffer probe;
-        probe.setData(jarData);
-        if (probe.open(QIODevice::ReadOnly)) {
-            QZipReader reader(&probe);
-            const QByteArray prof = reader.fileData(QStringLiteral("install_profile.json"));
-            reader.close();
-            probe.close();
-            if (prof.isEmpty()) {
-                m_installerLibsRunning = false;
-                m_installerLibsDone = true;
-                emit installerLibsSkipped();
-                qCInfo(logLoader) << QStringLiteral("[安装] 无 install_profile.json（Legacy 3）→ 安装器库步骤跳过");
-                if (m_pendingInstallAfterLibs && !m_cancelled) {
-                    m_pendingInstallAfterLibs = false;
-                    if (!m_cachedJar.isEmpty()) forgeStep3_install(m_cachedJar);
-                }
-                return;
-            }
-        }
-    }
 
     emit installerLibsStarted();
 
@@ -2007,8 +1993,8 @@ void ModLoaderInstaller::forgeStep3_prepareImpl(const QByteArray& jarData, const
 void ModLoaderInstaller::forgeStep3_install(const QByteArray& jarData) {
     if (m_cancelled) return;
 
-    // 0. Check if this is a genuine installer JAR or a self-contained universal/client zip
-    //    For MC < 1.5 Forge (Leagcy 3), the file IS the game JAR, not an installer.
+    // 0. Check this is a genuine installer JAR (must contain install_profile.json)
+    //    Legacy 3（universal/client zip 无 profile）已随 1.5.2- 屏蔽移除（2026-08-08）
     QBuffer buffer;
     buffer.setData(jarData);
     if (!buffer.open(QIODevice::ReadOnly)) {
@@ -2019,10 +2005,12 @@ void ModLoaderInstaller::forgeStep3_install(const QByteArray& jarData) {
     QZipReader reader(&buffer);
     QByteArray profileData = reader.fileData(QStringLiteral("install_profile.json"));
     if (profileData.isEmpty()) {
-        // No install_profile.json → not an installer JAR → universal/client zip (Legacy 3)
-        qCInfo(logLoader) << QStringLiteral("[安装] 使用 Legacy 3 安装模式（自包含 JAR）");
+        // 1.5.2 及更早版本 forge 已全部屏蔽（列表层过滤，对齐 主流启动器 只保留 installer 类别）
+        // → 不会再出现 universal/client zip 包；万一出现（数据异常）直接报错
         reader.close();
-        installLegacy3(jarData);
+        qCWarning(logLoader) << QStringLiteral("[安装] 安装程序缺少 install_profile.json（不受支持的 Forge 安装包）");
+        emit finished(false, QStringLiteral("Forge 安装程序文件不完整（缺少 install_profile.json）"));
+        m_running = false;
         return;
     }
     reader.close();
@@ -2065,14 +2053,14 @@ void ModLoaderInstaller::forgeStep3_install(const QByteArray& jarData) {
     runInstallTask([this, jarData, mavenVer]() {
         forgeStep3_prepareImpl(jarData, mavenVer);
     }, [this, jarData]() {
-        // 主线程继续：步骤状态 + profile 决策 + 四分支
+        // 主线程继续：步骤状态 + profile 决策 + 三分支
         m_currentStep = 3;
         emit progressChanged(3, m_totalSteps, QStringLiteral("正在准备安装..."));
         forgeStep3_route(jarData);
     });
     return;
 }
-/// 主线程：读 install_profile 决策四分支（Legacy2 / Legacy1 / Bootstrapper）
+/// 主线程：读 install_profile 决策三分支（Legacy2 / Legacy1 / Bootstrapper）
 void ModLoaderInstaller::forgeStep3_route(const QByteArray& jarData) {
     if (m_cancelled) return;
     QBuffer buffer2c;
@@ -2100,7 +2088,7 @@ void ModLoaderInstaller::forgeStep3_route(const QByteArray& jarData) {
     bool hasJson = profileObj.contains(QStringLiteral("json"));
     qCInfo(logLoader) << QStringLiteral("[安装] Forge install_profile: spec=%1 processors=%2 install=%3 json=%4").arg(spec).arg(procCount).arg(hasInstall).arg(hasJson);
 
-    // ── Four-way branch ──
+    // ── Three-way branch ──
     //
     // Branch A: has "install" → Legacy 2 (universal JAR + inheritsFrom)
     if (hasInstall) {
@@ -2125,127 +2113,6 @@ void ModLoaderInstaller::forgeStep3_route(const QByteArray& jarData) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Legacy 3: no install_profile.json → universal/client zip IS the game JAR
-// For MC < 1.5 (Forge 3.x~6.x) where the "installer" is actually
-// a complete forge-patched Minecraft client.
-// The downloaded file IS the game JAR — copy it as-is and create
-// a self-contained version JSON with inheritsFrom for libraries.
-// ═══════════════════════════════════════════════════════════════
-
-void ModLoaderInstaller::installLegacy3(const QByteArray& jarData) {
-    emit progressChanged(3, m_totalSteps, QStringLiteral("安装旧版 Forge（Legacy 3：原版 JAR + universal 库）..."));
-
-    // ═══ 2026-08-07 重大修正：Legacy 3 不是"自包含 JAR" ═══
-    // 实测（1.4.7-6.6.2.534）：
-    //   universal.zip 746 条目 / 原版 client.jar 1933 条目
-    //   universal 独有(forge 新增) 501，client 独有 1688（lg 等混淆类全在 client）
-    //   universal 的 Minecraft.class 引用 lg → NoClassDefFoundError
-    // → universal 只是 forge 补丁（FML 类 + 部分 MC 覆盖），必须搭配原版 client.jar。
-    // 正确结构（对齐 主流启动器 方式 B）：游戏 JAR = 原版 client.jar，
-    //   universal → libraries/net/minecraftforge/forge/{ver}/forge-{ver}.jar（classpath 补丁）。
-    const QString mainClass = QStringLiteral("net.minecraft.client.Minecraft");
-
-    // 1. 原版 client.jar：merged 流程 MC 下载已装到 versions/{mc}/{mc}.jar
-    //    （独立安装 ensureVanillaInstalled 也会装）；不存在则失败提示
-    const QString vanillaJar = versionsDir() + QStringLiteral("/") + m_mcVersion
-                               + QStringLiteral("/") + m_mcVersion + QStringLiteral(".jar");
-    if (!QFileInfo::exists(vanillaJar)) {
-        qCWarning(logLoader) << QStringLiteral("[安装] Legacy 3: 原版 JAR 缺失: %1").arg(vanillaJar);
-        emit finished(false, QStringLiteral("Legacy 3: 原版游戏 JAR 缺失（%1）").arg(m_mcVersion));
-        m_running = false;
-        return;
-    }
-
-    // 2. universal → libraries（对齐 Legacy 2 的 install.path 路径模式）
-    const QString ver = m_mcVersion + QStringLiteral("-") + m_loaderVersion
-        + (m_forgeBranch.isEmpty() ? QString() : QStringLiteral("-") + m_forgeBranch);
-    const QString uniDir = m_gameDir + QStringLiteral("/libraries/net/minecraftforge/forge/")
-                           + ver;
-    const QString uniJar = uniDir + QStringLiteral("/forge-") + ver + QStringLiteral(".jar");
-    QDir().mkpath(uniDir);
-    {
-        QFile uf(uniJar);
-        if (uf.open(QIODevice::WriteOnly)) {
-            uf.write(jarData);
-            uf.close();
-            qCInfo(logLoader) << QStringLiteral("[安装] Legacy 3: universal 已写入库: %1").arg(uniJar);
-        } else {
-            emit finished(false, QStringLiteral("Legacy 3: 无法写入 universal 库"));
-            m_running = false;
-            return;
-        }
-    }
-
-    // 3. 版本 JAR = 原版 client.jar 副本（独立版本，不依赖原版文件夹）
-    const QString verDir = versionsDir() + QStringLiteral("/") + m_installName;
-    QDir().mkpath(verDir);
-    const QString jarPath = verDir + QStringLiteral("/") + m_installName + QStringLiteral(".jar");
-    {
-        QFile sf(vanillaJar);
-        QFile df(jarPath);
-        if (sf.open(QIODevice::ReadOnly) && df.open(QIODevice::WriteOnly)) {
-            df.write(sf.readAll());
-            df.close();
-            sf.close();
-            qCInfo(logLoader) << QStringLiteral("[安装] Legacy 3: 已复制原版 JAR 为版本 JAR: %1").arg(jarPath);
-        } else {
-            emit finished(false, QStringLiteral("Legacy 3: 无法复制原版 JAR"));
-            m_running = false;
-            return;
-        }
-    }
-
-    // 4. Create version JSON — inheritsFrom 中间态 → flatten 拍平
-    QJsonObject versionJson;
-    versionJson[QStringLiteral("id")] = m_installName;
-    versionJson[QStringLiteral("type")] = QStringLiteral("release");
-    versionJson[QStringLiteral("mainClass")] = mainClass;
-    versionJson[QStringLiteral("inheritsFrom")] = m_mcVersion;
-    versionJson[QStringLiteral("jar")] = m_installName;  // 版本 JAR（原版副本）
-    versionJson[QStringLiteral("minimumLauncherVersion")] = 4;
-    // libraries：加入 universal 补丁库（classpath 顺序在 flatten 原版库之后）
-    {
-        QJsonObject forgeLib;
-        forgeLib[QStringLiteral("name")] = QStringLiteral("net.minecraftforge:forge:") + ver;
-        forgeLib[QStringLiteral("url")] = QStringLiteral("https://files.minecraftforge.net/maven/");
-        QJsonArray libs;
-        libs.append(forgeLib);
-        versionJson[QStringLiteral("libraries")] = libs;
-    }
-    {
-        QJsonObject flattened = flattenVersionJson(m_gameDir, versionJson);
-        if (flattened != versionJson) {
-            versionJson = flattened;
-            qCInfo(logLoader) << QStringLiteral("[安装] Legacy 3 JSON 已压平为独立版本");
-        }
-        // 统一版本库下载（universal 已本地写入 → exists 跳过；补原版库缺失）
-        const QJsonArray libsArr = versionJson.value(QStringLiteral("libraries")).toArray();
-        if (!libsArr.isEmpty()) {
-            const int downloaded = downloadVersionLibraries(libsArr);
-            if (downloaded > 0)
-                qCInfo(logLoader) << QStringLiteral("[安装] Legacy 3 已下载 %1 个库").arg(downloaded);
-        }
-    }
-
-    // 5. Write version JSON
-    const QString jsonPath = verDir + QStringLiteral("/") + m_installName + QStringLiteral(".json");
-    {
-        QFile jf(jsonPath);
-        if (jf.open(QIODevice::WriteOnly)) {
-            jf.write(QJsonDocument(versionJson).toJson(QJsonDocument::Indented));
-            jf.close();
-            qCInfo(logLoader) << QStringLiteral("[安装] Legacy 3: 已写入版本 JSON: %1").arg(jsonPath);
-        } else {
-            emit finished(false, QStringLiteral("Legacy 3: 无法写入版本 JSON"));
-            m_running = false;
-            return;
-        }
-    }
-
-    qCInfo(logLoader) << QStringLiteral("[安装] Legacy 3 安装完成: %1（原版 JAR + universal 库）").arg(m_installName);
-    emit finished(true, QString());
-    m_running = false;
-}
 
 // ═══════════════════════════════════════════════════════════════
 // ═══════════════════════════════════════════════════════════════
@@ -2255,6 +2122,7 @@ void ModLoaderInstaller::installLegacy3(const QByteArray& jarData) {
 // ═══════════════════════════════════════════════════════════════
 static QJsonObject flattenVersionJson(const QString& gameDir, QJsonObject child);
 void ModLoaderInstaller::installLegacy2(const QByteArray& jarData, const QJsonObject& profile) {
+    m_syncInstallRunning = true;   // 取消时 destroyMergedContext 不得删 tempDir（2026-08-08）
     emit progressChanged(3, m_totalSteps, QStringLiteral("安装旧版 Forge（Legacy 2）..."));
 
     // Build Maven version with branch suffix
@@ -2263,9 +2131,12 @@ void ModLoaderInstaller::installLegacy2(const QByteArray& jarData, const QJsonOb
     const QString groupPath = QStringLiteral("net/minecraftforge/forge");
     const QString filePrefix = QStringLiteral("forge");
 
+    if (m_cancelled) {
+        emit finished(false, QStringLiteral("用户取消"));
+        m_running = false; m_syncInstallRunning = false; return;
+    }
+
     // 1. Extract universal JAR to libraries/ —— 目标路径对齐主流启动器实现 McLibGet(install.path)：
-    //    versionInfo.libraries 引用 net.minecraftforge:minecraftforge:{fv}，
-    //    写到该路径后库循环 exists 跳过，不重复网络下载（2026-08-07）
     const QString installPath = profile.value(QStringLiteral("install")).toObject()
                                     .value(QStringLiteral("path")).toString();
     QString jarDst = m_gameDir + QStringLiteral("/libraries/") + groupPath
@@ -2292,7 +2163,7 @@ void ModLoaderInstaller::installLegacy2(const QByteArray& jarData, const QJsonOb
     buffer.setData(jarData);
     if (!buffer.open(QIODevice::ReadOnly)) {
         emit finished(false, "无法打开安装程序");
-        m_running = false; return;
+        m_running = false; m_syncInstallRunning = false; return;
     }
     QZipReader reader(&buffer);
     QByteArray universalBytes;
@@ -2311,7 +2182,7 @@ void ModLoaderInstaller::installLegacy2(const QByteArray& jarData, const QJsonOb
     reader.close();
     if (universalBytes.isEmpty()) {
         emit finished(false, "Legacy 2: 安装程序中未找到 universal JAR");
-        m_running = false; return;
+        m_running = false; m_syncInstallRunning = false; return;
     }
     QFile jf(jarDst);
     if (jf.open(QIODevice::WriteOnly)) { jf.write(universalBytes); jf.close(); }
@@ -2350,6 +2221,12 @@ void ModLoaderInstaller::installLegacy2(const QByteArray& jarData, const QJsonOb
         if (downloaded > 0)
             qCInfo(logLoader) << QStringLiteral("[安装] 已为 Legacy 2 下载 %1 个库").arg(downloaded);
     }
+    if (m_cancelled) {
+        qCInfo(logLoader) << QStringLiteral("[安装] Legacy 2 取消（库下载后）");
+        m_syncInstallRunning = false;   // 先复位再 emit：handler 销毁时能删 tempDir
+        emit finished(false, QStringLiteral("用户取消"));
+        m_running = false; m_syncInstallRunning = false; return;
+    }
 
     QString jsonPath = verDir + QStringLiteral("/") + m_installName + QStringLiteral(".json");
     QFile jf2(jsonPath);
@@ -2359,6 +2236,7 @@ void ModLoaderInstaller::installLegacy2(const QByteArray& jarData, const QJsonOb
     }
 
     qCInfo(logLoader) << QStringLiteral("[安装] Legacy 2 安装完成: %1").arg(m_installName);
+    m_syncInstallRunning = false;
     emit finished(true, QString());
     m_running = false;
 }
@@ -2369,19 +2247,22 @@ void ModLoaderInstaller::installLegacy2(const QByteArray& jarData, const QJsonOb
 // (Forge ~1.13-1.16.x, spec 0)
 // ═══════════════════════════════════════════════════════════════
 void ModLoaderInstaller::installLegacy1(const QByteArray& jarData, const QJsonObject& profile) {
+    m_syncInstallRunning = true;   // 取消时 destroyMergedContext 不得删 tempDir（2026-08-08）
     emit progressChanged(3, m_totalSteps, QStringLiteral("安装旧版 Forge（Legacy 1）..."));
 
     QString versionJsonPath = profile.value(QStringLiteral("json")).toString();
     if (versionJsonPath.isEmpty()) {
+        m_syncInstallRunning = false;
         emit finished(false, "Legacy 1: install_profile 中无 json 路径");
-        m_running = false; return;
+        m_running = false; m_syncInstallRunning = false; return;
     }
 
     QBuffer buffer;
     buffer.setData(jarData);
     if (!buffer.open(QIODevice::ReadOnly)) {
+        m_syncInstallRunning = false;
         emit finished(false, "无法打开安装程序");
-        m_running = false; return;
+        m_running = false; m_syncInstallRunning = false; return;
     }
     QZipReader reader(&buffer);
 
@@ -2391,13 +2272,15 @@ void ModLoaderInstaller::installLegacy1(const QByteArray& jarData, const QJsonOb
     QByteArray versionData = reader.fileData(actualPath);
     reader.close();
     if (versionData.isEmpty()) {
+        m_syncInstallRunning = false;
         emit finished(false, "安装程序中未找到 version.json");
-        m_running = false; return;
+        m_running = false; m_syncInstallRunning = false; return;
     }
     QJsonDocument versionDoc = QJsonDocument::fromJson(versionData);
     if (!versionDoc.isObject()) {
+        m_syncInstallRunning = false;
         emit finished(false, "version.json 格式无效");
-        m_running = false; return;
+        m_running = false; m_syncInstallRunning = false; return;
     }
     QJsonObject versionJson = versionDoc.object();
 
@@ -2431,7 +2314,7 @@ void ModLoaderInstaller::installLegacy1(const QByteArray& jarData, const QJsonOb
     // 6. Pre-download Forge-specific libraries from BMCLAPI
     //    (similar to step 3d in runBootstrapperProcess)
     QJsonArray libs = versionJson.value(QStringLiteral("libraries")).toArray();
-    if (!libs.isEmpty()) {
+    if (!libs.isEmpty() && !m_cancelled) {
         QNetworkAccessManager* nam = HttpClient::instance().manager();
         int downloaded = 0;
         for (const auto& lv : libs) {
@@ -2469,8 +2352,20 @@ void ModLoaderInstaller::installLegacy1(const QByteArray& jarData, const QJsonOb
                 QTimer timer;
                 timer.setSingleShot(true);
                 QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+                // 取消轮询：m_cancelled 时 abort reply 并退出（不等 15s 超时）
+                QTimer cancelPoll;
+                cancelPoll.setInterval(200);
+                QObject::connect(&cancelPoll, &QTimer::timeout, &loop,
+                    [&loop, reply, this]() {
+                        if (m_cancelled) {
+                            reply->abort();
+                            loop.quit();
+                        }
+                    });
                 timer.start(15000);   // 主线程阻塞场景：单源 15s 上限（双候选最坏 30s，与基线持平）
+                cancelPoll.start();
                 loop.exec();
+                cancelPoll.stop();
                 const bool ok = reply->error() == QNetworkReply::NoError && timer.isActive();
                 if (ok) {
                     timer.stop();
@@ -2485,11 +2380,19 @@ void ModLoaderInstaller::installLegacy1(const QByteArray& jarData, const QJsonOb
                     QFile::remove(libFile);
                 }
                 reply->deleteLater();
+                if (m_cancelled) break;   // 取消：不再试下一镜像
                 if (ok && QFile::exists(libFile)) break;
             }
+            if (m_cancelled) break;
         }
         if (downloaded > 0)
             qCInfo(logLoader) << QStringLiteral("[安装] 已为 Legacy 1 预下载 %1 个库").arg(downloaded);
+    }
+    if (m_cancelled) {
+        qCInfo(logLoader) << QStringLiteral("[安装] Legacy 1 取消（库下载后）");
+        m_syncInstallRunning = false;   // 先复位再 emit：handler 销毁时能删 tempDir
+        emit finished(false, QStringLiteral("用户取消"));
+        m_running = false; m_syncInstallRunning = false; return;
     }
 
     // 7. Write flattened version.json
@@ -2501,6 +2404,7 @@ void ModLoaderInstaller::installLegacy1(const QByteArray& jarData, const QJsonOb
     }
 
     qCInfo(logLoader) << QStringLiteral("[安装] Legacy 1 安装完成: %1（%2 个库）").arg(m_installName).arg(libs.size());
+    m_syncInstallRunning = false;
     emit finished(true, QString());
     m_running = false;
 }

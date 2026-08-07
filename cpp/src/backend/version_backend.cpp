@@ -1578,6 +1578,14 @@ void VersionBackend::cancelVersionInstall(const QString& versionId)
                 // all workers have actually stopped).
                 if (!mcVer.isEmpty())
                     cancelActiveDownload(mcVer);
+            } else if (ctx->installer && ctx->installer->syncInstallRunning()) {
+                // installLegacy2/1 正在主线程同步执行（QEventLoop 等驿道下载）：
+                // 不能立即 destroy——installer 的 finished 信号还连着，取消后它会
+                // emit finished(false) → finished handler 检测 ctx->failed → 统一销毁
+                // （那时 syncInstallRunning 已复位，tempDir 可安全删除，不产生孤儿目录）
+                qCInfo(logVersion) << QStringLiteral("[取消] 同步安装执行中，等待 installer finished 后统一销毁 id=%1")
+                    .arg(versionId);
+                // 不动 m_mergedContexts，等 finished handler 销毁
             } else {
                 // MC download is already done (e.g. Forge installer running), or no
                 // MC version to download. No worker threads writing to tempDir —
@@ -5303,12 +5311,9 @@ if (!loaderDlUrl.isEmpty()) {
                     QString baseVer = loaderVersion;
                     if (!baseVer.startsWith(mcVersion + QLatin1Char('-')))
                         baseVer = mcVersion + QStringLiteral("-") + loaderVersion;
-                    // 老版本无 installer.jar（1.4.7 只有 universal.zip，1.2.x 只有 client.zip）→
-                    // 每 base×ver 生成 3 后缀，对齐 forgeStep1 语义（2026-08-07）
+                    // 1.5.2 及更早版本已全部屏蔽（列表层过滤）→ 只需 installer.jar 类别
                     auto addFb = [&](const QString& base, const QString& ver) {
                         fallbackUrls << QStringLiteral("%1/net/minecraftforge/forge/%2/forge-%2-installer.jar").arg(base, ver);
-                        fallbackUrls << QStringLiteral("%1/net/minecraftforge/forge/%2/forge-%2-universal.zip").arg(base, ver);
-                        fallbackUrls << QStringLiteral("%1/net/minecraftforge/forge/%2/forge-%2-client.zip").arg(base, ver);
                     };
                     QString branchVer = baseVer;
                     if (!forgeInstallerBranch.isEmpty()) branchVer += QStringLiteral("-") + forgeInstallerBranch;
@@ -8125,6 +8130,16 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
     connect(ctx->installer, &ModLoaderInstaller::finished, this,
         [this, installId, tempDir = ctx->tempDir](bool success, const QString& errMsg) {
             auto* ds = dlSession(installId);
+            // 用户已取消（cancelVersionInstall 置 ctx->failed）：不复制产物，
+            // 直接销毁 merged context + 清理版本残留（installer 同步安装已停止）
+            if (auto* cctx = m_mergedContexts.value(installId, nullptr); cctx && cctx->failed) {
+                qCInfo(logVersion) << QStringLiteral("[取消] merged installer finished after cancel, cleanup id=%1")
+                    .arg(installId);
+                destroyMergedContext(installId);
+                if (!m_gameDir.isEmpty())
+                    cleanupCanceledVersion(installId, m_gameDir);
+                return;
+            }
             if (success) {
                 if (ds) {
                     for (int i = 0; i < ds->steps.size(); i++)
@@ -8367,23 +8382,7 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
             for (int i = 0; i < ds->steps.size(); ++i) {
                 if (ds->steps[i].toMap().value(QStringLiteral("name")).toString()
                         .contains(QStringLiteral("安装器库"))) {
-                    // Legacy 3 无 install_profile.json → 已标 skipped，不再覆盖为 completed
-                    if (ds->steps[i].toMap().value(QStringLiteral("status")).toString()
-                            != QStringLiteral("skipped"))
-                        updateStep(installId, i, QStringLiteral("completed"), 100);
-                    break;
-                }
-            }
-        });
-    // Legacy 3（无 install_profile.json）：安装器库步骤直接跳过（不闪"完成"误导）
-    connect(ctx->installer, &ModLoaderInstaller::installerLibsSkipped, this,
-        [this, installId]() {
-            auto* ds = dlSession(installId);
-            if (!ds) return;
-            for (int i = 0; i < ds->steps.size(); ++i) {
-                if (ds->steps[i].toMap().value(QStringLiteral("name")).toString()
-                        .contains(QStringLiteral("安装器库"))) {
-                    updateStep(installId, i, QStringLiteral("skipped"), 0);
+                    updateStep(installId, i, QStringLiteral("completed"), 100);
                     break;
                 }
             }
@@ -8430,10 +8429,11 @@ void VersionBackend::destroyMergedContext(const QString& installId)
             lastUser = false; break;
         }
     }
-    // 安装 worker/bootstrapper 仍在写 tempDir（解压/复制/java 安装器）时不能删目录，
-    // 否则访问冲突崩溃（0xc0000005）
+    // 安装 worker/bootstrapper/同步安装（installLegacy2/1 主线程跑）仍在写 tempDir
+    // （解压/复制/java 安装器）时不能删目录，否则访问冲突崩溃（0xc0000005）
     const bool workerBusy = ctx->installer
-        && (ctx->installer->installWorkerBusy() || ctx->installer->bootstrapperRunning());
+        && (ctx->installer->installWorkerBusy() || ctx->installer->bootstrapperRunning()
+            || ctx->installer->syncInstallRunning());
     if (!ctx->tempDir.isEmpty() && lastUser && !workerBusy) {
         QDir d(ctx->tempDir);
         if (d.exists()) d.removeRecursively();

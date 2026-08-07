@@ -34,7 +34,7 @@
 | 版本安装管线（client+libs+assets） | `src/core/version_downloader.*`（盘古） |
 | Mod 批量下载 | `src/core/modpack/mod_download_engine.*`（精卫） |
 | 整合包下载/解析/安装 | `modpack/modpack_downloader.*`（女娲）、`modpack_parser.*`、`modpack_install_task.*`、`modpack_importer.*` |
-| Forge/NeoForge/OptiFine 安装 | `src/core/mod_loader_installer.{h,cpp}`（4000 行，四分支：Legacy3/2/1/Bootstrapper） |
+| Forge/NeoForge/OptiFine 安装 | `src/core/mod_loader_installer.{h,cpp}`（三分支：Legacy2/1/Bootstrapper，Legacy3 已删 2026-08-08） |
 | 本地 Mod/资源包/存档管理 | `src/core/local_mod_manager.{h,cpp}` |
 | 联机（陶瓦 Terracotta 兼容） | `src/multiplayer/multiplayer_manager.{h,cpp}`（核心） |
 | EasyTier 进程/TOML/白名单 | `src/multiplayer/easytier_process.{h,cpp}` |
@@ -163,7 +163,7 @@
 | `version_downloader.h/.cpp` | 232 / 1331 | **版本安装管线（盘古）**：下载 client.jar + libraries + assets 到版本目录（merged 任务中可指向 UUID 临时目录）、JSON 解析、文件清单生成、校验。 |
 | `mod_manager.h/.cpp` | 264 / 1651 | **Mod 下载管理**：下载任务（驿道 downloadWithReply 断点续传，2026-08-02 自夸父回退）、Modpack 模式。⚠️ **用户 WIP（勿改勿提交）**。 |
 | `local_mod_manager.h/.cpp` | 104 / 782 | **本地 Mod/资源包管理**：扫描 mods/ 目录、解析 JAR（读取 mods.toml/fabric.mod.json 元数据）、Mod 列表/过滤、删除、导入复制。 |
-| `mod_loader_installer.h/.cpp` | 284 / 4202 | **Forge/NeoForge/OptiFine 安装器**：四分支（Legacy3/2/1 安装器 + Bootstrapper 模式）；Forge install_profile 处理、处理器列表、FART/srgutils、版本 JSON 生成；含 Java 自动下载（Tuna Adoptium 镜像 JRE——安装器只 java -cp 跑 jar 无需 JDK，与一键安装共享 java_cache）；java_cache 路径统一 applicationDirPath；toastMessage 信号（自动下载 Java 前/完成时弹全局 Toast）。**安装收尾重活已搬离主线程（2026-08-06，commit 0ee14f6）**：runInstallTask（QtConcurrent worker + 回主线程 onDone + 取消/失败标志 m_installWorkerFailed）；forgeStep3 拆 壳/prepareImpl(worker)/route(四分支)；bootstrapper 前置（JAR 剥离/mappings 预下载/TSRG 转换）→ worker；fabricStep3 拆 壳/Impl(worker)。遗留主线程：Java 自动下载解压、Legacy2/1、finalizeBootstrapperInstall、OptiFine 整目录复制。 |
+| `mod_loader_installer.h/.cpp` | 283 / 4016 | **Forge/NeoForge/OptiFine 安装器**：三分支（Legacy2/1 安装器 + Bootstrapper 模式，Legacy3 已删 2026-08-08）；Forge install_profile 处理、处理器列表、FART/srgutils、版本 JSON 生成；含 Java 自动下载（Tuna Adoptium 镜像 JRE——安装器只 java -cp 跑 jar 无需 JDK，与一键安装共享 java_cache）；java_cache 路径统一 applicationDirPath；toastMessage 信号（自动下载 Java 前/完成时弹全局 Toast）。**安装收尾重活已搬离主线程（2026-08-06，commit 0ee14f6）**：runInstallTask（QtConcurrent worker + 回主线程 onDone + 取消/失败标志 m_installWorkerFailed）；forgeStep3 拆 壳/prepareImpl(worker)/route(三分支)；bootstrapper 前置（JAR 剥离/mappings 预下载/TSRG 转换）→ worker；fabricStep3 拆 壳/Impl(worker)。遗留主线程：Java 自动下载解压、Legacy2/1、finalizeBootstrapperInstall、OptiFine 整目录复制。 |
 | `launcher.h/.cpp` | 105 / 1710 | **游戏启动核心**：实际启动 Minecraft 进程（参数组装、natives 解压、JVM 启动、进程监控、退出码处理）、服务器属性准备；**输出环形缓冲**（recentOutput，最近 600 行原始输出供崩溃分析）。 |
 | `microsoft_auth.h/.cpp` | 64 / 357 | **微软 OAuth 认证**：设备码/浏览器流程、XBL→XSTS→Minecraft→Profile 四步链、token 获取与刷新。 |
 | `yggdrasil_auth.h/.cpp` | 87 / 266 | **Yggdrasil 认证**：外置登录协议实现（与服务器握手、校验、token）。 |
@@ -349,6 +349,8 @@
 
 | 日期 | 说明 |
 |---|---|
+| 2026-08-08 | Legacy3 全量清理（备份 backup/legacy3-cleanup-2026-08-08/）：删 installLegacy3 函数+声明+forgeStep3_install 的 legacy3 分支（改报错）；forgeStep1/fallback 链 universal/client 类别删除只留 installer.jar；删 installerLibsSkipped 信号+version_backend 连接+QML skipped 显示；Forge147Test 注释更新。legacy2 取消安全：installLegacy2/1 置 m_syncInstallRunning（destroyMergedContext 不删写中 tempDir）+ m_cancelled 快速失败 + 库下载 QEventLoop cancelPoll（200ms abort）+ cancelVersionInstall 同步安装中延迟销毁 + finished handler ctx->failed 清理。验证：1.5.2/1.6.4 Forge147Test ok=1 |
+| 2026-08-08 | Mod disabled 解析修复（scanMods）：禁用文件用真实路径 parseJar（.disabled 本身是 zip 可读），fileName 保留真实名+enabled=false；minimal 分支剥 .disabled 取 baseName。ToggleScriptTest 新增真实 zip disabled 解析断言 |
 | 2026-08-07 | Mod 启禁用 + 启动脚本导出（00804ed，+357/-6）：local_mod_manager setModEnabled（.jar↔.jar.disabled）+ scanMods 识别禁用态；launcher buildLaunchScript 复用 buildArgs 输出 .bat；launch/shadow backend 转发 + saveTextFile；VersionSettingsOverlay Mod 卡片启禁用按钮 + 概览其他导出脚本按钮；ToggleScriptTest 回归 |
 | 2026-08-07 | Forge 列表过滤扩到 1.5 及更早（5ef27ee）：queryForgeVersions 开头正则 ^1\.[0-5] 拦截（FML 4.x 需 fmllibs，官方源死 404；主流启动器 源码证实 1.5.2 也要 argo-small-3.2 等）；1.6+ 保留 |
 | 2026-08-07 | Forge 版本列表只保留 installer 类别（d1674a1，对齐 主流启动器）：BMCLAPI/官方双解析器过滤无 installer 版本——1.4.7 及更早（35 版本全 universal）列表为空，1.5.2+ 不受影响；1.4.7 fmllibs 官方源已死（404）故从根源杜绝 |
