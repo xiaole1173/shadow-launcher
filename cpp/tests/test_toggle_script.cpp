@@ -73,6 +73,7 @@ int main(int argc, char** argv)
         launcher.setVersionGameDir(gameDir);
         launcher.setAuthInfo(QStringLiteral("Steve"), QStringLiteral("00000000-0000-0000-0000-000000000001"),
                              QStringLiteral("tok"), false);
+        launcher.setAutoLangMode(1);   // system locale → ensureOptionsTxt 应写 lang 行
         const QString script = launcher.buildLaunchScript(
             QStringLiteral("1.12.2"), QStringLiteral("C:/java/bin/java.exe"),
             2048, QStringLiteral("-Xmx2G"), QStringLiteral("--demo"), false);
@@ -82,10 +83,18 @@ int main(int argc, char** argv)
         const bool hasUser = script.contains(QStringLiteral("Steve"));
         // --gameDir 后有值（t_script 路径出现）
         const bool gdOk = script.contains(QStringLiteral("t_script"));
-        fprintf(stderr, "[2] buildLaunchScript: len=%d echo=%d cmd=%d main=%d user=%d gameDirFilled=%d\n",
+        // 语言选项写入 options.txt（ensureOptionsTxt 生效）
+        QFile opt(gameDir + QStringLiteral("/options.txt"));
+        bool langOk = false;
+        if (opt.open(QIODevice::ReadOnly)) {
+            const QString optText = QString::fromUtf8(opt.readAll());
+            langOk = optText.contains(QStringLiteral("lang:"));
+            opt.close();
+        }
+        fprintf(stderr, "[2] buildLaunchScript: len=%d echo=%d cmd=%d main=%d user=%d gameDirFilled=%d lang=%d\n",
                 script.size(), hasEcho ? 1 : 0, hasCmd ? 1 : 0, hasMain ? 1 : 0,
-                hasUser ? 1 : 0, gdOk ? 1 : 0);
-        if (!(hasEcho && hasCmd && hasMain && hasUser && gdOk)) fail++;
+                hasUser ? 1 : 0, gdOk ? 1 : 0, langOk ? 1 : 0);
+        if (!(hasEcho && hasCmd && hasMain && hasUser && gdOk && langOk)) fail++;
         QDir(gameDir).removeRecursively();
     }
 

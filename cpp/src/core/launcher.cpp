@@ -1446,6 +1446,11 @@ QString Launcher::buildLaunchScript(const QString& versionId, const QString& jav
         return QString();
     QJsonObject versionJson = doc.object();
 
+    // 对齐 start()：脚本启动前也写语言选项到 options.txt（否则脚本启动后 MC 语言
+    // 是默认 en_us，与启动器启动不一致；2026-08-07 用户反馈）
+    if (m_autoLangMode == 1 || m_autoLangMode == 2)
+        ensureOptionsTxt();
+
     const QStringList args = buildArgs(versionId, maxMemoryMB, versionJson);
     if (args.isEmpty()) return QString();
 
