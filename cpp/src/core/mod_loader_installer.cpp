@@ -1503,6 +1503,19 @@ static QStringList mavenCandidates(bool preferOfficial, const QString& group,
     return QStringList{bmcl, fml, official};
 }
 
+// ── natives classifier 的 ${arch} 占位符替换（对齐主流启动器实现 Library.classifier）──
+// 1.7.10 原版 twitch 库 natives 值为 "natives-windows-${arch}"，不替换则
+// 文件名/URL 带字面 ${arch} → 三源必 404（2026-08-07 实测 bmcl -64.jar 200 / 字面 404）
+static QString resolveNativesClassifier(const QString& nativesValue) {
+    if (!nativesValue.contains(QLatin1String("${arch}")))
+        return nativesValue;
+#if defined(Q_PROCESSOR_X86_64) || defined(Q_PROCESSOR_ARM64)
+    return QString(nativesValue).replace(QLatin1String("${arch}"), QStringLiteral("64"));
+#else
+    return QString(nativesValue).replace(QLatin1String("${arch}"), QStringLiteral("32"));
+#endif
+}
+
 // ── OS rules 判定（对齐主流启动器实现 McJsonRuleCheck / 主流启动器 Library.rules）──
 // 全 allow/空 → 允许；disallow 当前 OS → 禁止；仅 allow 他 OS → 禁止（2026-08-07）
 static bool libraryAllowed(const QJsonObject& libObj) {
@@ -1590,11 +1603,11 @@ int ModLoaderInstaller::downloadVersionLibraries(const QJsonArray& libs) {
             const QJsonObject nativesObj = libObj.value(QStringLiteral("natives")).toObject();
             if (!nativesObj.isEmpty()) {
 #ifdef Q_OS_WIN
-                classifier = nativesObj.value(QStringLiteral("windows")).toString();
+                classifier = resolveNativesClassifier(nativesObj.value(QStringLiteral("windows")).toString());
 #elif defined(Q_OS_MACOS)
-                classifier = nativesObj.value(QStringLiteral("osx")).toString();
+                classifier = resolveNativesClassifier(nativesObj.value(QStringLiteral("osx")).toString());
 #else
-                classifier = nativesObj.value(QStringLiteral("linux")).toString();
+                classifier = resolveNativesClassifier(nativesObj.value(QStringLiteral("linux")).toString());
 #endif
             }
         }
