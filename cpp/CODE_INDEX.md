@@ -349,6 +349,7 @@
 
 | 日期 | 说明 |
 |---|---|
+| 2026-08-07 | Forge 版本列表只保留 installer 类别（d1674a1，对齐 主流启动器）：BMCLAPI/官方双解析器过滤无 installer 版本——1.4.7 及更早（35 版本全 universal）列表为空，1.5.2+ 不受影响；1.4.7 fmllibs 官方源已死（404）故从根源杜绝 |
 | 2026-08-07 | Legacy 3 根本性修正（bd85c62）：实测 universal.zip（746）非自包含 JAR——client.jar 1933 条目、universal 缺 1688 个混淆类（lg 等）→ NoClassDefFoundError；重写 installLegacy3：游戏 JAR=原版 client.jar 副本 + universal→libraries/forge-{ver}.jar + flatten |
 | 2026-08-07 | 1.4.7 Legacy 3 mainClass 修正（d1939e4）：恒用 net.minecraft.client.Minecraft（实测 FMLRelauncher 无 main，FML 通过 Minecraft.fmlReentry 注入）；删 JAR 扫描逻辑 |
 | 2026-08-07 | 1.4.7+forge 启动崩溃修复（bca513b）：launcher pre-1.6 mainClass 覆盖加 FML 例外（FMLRelauncher 保留）；version_isolation 隔离模式统一返回 game/（删降级 verDir 分支，junction 不再建到 versions/.minecraft）；删 isDirNonEmpty 死代码 |
