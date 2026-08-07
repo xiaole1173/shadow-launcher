@@ -283,14 +283,29 @@ void Launcher::start(const QString& versionId, const QString& javaPath, int maxM
                 env.insert(QStringLiteral("APPDATA"),
                            QDir::toNativeSeparators(parentDir.absolutePath()));
             } else {
-                // Isolated mode: version game dir is versions/{id}/game
-                // getAppDir("minecraft") always appends ".minecraft" —
-                // create a junction at versions/{id}/.minecraft → game
-                // so %APPDATA%\.minecraft walks through the junction into game/.
-                QDir gameDir(m_versionGameDir);
-                gameDir.cdUp();  // now at versions/{id}/
-                QString versionDir = QDir::toNativeSeparators(gameDir.absolutePath());
-                QString junction = versionDir + QDir::separator() + QStringLiteral(".minecraft");
+                // Isolated mode: version game dir is either versions/{id}/game
+                // (standard) or versions/{id} (scattered layout, no game/ subdir —
+                // most installs, 2026-08-07 修正：getVersionGameDir 返回实际内容位置)
+                // getAppDir("minecraft") always appends ".minecraft":
+                //   - game/ layout:  junction at versions/{id}/.minecraft → game
+                //   - scattered:     junction at versions/.minecraft → versions/{id}
+                const QString vgd = QDir(m_versionGameDir).absolutePath();
+                const bool isGameSubdir = vgd.endsWith(QStringLiteral("/game"))
+                                        || vgd.endsWith(QStringLiteral("\\game"));
+                QString versionDir;
+                QString junction;
+                if (isGameSubdir) {
+                    QDir gameDir(m_versionGameDir);
+                    gameDir.cdUp();  // now at versions/{id}/
+                    versionDir = QDir::toNativeSeparators(gameDir.absolutePath());
+                    junction = versionDir + QDir::separator() + QStringLiteral(".minecraft");
+                } else {
+                    // Scattered layout: game dir IS versions/{id}
+                    QDir vdir(m_versionGameDir);
+                    vdir.cdUp();  // now at versions/
+                    versionDir = QDir::toNativeSeparators(vdir.absolutePath());
+                    junction = versionDir + QDir::separator() + QStringLiteral(".minecraft");
+                }
                 if (!QFileInfo::exists(junction)) {
                     QProcess mklink;
                     mklink.start(QStringLiteral("cmd"),

@@ -652,6 +652,15 @@ if(SHADOW_BUILD_MODPACK_SELFTEST)
     )
     target_include_directories(ToggleScriptTest PRIVATE src)
     target_link_libraries(ToggleScriptTest PRIVATE Qt6::Core Qt6::Network Qt6::Concurrent Qt6::Gui Qt6::GuiPrivate)
+
+    # 版本隔离 game 目录布局感知验证（散文件→版本根 / game非空→game）
+    add_executable(IsoGdTest
+        tests/test_isogd.cpp
+        src/core/version_isolation.cpp
+        src/utils/logger.cpp
+    )
+    target_include_directories(IsoGdTest PRIVATE src)
+    target_link_libraries(IsoGdTest PRIVATE Qt6::Core)
 endif()
 
 # ============================================================
