@@ -2106,9 +2106,10 @@ void ShadowBackend::launch(const QString& versionId, bool online) {
             if (!javaPath.isEmpty()) {
                 emit logMessage(tr("[完成] 已自动降级 Java 8: %1").arg(javaPath));
             } else {
-                // Java 8 not found — fall back to manual Java as best-effort
-                emit logMessage(tr("[警告] 未找到 Java 8，降级使用手动配置的 Java %1").arg(manualMajor));
-                javaPath = manualJava;
+                // 2026-08-08：不再回退不兼容的手动 Java（Java 9+ 跑 pre-1.13 会崩），
+                // 留空 → 走自动安装分支下载 Java 8
+                emit logMessage(tr("[警告] 未找到 Java 8，将自动下载安装"));
+                javaPath.clear();
             }
         } else if (manualMajor >= requiredMajor
                    && (maxMajor <= 0 || manualMajor <= maxMajor)) {
@@ -2121,11 +2122,12 @@ void ShadowBackend::launch(const QString& versionId, bool online) {
             javaPath = m_settings->findJavaForVersion(requiredMajor, maxMajor);
             if (!javaPath.isEmpty()) {
                 emit logMessage(tr("[完成] 已自动匹配 Java %1: %2").arg(requiredMajor).arg(javaPath));
-            } else if (!manualJava.isEmpty()) {
-                // 区间内无匹配 → 回退用户默认（尽力而为，可能不兼容）
-                javaPath = manualJava;
-                emit logMessage(tr("[警告] 未找到兼容区间内的 Java，使用设置的 Java %1（可能存在兼容问题）")
-                                    .arg(manualMajor));
+            } else {
+                // 2026-08-08：区间内无匹配且手动 Java 不满足要求 → 不回退（避免用不兼容
+                // Java 启动崩溃），留空 → 走自动安装分支
+                emit logMessage(tr("[警告] 未找到兼容区间内的 Java，将自动下载安装 Java %1")
+                                    .arg(requiredMajor));
+                javaPath.clear();
             }
         }
     } else {
