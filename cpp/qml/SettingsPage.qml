@@ -4,6 +4,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
+import QtQuick.Dialogs
 
 Rectangle {
     id: page
@@ -13,6 +14,16 @@ Rectangle {
     property int _initLangModeIdx: 0
 
     property int currentSection: 0
+
+    // ── 字节格式化（Java 下载进度显示，2026-08-08 修复跨作用域不可见 + 无效输入防御）──
+    function _fmtBytes(bytes) {
+        if (bytes === undefined || bytes === null || isNaN(bytes) || bytes <= 0) return "0 B"
+        var units = ["B", "KB", "MB", "GB"]
+        var i = 0
+        var v = bytes
+        while (v >= 1024 && i < units.length - 1) { v /= 1024; i++ }
+        return v.toFixed(v >= 10 || i === 0 ? 0 : 1) + " " + units[i]
+    }
 
     opacity: 0; y: 10
     Behavior on opacity { NumberAnimation { duration: AnimationTokens.itemFadeInDuration; easing.type: AnimationTokens.itemFadeInEasing } }
@@ -189,9 +200,17 @@ Rectangle {
 
     Component {
         id: generalComponent
-        Item {
+        Flickable {
+            id: generalFlick
+            anchors.fill: parent
+            contentHeight: generalCol.childrenRect.height + 40
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+
             ColumnLayout {
-                anchors.fill: parent; spacing: 12
+                id: generalCol
+                width: parent.width
+                spacing: 12
                 Text { text: qsTr("通用设置"); font.pixelSize: StyleTokens.fontSizeXl; font.bold: true; color: StyleTokens.textPrimary }
 
                 Rectangle { Layout.fillWidth: true; height: 52; radius: StyleTokens.radiusMd; color: StyleTokens.bgSecondary; border.color: StyleTokens.bgInput
@@ -282,10 +301,146 @@ Rectangle {
                     }
                 }
 
+                // ═══ 启动细节（2026-08-08 低垂果实批）═══
+                Text { text: qsTr("启动"); font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold; color: "#b8c0d0"; Layout.topMargin: 8 }
+
+                // ── 进程优先级 ──
+                Text { text: qsTr("进程优先级"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary }
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+                    Repeater {
+                        model: [
+                            { label: qsTr("高"), value: 0 },
+                            { label: qsTr("正常"), value: 1 },
+                            { label: qsTr("低"), value: 2 }
+                        ]
+                        Rectangle {
+                            id: priChip
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 32
+                            radius: StyleTokens.radiusMd
+                            color: (backend && backend.processPriority === modelData.value) ? StyleTokens.accentLight : StyleTokens.bgSecondary
+                            border.color: (backend && backend.processPriority === modelData.value) ? StyleTokens.accent : StyleTokens.bgInput
+                            border.width: 1
+                            scale: priMa.pressed ? 0.94 : 1.0
+                            Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                            Text {
+                                anchors.centerIn: parent
+                                text: modelData.label
+                                font.pixelSize: StyleTokens.fontSizeSm
+                                color: (backend && backend.processPriority === modelData.value) ? StyleTokens.textPrimary : StyleTokens.textTertiary
+                            }
+                            MouseArea {
+                                id: priMa
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    if (backend) backend.setProcessPriority(modelData.value)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ── GC 策略（全局默认）──
+                Text { text: qsTr("GC 策略"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary; Layout.topMargin: 8 }
+                ShadowDropdown {
+                    Layout.fillWidth: true
+                    model: [
+                        { value: 0, label: qsTr("自动（推荐）") },
+                        { value: 1, label: qsTr("分代 ZGC 优先") },
+                        { value: 2, label: qsTr("仅 G1GC") },
+                        { value: 3, label: qsTr("不指定（跟随自定义参数）") }
+                    ]
+                    valueKey: "value"
+                    currentValue: (backend) ? backend.gcMode : 0
+                    onValueSelected: function(v) { if (backend) backend.setGcMode(Number(v)) }
+                }
+                Text { text: qsTr("可在版本设置-启动配置中为单个版本单独覆盖"); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textMuted }
+
+                // ── 自动进服（全局默认）──
+                Text { text: qsTr("自动进服（全局默认）"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary; Layout.topMargin: 8 }
+                InputBox {
+                    Layout.fillWidth: true
+                    placeholderText: qsTr("服务器地址，如 play.example.com:25565（留空不自动进服）")
+                    text: (backend) ? (backend.autoJoinServer || "") : ""
+                    onAccepted: {
+                        if (backend) backend.setAutoJoinServer(text.trim())
+                    }
+                }
+
+                // ═══ 配置管理（设置导入导出）═══
+                Text { text: qsTr("配置管理"); font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold; color: "#b8c0d0"; Layout.topMargin: 8 }
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 10
+                    ShadowButton {
+                        text: qsTr("导出设置")
+                        Layout.preferredWidth: 120; Layout.preferredHeight: 32
+                        accentColor: StyleTokens.accentSubtle
+                        font.pixelSize: StyleTokens.fontSizeSm
+                        onClicked: settingsSaveDialog.open()
+                    }
+                    ShadowButton {
+                        text: qsTr("导入设置")
+                        Layout.preferredWidth: 120; Layout.preferredHeight: 32
+                        accentColor: StyleTokens.accentSubtle
+                        font.pixelSize: StyleTokens.fontSizeSm
+                        onClicked: settingsOpenDialog.open()
+                    }
+                }
+                Text { text: qsTr("令牌、密钥、Beta 密钥等敏感信息不会导出"); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textMuted }
+
                 Item { Layout.fillHeight: true }
             }
+        }
+
     }
-}
+
+    // ── 设置文件对话框（导出/导入）──
+    FileDialog {
+        id: settingsSaveDialog
+        title: qsTr("导出设置")
+        fileMode: FileDialog.SaveFile
+        nameFilters: ["设置文件 (*.ini)"]
+        defaultSuffix: "ini"
+        currentFile: "shadow_settings.ini"
+        onAccepted: {
+            if (!backend) return
+            var sel = settingsSaveDialog.selectedFile
+            var path = ""
+            if (typeof sel === "string") {
+                path = sel
+            } else if (sel && typeof sel.toString === "function") {
+                path = sel.toString()
+            }
+            if (path.indexOf("file:///") === 0) path = path.substring(8)
+            if (!path.toLowerCase().endsWith(".ini")) path = path + ".ini"
+            var ok = backend.exportSettingsToFile(path)
+            toastManager.show(ok ? qsTr("设置已导出") : qsTr("导出失败"))
+        }
+    }
+    FileDialog {
+        id: settingsOpenDialog
+        title: qsTr("导入设置")
+        fileMode: FileDialog.OpenFile
+        nameFilters: ["设置文件 (*.ini)"]
+        onAccepted: {
+            if (!backend) return
+            var sel = settingsOpenDialog.selectedFile
+            var path = ""
+            if (typeof sel === "string") {
+                path = sel
+            } else if (sel && typeof sel.toString === "function") {
+                path = sel.toString()
+            }
+            if (path.indexOf("file:///") === 0) path = path.substring(8)
+            var ok = backend.importSettingsFromFile(path)
+            toastManager.show(ok ? qsTr("设置已导入") : qsTr("导入失败或文件为空"))
+        }
+    }
 
     Component {
         id: memoryComponent
@@ -441,15 +596,6 @@ Rectangle {
                         anchors.left: parent.left; anchors.right: parent.right
                         anchors.top: parent.top; anchors.margins: 17; spacing: 8
 
-                        function _fmtBytes(bytes) {
-                            if (!bytes || bytes <= 0) return "0 B"
-                            var units = ["B", "KB", "MB", "GB"]
-                            var i = 0
-                            var v = bytes
-                            while (v >= 1024 && i < units.length - 1) { v /= 1024; i++ }
-                            return v.toFixed(v >= 10 || i === 0 ? 0 : 1) + " " + units[i]
-                        }
-
                         RowLayout {
                             Layout.fillWidth: true; spacing: 8
                             Image { source: "icons/lucide/download-cloud.svg"; width: 18; height: 18 }
@@ -575,10 +721,12 @@ Rectangle {
                                 Layout.fillWidth: true; spacing: 6
                                 Text {
                                     Layout.fillWidth: true
-                                    text: "%1%  %2 / %3".arg(
-                                        backend.javaBackend.javaDownloadPercent,
-                                        _fmtBytes(backend.javaBackend.javaDownloadBytes),
-                                        _fmtBytes(backend.javaBackend.javaDownloadTotal))
+                                    text: (backend.javaBackend.javaDownloadTotal > 0)
+                                        ? "%1%  %2 / %3".arg(
+                                            backend.javaBackend.javaDownloadPercent,
+                                            _fmtBytes(backend.javaBackend.javaDownloadBytes),
+                                            _fmtBytes(backend.javaBackend.javaDownloadTotal))
+                                        : ""
                                     font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textMuted
                                 }
                                 Text {

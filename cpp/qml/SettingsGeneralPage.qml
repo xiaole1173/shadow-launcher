@@ -35,13 +35,27 @@ Rectangle {
         // Launcher visibility: "keep" | "hideOnLaunch"
         property string launcherVisibility: "keep"
 
-        // Process priority: "normal" | "high" | "realtime"
-        property string processPriority: "normal"
+        // Process priority: 0=高 1=中 2=低 (backend.processPriority)
+        property int processPriority: 1
 
         // Window size: "default" | "fullscreen" | "custom"
         property string windowSize: "default"
         property int customWidth: 1280
         property int customHeight: 720
+    }
+
+    // ── 从 backend 同步状态（进入页面时 + backend 变化时）──
+    function refreshFromBackend() {
+        if (!root.backend) return
+        d.processPriority = root.backend.processPriority !== undefined ? root.backend.processPriority : 1
+        d.windowSize = root.backend.fullscreenEnabled ? "fullscreen" : "default"
+        d.customWidth = root.backend.windowWidth || 1280
+        d.customHeight = root.backend.windowHeight || 720
+    }
+    Connections {
+        target: root.backend
+        function onLaunchDetailChanged() { refreshFromBackend() }
+        function onWindowSettingsChanged() { refreshFromBackend() }
     }
 
     // ── Page enter animation ──
@@ -58,7 +72,10 @@ Rectangle {
     opacity: 0
     y: 20
 
-    Component.onCompleted: state = "visible"
+    Component.onCompleted: {
+        state = "visible"
+        refreshFromBackend()
+    }
 
     // ═══════════════════════════════════════════════════════════
     //  LAYOUT
@@ -282,84 +299,93 @@ Rectangle {
                         anchors.margins: 8
                         spacing: 8
 
-                        // Normal
+                        // Normal (中)
                         Rectangle {
                             id: priNormal
                             Layout.fillWidth: true
                             Layout.preferredHeight: priNormalLabel.implicitHeight + 20
                             radius: root.radius
-                            color: d.processPriority === "normal" ? root.colorAccent : root.colorBg
-                            border.color: d.processPriority === "normal" ? root.colorAccent : root.colorBorder
+                            color: d.processPriority === 1 ? root.colorAccent : root.colorBg
+                            border.color: d.processPriority === 1 ? root.colorAccent : root.colorBorder
                             border.width: 1
 
                             Label {
                                 id: priNormalLabel
                                 anchors.centerIn: parent
                                 text: qsTr("正常")
-                                color: d.processPriority === "normal" ? StyleTokens.textInverse : root.colorSecondary
+                                color: d.processPriority === 1 ? StyleTokens.textInverse : root.colorSecondary
                                 font.pixelSize: StyleTokens.fontSizeMd
                             }
 
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: d.processPriority = "normal"
+                                onClicked: {
+                                    d.processPriority = 1
+                                    if (root.backend) root.backend.setProcessPriority(1)
+                                }
                             }
 
                             Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                             Behavior on border.color { ColorAnimation { duration: 200 } }
                         }
 
-                        // High
+                        // High (高)
                         Rectangle {
                             id: priHigh
                             Layout.fillWidth: true
                             Layout.preferredHeight: priHighLabel.implicitHeight + 20
                             radius: root.radius
-                            color: d.processPriority === "high" ? root.colorAccent : root.colorBg
-                            border.color: d.processPriority === "high" ? root.colorAccent : root.colorBorder
+                            color: d.processPriority === 0 ? root.colorAccent : root.colorBg
+                            border.color: d.processPriority === 0 ? root.colorAccent : root.colorBorder
                             border.width: 1
 
                             Label {
                                 id: priHighLabel
                                 anchors.centerIn: parent
                                 text: qsTr("高")
-                                color: d.processPriority === "high" ? StyleTokens.textInverse : root.colorSecondary
+                                color: d.processPriority === 0 ? StyleTokens.textInverse : root.colorSecondary
                                 font.pixelSize: StyleTokens.fontSizeMd
                             }
 
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: d.processPriority = "high"
+                                onClicked: {
+                                    d.processPriority = 0
+                                    if (root.backend) root.backend.setProcessPriority(0)
+                                }
                             }
 
                             Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                             Behavior on border.color { ColorAnimation { duration: 200 } }
                         }
 
-                        // Realtime
+                        // Low (低，替代原“实时”——主流启动器 三档：高/中/低)
                         Rectangle {
                             id: priRealtime
                             Layout.fillWidth: true
                             Layout.preferredHeight: priRealtimeLabel.implicitHeight + 20
                             radius: root.radius
-                            color: d.processPriority === "realtime" ? root.colorAccent : root.colorBg
-                            border.color: d.processPriority === "realtime" ? root.colorAccent : root.colorBorder
+                            color: d.processPriority === 2 ? root.colorAccent : root.colorBg
+                            border.color: d.processPriority === 2 ? root.colorAccent : root.colorBorder
                             border.width: 1
 
                             Label {
                                 id: priRealtimeLabel
                                 anchors.centerIn: parent
-                                text: qsTr("实时")
-                                color: d.processPriority === "realtime" ? StyleTokens.textInverse : root.colorSecondary
+                                text: qsTr("低")
+                                color: d.processPriority === 2 ? StyleTokens.textInverse : root.colorSecondary
                                 font.pixelSize: StyleTokens.fontSizeMd
                             }
 
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: d.processPriority = "realtime"
+                                onClicked: {
+                                    d.processPriority = 2
+                                    if (root.backend) root.backend.setProcessPriority(2)
+                                }
                             }
 
                             Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
@@ -416,7 +442,10 @@ Rectangle {
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: d.windowSize = "default"
+                                onClicked: {
+                                    d.windowSize = "default"
+                                    if (root.backend) root.backend.setFullscreenEnabled(false)
+                                }
                             }
 
                             Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
@@ -444,7 +473,10 @@ Rectangle {
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: d.windowSize = "fullscreen"
+                                onClicked: {
+                                    d.windowSize = "fullscreen"
+                                    if (root.backend) root.backend.setFullscreenEnabled(true)
+                                }
                             }
 
                             Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
@@ -472,7 +504,10 @@ Rectangle {
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: d.windowSize = "custom"
+                                onClicked: {
+                                    d.windowSize = "custom"
+                                    if (root.backend) root.backend.setFullscreenEnabled(false)
+                                }
                             }
 
                             Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
@@ -545,6 +580,7 @@ Rectangle {
                                             hoverEnabled: true
                                             onClicked: {
                                                 d.customWidth = Math.max(640, d.customWidth - 100)
+                                                if (root.backend) root.backend.setWindowWidth(d.customWidth)
                                             }
 
                                             Rectangle {
@@ -587,6 +623,7 @@ Rectangle {
                                             hoverEnabled: true
                                             onClicked: {
                                                 d.customWidth = Math.min(7680, d.customWidth + 100)
+                                                if (root.backend) root.backend.setWindowWidth(d.customWidth)
                                             }
 
                                             Rectangle {
@@ -652,6 +689,7 @@ Rectangle {
                                             hoverEnabled: true
                                             onClicked: {
                                                 d.customHeight = Math.max(360, d.customHeight - 100)
+                                                if (root.backend) root.backend.setWindowHeight(d.customHeight)
                                             }
 
                                             Rectangle {
@@ -694,6 +732,7 @@ Rectangle {
                                             hoverEnabled: true
                                             onClicked: {
                                                 d.customHeight = Math.min(4320, d.customHeight + 100)
+                                                if (root.backend) root.backend.setWindowHeight(d.customHeight)
                                             }
 
                                             Rectangle {
@@ -873,6 +912,233 @@ Rectangle {
                             }
                         }
                     }
+                }
+            }
+
+            // ── GC 策略（全局默认；版本级覆盖在版本设置-启动配置）──
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                property int _gcMode: root.backend ? (root.backend.gcMode || 0) : 0
+
+                Label {
+                    text: qsTr("GC 策略")
+                    color: root.colorTertiary
+                    font.pixelSize: StyleTokens.fontSizeSm
+                    font.bold: true
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: gcCard.implicitHeight + 24
+                    radius: root.radius
+                    color: root.colorBg
+                    border.color: root.colorBorder
+                    border.width: 1
+
+                    ColumnLayout {
+                        id: gcCard
+                        anchors.fill: parent
+                        anchors.margins: 16
+                        spacing: 10
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 2
+                                Label {
+                                    text: qsTr("垃圾回收器自动选择")
+                                    color: root.colorSecondary
+                                    font.pixelSize: StyleTokens.fontSizeMd
+                                }
+                                Label {
+                                    text: qsTr("Java 21+ 分代 ZGC / 15-20 ZGC / 14- G1GC（可在版本设置中单独覆盖）")
+                                    color: root.colorTertiary
+                                    font.pixelSize: StyleTokens.fontSizeSm
+                                    wrapMode: Text.WordWrap
+                                    Layout.fillWidth: true
+                                }
+                            }
+                            ShadowDropdown {
+                                Layout.preferredWidth: 190
+                                height: 30
+                                model: [
+                                    { value: 0, label: qsTr("自动（推荐）") },
+                                    { value: 1, label: qsTr("分代 ZGC 优先") },
+                                    { value: 2, label: qsTr("仅 G1GC") },
+                                    { value: 3, label: qsTr("不指定（跟随自定义参数）") }
+                                ]
+                                valueKey: "value"
+                                currentValue: _gcMode
+                                onValueSelected: function(v) {
+                                    _gcMode = Number(v)
+                                    if (root.backend) root.backend.setGcMode(Number(v))
+                                }
+                            }
+                        }
+
+                        // ── 自动进服（全局默认）──
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 4
+                            Label { text: qsTr("自动进服（全局默认）"); color: root.colorSecondary; font.pixelSize: StyleTokens.fontSizeMd }
+                            InputBox {
+                                Layout.fillWidth: true
+                                placeholderText: qsTr("服务器地址，如 play.example.com:25565（留空不自动进服）")
+                                text: root.backend ? (root.backend.autoJoinServer || "") : ""
+                                onAccepted: {
+                                    if (root.backend) root.backend.setAutoJoinServer(text.trim())
+                                }
+                            }
+                            Label {
+                                text: qsTr("可在版本设置-启动配置中为单个版本单独设置")
+                                color: root.colorTertiary
+                                font.pixelSize: StyleTokens.fontSizeXs
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── 配置管理（设置导入导出）──
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                Label {
+                    text: qsTr("配置管理")
+                    color: root.colorTertiary
+                    font.pixelSize: StyleTokens.fontSizeSm
+                    font.bold: true
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: cfgCard.implicitHeight + 24
+                    radius: root.radius
+                    color: root.colorBg
+                    border.color: root.colorBorder
+                    border.width: 1
+
+                    ColumnLayout {
+                        id: cfgCard
+                        anchors.fill: parent
+                        anchors.margins: 16
+                        spacing: 10
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 10
+
+                            // 导出
+                            Rectangle {
+                                id: exportBtn
+                                Layout.preferredWidth: 130
+                                Layout.preferredHeight: 36
+                                radius: root.radius
+                                color: exportHover.hovered ? root.colorAccentHover : root.colorAccent
+                                scale: exportMa.pressed ? 0.95 : 1.0
+                                Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+                                Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
+                                HoverHandler { id: exportHover }
+                                Label {
+                                    anchors.centerIn: parent
+                                    text: qsTr("导出设置")
+                                    color: StyleTokens.textInverse
+                                    font.pixelSize: StyleTokens.fontSizeMd
+                                    font.bold: true
+                                }
+                                MouseArea {
+                                    id: exportMa
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        settingsSaveDialog.open()
+                                    }
+                                }
+                            }
+
+                            // 导入
+                            Rectangle {
+                                id: importBtn
+                                Layout.preferredWidth: 130
+                                Layout.preferredHeight: 36
+                                radius: root.radius
+                                color: importHover.hovered ? root.colorAccentHover : root.colorAccent
+                                scale: importMa.pressed ? 0.95 : 1.0
+                                Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+                                Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
+                                HoverHandler { id: importHover }
+                                Label {
+                                    anchors.centerIn: parent
+                                    text: qsTr("导入设置")
+                                    color: StyleTokens.textInverse
+                                    font.pixelSize: StyleTokens.fontSizeMd
+                                    font.bold: true
+                                }
+                                MouseArea {
+                                    id: importMa
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        settingsOpenDialog.open()
+                                    }
+                                }
+                            }
+                        }
+
+                        Label {
+                            text: qsTr("令牌、密钥、Beta 密钥等敏感信息不会导出")
+                            color: root.colorTertiary
+                            font.pixelSize: StyleTokens.fontSizeXs
+                        }
+                    }
+                }
+            }
+
+            // ── 文件对话框（导出/导入设置）──
+            FileDialog {
+                id: settingsSaveDialog
+                title: qsTr("导出设置")
+                fileMode: FileDialog.SaveFile
+                nameFilters: ["设置文件 (*.ini)"]
+                defaultSuffix: "ini"
+                currentFile: "shadow_settings.ini"
+                onAccepted: {
+                    if (!backend) return
+                    var sel = settingsSaveDialog.selectedFile
+                    var path = ""
+                    if (typeof sel === "string") {
+                        path = sel
+                    } else if (sel && typeof sel.toString === "function") {
+                        path = sel.toString()
+                    }
+                    if (path.indexOf("file:///") === 0) path = path.substring(8)
+                    if (!path.toLowerCase().endsWith(".ini")) path = path + ".ini"
+                    var ok = backend.exportSettingsToFile(path)
+                    toastManager.show(ok ? qsTr("设置已导出") : qsTr("导出失败"))
+                }
+            }
+            FileDialog {
+                id: settingsOpenDialog
+                title: qsTr("导入设置")
+                fileMode: FileDialog.OpenFile
+                nameFilters: ["设置文件 (*.ini)"]
+                onAccepted: {
+                    if (!backend) return
+                    var sel = settingsOpenDialog.selectedFile
+                    var path = ""
+                    if (typeof sel === "string") {
+                        path = sel
+                    } else if (sel && typeof sel.toString === "function") {
+                        path = sel.toString()
+                    }
+                    if (path.indexOf("file:///") === 0) path = path.substring(8)
+                    var ok = backend.importSettingsFromFile(path)
+                    toastManager.show(ok ? qsTr("设置已导入") : qsTr("导入失败或文件为空"))
+                    if (ok) refreshFromBackend()
                 }
             }
 

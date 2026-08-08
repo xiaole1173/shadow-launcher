@@ -201,6 +201,10 @@ Window {
                     // Loader item not ready yet — retry shortly
                     var timer = Qt.createQmlObject('import QtQuick; Timer { interval: 800; running: true; repeat: false; onTriggered: { if (settingsPageLoader.item) settingsPageLoader.item.selectSection(' + subTab + '); destroy() } }', appWindow)
                 }
+            } else if (pageIndex === 99) {
+                // 截图测试：打开版本设置浮层到指定分区（-1=概览），不切换主页面
+                openVersionSettingsSection(subTab)
+                return
             }
             switchPage(pageIndex)
         }

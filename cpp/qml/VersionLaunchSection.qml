@@ -75,6 +75,23 @@ Item {
     function _effectiveGameArgs() { return _mode === 1 ? _perVerGameArgs : _globalGameArgs }
     function _effectiveHighPerfGpu() { return _mode === 1 ? _perVerHighPerfGpu : _globalHighPerfGpu }
 
+    // ── 启动细节（2026-08-08 低垂果实批）：版本级优先 → 全局 ──
+    function _resolvedGcMode() {
+        if (!backend) return 0
+        return backend.resolvedGcMode ? backend.resolvedGcMode(currentSelectedVersion) : (backend.gcMode || 0)
+    }
+    function _gcModeLabel() {
+        var m = backend ? (backend.gcMode || 0) : 0
+        if (m === 1) return qsTr("分代 ZGC 优先")
+        if (m === 2) return qsTr("仅 G1GC")
+        if (m === 3) return qsTr("不指定")
+        return qsTr("自动")
+    }
+    function _resolvedAutoJoinServer() {
+        if (!backend) return ""
+        return backend.resolvedAutoJoinServer ? backend.resolvedAutoJoinServer(currentSelectedVersion) : (backend.autoJoinServer || "")
+    }
+
     function _validateJvmArgs(args) {
         var trimmed = args ? args.trim() : ""
 
@@ -568,6 +585,7 @@ Item {
                     anchors.top: parent.top; anchors.margins: 8
                     spacing: 8
 
+                    // ── 高性能显卡 ──
                     RowLayout {
                         Layout.fillWidth: true
                         Text { text: qsTr("要求 Java 使用高性能显卡"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSecondary }
@@ -583,12 +601,145 @@ Item {
                         }
                     }
 
+                    // ── 全屏启动 ──
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Text { text: qsTr("全屏启动"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSecondary }
+                        Item { Layout.fillWidth: true }
+                        ShadowSwitch {
+                            checked: backend ? !!backend.fullscreenEnabled : false
+                            enabled: true
+                            onToggled: {
+                                if (backend) backend.setFullscreenEnabled(checked)
+                            }
+                        }
+                    }
+
+                    // ── GC 策略（版本级优先，独立配置时写入版本级）──
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Text { text: qsTr("GC 策略"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSecondary }
+                        Item { Layout.fillWidth: true }
+                        ShadowDropdown {
+                            id: gcModeDropdown
+                            Layout.preferredWidth: 190
+                            height: 28
+                            model: [
+                                { value: 0, label: qsTr("自动（推荐）") },
+                                { value: 1, label: qsTr("分代 ZGC 优先") },
+                                { value: 2, label: qsTr("仅 G1GC") },
+                                { value: 3, label: qsTr("不指定（跟随自定义参数）") }
+                            ]
+                            valueKey: "value"
+                            currentValue: root._resolvedGcMode()
+                            enabled: root._mode === 1
+                            opacity: root._mode === 0 ? 0.6 : 1.0
+                            onValueSelected: function(v) {
+                                if (root._mode !== 1) return
+                                var newMode = Number(v)
+                                if (backend) backend.setVersionGcMode(currentSelectedVersion, newMode)
+                            }
+                        }
+                    }
+                    Text {
+                        text: root._mode === 0 ? qsTr("跟随全局：") + root._gcModeLabel() : qsTr("仅此版本生效")
+                        font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textTertiary
+                        Layout.leftMargin: 4
+                    }
+
+                    // ── 自动进服（版本级优先）──
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Text { text: qsTr("自动进服"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSecondary }
+                        Item { Layout.fillWidth: true }
+                        Text {
+                            text: root._mode === 0 ? qsTr("跟随全局") : qsTr("独立")
+                            font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textTertiary
+                        }
+                    }
+                    InputBox {
+                        Layout.fillWidth: true
+                        placeholderText: qsTr("服务器地址，如 play.example.com:25565（留空不自动进服）")
+                        text: root._resolvedAutoJoinServer()
+                        readOnly: root._mode === 0
+                        enabled: root._mode === 1
+                        onAccepted: {
+                            if (root._mode !== 1) return
+                            if (backend) backend.setVersionAutoJoinServer(currentSelectedVersion, text.trim())
+                        }
+                    }
+
+                    // ── 窗口标题 ──
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Text { text: qsTr("窗口标题"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSecondary }
+                        Item { Layout.fillWidth: true }
+                        Text {
+                            text: qsTr("留空不修改"); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textTertiary
+                        }
+                    }
+                    InputBox {
+                        Layout.fillWidth: true
+                        placeholderText: qsTr("启动后修改游戏窗口标题（可选）")
+                        text: backend ? (backend.windowTitleOverride || "") : ""
+                        onAccepted: {
+                            if (backend) backend.setWindowTitleOverride(text.trim())
+                        }
+                    }
+
+                    // ── 版本隔离（只读）──
                     RowLayout {
                         Layout.fillWidth: true
                         Text { text: qsTr("版本隔离（模组/存档独立存储）"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSecondary }
                         Item { Layout.fillWidth: true }
                         ShadowSwitch { checked: true; enabled: false }
                         Text { text: qsTr("始终开启"); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textTertiary }
+                    }
+                }
+            }
+
+            // ═══════════════════════════════════════
+            // 6. 启动命令（pre/post，主流启动器 对齐）
+            // ═══════════════════════════════════════
+            Text {
+                text: qsTr("启动命令")
+                font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Medium; color: StyleTokens.textSecondary
+                Layout.topMargin: 12
+            }
+            Text {
+                text: qsTr("在游戏启动前/退出后执行自定义命令（异步，不阻塞启动）")
+                font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textTertiary
+            }
+            Rectangle {
+                Layout.fillWidth: true
+                implicitHeight: cmdContent.implicitHeight + 16
+                radius: StyleTokens.radiusLg
+                color: StyleTokens.bgSecondary
+                border.color: StyleTokens.bgCard
+
+                ColumnLayout {
+                    id: cmdContent
+                    anchors.left: parent.left; anchors.right: parent.right
+                    anchors.top: parent.top; anchors.margins: 8
+                    spacing: 8
+
+                    Text { text: qsTr("启动前命令"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSecondary }
+                    InputBox {
+                        Layout.fillWidth: true
+                        placeholderText: qsTr("如：start D:\\tools\\sync.bat")
+                        text: backend ? (backend.preLaunchCommand || "") : ""
+                        onAccepted: {
+                            if (backend) backend.setPreLaunchCommand(text.trim())
+                        }
+                    }
+                    Text { text: qsTr("退出后命令"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSecondary; Layout.topMargin: 4 }
+                    InputBox {
+                        Layout.fillWidth: true
+                        placeholderText: qsTr("如：start D:\\tools\\backup.bat")
+                        text: backend ? (backend.postExitCommand || "") : ""
+                        onAccepted: {
+                            if (backend) backend.setPostExitCommand(text.trim())
+                        }
                     }
                 }
             }

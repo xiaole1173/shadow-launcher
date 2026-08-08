@@ -641,6 +641,12 @@ int main(int argc, char *argv[])
 
         // Parse --open-version-menu
         bool openVersionMenu = args.contains(QStringLiteral("--open-version-menu"));
+        // Parse --open-version-settings <section>（版本设置浮层，-1=概览 1=启动配置）
+        int vsSection = -2;
+        int vsIdx = args.indexOf(QStringLiteral("--open-version-settings"));
+        if (vsIdx >= 0 && vsIdx + 1 < args.size()) {
+            vsSection = args[vsIdx + 1].toInt();
+        }
         if (openVersionMenu) {
             targetPage = 1; if (targetTab < 0) targetTab = 3;
         }
@@ -674,9 +680,17 @@ int main(int argc, char *argv[])
 
             // Navigate after QML is ready
             QTimer::singleShot(1500, backend, [backend, targetPage, targetTab, 
-                    detailSlug, expandMajor, togglePreRelease, hasToggle, openVersionMenu]() {
+                    detailSlug, expandMajor, togglePreRelease, hasToggle, openVersionMenu, vsSection]() {
                 emit backend->navigateToRequested(targetPage, targetTab);
                 
+                // --open-version-settings: 打开版本设置浮层到指定分区
+                if (vsSection >= -1) {
+                    QTimer::singleShot(800, backend, [backend, vsSection]() {
+                        qCInfo(logApp) << QStringLiteral("[截图] 打开版本设置浮层 section=%1").arg(vsSection);
+                        emit backend->navigateToRequested(99, vsSection);
+                    });
+                }
+
                 // --toggle-pre-release <on|off>
                 if (hasToggle) {
                     QTimer::singleShot(500, backend, [backend, togglePreRelease]() {
