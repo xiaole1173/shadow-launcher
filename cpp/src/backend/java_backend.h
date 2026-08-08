@@ -70,9 +70,11 @@ public:
     Q_INVOKABLE void installRequiredJavas();
     Q_INVOKABLE void cancelJavaInstall();
     /// 启动流程自动安装单个版本 Java（worker 下载/解压，回调回主线程）：
-    /// onDone(ok, error, javaExe)。安装完成自动触发 javaInstalled 信号。
+    /// onProgress(pct, status) 下载进度（可选）；onDone(ok, error, javaExe)。
+    /// 安装完成自动触发 javaInstalled 信号。
     /// 注：非 Q_INVOKABLE——std::function 参数 moc 不支持，仅 C++ 侧（ShadowBackend）调用
     void installJavaForLaunch(int majorVersion,
+                              std::function<void(int, const QString&)> onProgress,
                               std::function<void(bool, const QString&, const QString&)> onDone);
     /// 前置检测：扫描系统已有 Java，返回 [{major, version, path, isJdk}]
     Q_INVOKABLE QVariantList scanSystemJavas();

@@ -354,9 +354,7 @@ public:
     Q_INVOKABLE void dismissCard(const QString& installId);
     Q_INVOKABLE void launch(const QString& versionId, bool online);
     Q_INVOKABLE void cancelLaunch();
-    /// 启动自动安装 Java（Java 缺失时）：后台 worker 下载安装，完成回调刷新列表并继续启动
-    void autoInstallJavaThenLaunch(const QString& versionId, int requiredMajor, bool online);
-    /// launch() 后半段：auth 注入 + 启动（自动安装 Java 完成后重放）
+    /// launch() 后半段：auth 注入 + 启动（Java 自动安装完成由 LaunchBackend 状态机继续）
     void proceedLaunch(const QString& versionId, bool online, const QString& javaPath,
                        int maxMemory, const QString& jvmArgs, const QString& gameArgs,
                        bool highPerfGpu);
@@ -809,17 +807,6 @@ private:
     int m_lastLoginMode = 1;
     QString m_launchVersion;
     QString m_launchUsername;
-
-    // ── 启动自动安装 Java（2026-08-08）：Java 缺失时后台安装后继续启动 ──
-    bool m_launchJavaInstalling = false;
-    int m_launchJavaRequiredMajor = 0;
-    QString m_launchJavaInstallVersion;   // 待启动的版本 id
-    bool m_launchJavaInstallOnline = false;
-    // 安装完成后继续启动所需的参数快照（避免重入 launch() 重新解析）
-    int m_launchJavaPendingMemory = 0;
-    QString m_launchJavaPendingJvmArgs;
-    QString m_launchJavaPendingGameArgs;
-    bool m_launchJavaPendingHighPerfGpu = false;
 
     // ── Beta key ──
     QString m_betaStatus;

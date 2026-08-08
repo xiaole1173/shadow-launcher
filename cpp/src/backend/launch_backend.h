@@ -75,6 +75,16 @@ public:
     void setGameDir(const QString& dir);
     void setAccount(AccountBackend* account) { m_account = account; }
 
+    /// 注入 Java 自动安装器（ShadowBackend 提供，指向 JavaRuntimeInstaller::installJavaAsync）。
+    /// major: 需求版本；onProgress(pct, status) 下载进度（可选，用于 toast）；
+    /// onDone(ok, error, javaExe)。安装完成后由本类刷新列表并继续启动。
+    using JavaInstallFn = std::function<void(
+        int, std::function<void(int, const QString&)>,
+        std::function<void(bool, const QString&, const QString&)>)>;
+    void setJavaInstaller(JavaInstallFn fn) { m_javaInstallFn = std::move(fn); }
+    /// 请求在启动状态机内自动安装指定版本 Java（由 ShadowBackend 在 Java 匹配失败时设置）
+    void setJavaAutoInstallRequest(int major) { m_javaAutoInstallMajor = major; }
+
     // ── Crash analysis (public API) ──
     Q_INVOKABLE void analyzeCrashNow();          // manual re-analysis (e.g. from dialog "重新分析")
     Q_INVOKABLE QString exportCrashLogs(const QString& destDir = {});  // one-click log export
@@ -112,6 +122,9 @@ private slots:
     void beginTokenRefreshAttempt();
 
 private:
+    /// 启动状态机内自动安装 Java（Step 1 检测到 javaPath 无效时调用）
+    void startJavaAutoInstall(int requiredMajor);
+    void cleanupJavaInstallPoll();
     void handleLaunchStarted(Launcher* launcher);
     void handleLaunchFinished(Launcher* launcher, bool success, const QString& errorMsg);
     void writeLauncherProfilesJson();  // 写入官方启动器兼容的认证信息
@@ -158,6 +171,12 @@ private:
     bool m_pendingHighPerfGpu = false;
     int m_windowWidth = 854;
     int m_windowHeight = 480;
+
+    // ── 启动自动安装 Java（2026-08-08）：Java 缺失/不满足时纳入启动状态机 ──
+    JavaInstallFn m_javaInstallFn;
+    int m_javaAutoInstallMajor = 0;      // >0 表示当前在自动安装该版本 Java
+    QTimer* m_javaInstallPoll = nullptr; // 下载进度轮询 → launchCheckProgress
+    bool m_javaInstallFailed = false;    // 安装失败标志（避免重入）
 
     // ── Crash analysis state ──
     QStringList m_pendingOutput;   // last output of the crashed game

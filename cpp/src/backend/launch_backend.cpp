@@ -134,6 +134,8 @@ void LaunchBackend::cancelLaunch()
     m_cancelled = true;
     if (m_checkTimer) m_checkTimer->stop();
     if (m_refreshTimeoutTimer) m_refreshTimeoutTimer->stop();
+    cleanupJavaInstallPoll();
+    m_javaAutoInstallMajor = 0;
 
     // If a game process was already started, kill it
     if (m_activeLauncher) {
@@ -335,6 +337,67 @@ QVariantMap LaunchBackend::getMemoryStatus()
 // Async Pre-launch Check Steps
 // ============================================================
 
+/// 启动状态机内自动安装 Java：调注入的安装器（worker 下载/解压），
+/// 进度经 launchCheckProgress 轮询上报（QML toast 显示），完成后
+/// 更新 m_pendingJavaPath 并继续状态机；失败则 abortCheck。
+void LaunchBackend::startJavaAutoInstall(int requiredMajor)
+{
+    if (!m_javaInstallFn) {
+        abortCheck(tr("Java 自动安装"), tr("安装器未就绪"));
+        return;
+    }
+    m_javaAutoInstallMajor = requiredMajor;
+    m_javaInstallFailed = false;
+
+    qCInfo(logLaunch) << QStringLiteral("[启动] 开始自动安装 Java %1 (版本 %2)")
+        .arg(requiredMajor).arg(m_pendingVersionId);
+    emit logMessage(tr("正在自动下载 Java %1...").arg(requiredMajor));
+
+    m_javaInstallFn(requiredMajor,
+        // 进度回调（JavaRuntimeInstaller 下载进度 → toast）
+        [this, requiredMajor](int pct, const QString& status) {
+            if (m_cancelled) return;
+            if (pct > 0)
+                emit launchCheckProgress(tr("正在下载 Java %1 (%2%)...").arg(requiredMajor).arg(pct));
+            else if (!status.isEmpty())
+                emit launchCheckProgress(status);
+        },
+        // 完成回调
+        [this, requiredMajor](bool ok, const QString& err, const QString& javaExe) {
+            cleanupJavaInstallPoll();
+            m_javaAutoInstallMajor = 0;
+            if (m_cancelled) {
+                // 用户取消启动：不继续，overlay 已关闭
+                return;
+            }
+            if (!ok) {
+                m_javaInstallFailed = true;
+                qCWarning(logLaunch) << QStringLiteral("[启动] 自动安装 Java %1 失败: %2").arg(requiredMajor).arg(err);
+                emit logMessage(tr("[失败] Java %1 自动安装失败: %2").arg(requiredMajor).arg(err));
+                abortCheck(tr("Java 自动安装"), tr("Java %1 下载安装失败: %2").arg(requiredMajor).arg(err));
+                return;
+            }
+            qCInfo(logLaunch) << QStringLiteral("[启动] 自动安装 Java %1 完成: %2").arg(requiredMajor).arg(javaExe);
+            emit logMessage(tr("[完成] Java %1 已自动安装").arg(requiredMajor));
+            emit launchCheckProgress(tr("Java %1 下载完成，正在继续启动...").arg(requiredMajor));
+            // 更新 Java 路径并继续状态机（从 Step 1 的下一个 step 开始）
+            m_pendingJavaPath = javaExe;
+            if (m_checkTimer) {
+                m_checkStep++;   // Step 1 已通过（Java 就绪）
+                m_checkTimer->start();
+            }
+        });
+}
+
+void LaunchBackend::cleanupJavaInstallPoll()
+{
+    if (m_javaInstallPoll) {
+        m_javaInstallPoll->stop();
+        m_javaInstallPoll->deleteLater();
+        m_javaInstallPoll = nullptr;
+    }
+}
+
 void LaunchBackend::abortCheck(const QString& phase, const QString& reason)
 {
     qCDebug(logLaunch) << "[PROGRESS] ABORT: " << phase << "—" << reason;
@@ -532,6 +595,17 @@ void LaunchBackend::runNextCheck()
         emit launchProgressChanged(10, tr("检查 Java 环境..."));
         qCDebug(logLaunch) << "[PROGRESS] 10% - 检查 Java 环境...";
         if (!QFileInfo::exists(m_pendingJavaPath)) {
+            // ── 2026-08-08：Java 缺失/无效 → 纳入启动状态机自动安装 ──
+            // 若调用方（ShadowBackend）已判定需求版本并置 m_javaAutoInstallMajor，
+            // 则走自动安装子流程（下载完成回调后更新 m_pendingJavaPath 并继续）；
+            // 否则（无安装器/未指定需求）维持原 abort 行为。
+            if (m_javaAutoInstallMajor > 0 && m_javaInstallFn) {
+                qCInfo(logLaunch) << QStringLiteral("[启动] Java 无效，自动安装 Java %1").arg(m_javaAutoInstallMajor);
+                emit launchCheckWarning(tr("正在自动下载 Java %1...").arg(m_javaAutoInstallMajor));
+                emit launchCheckProgress(tr("正在自动下载 Java %1...").arg(m_javaAutoInstallMajor));
+                startJavaAutoInstall(m_javaAutoInstallMajor);
+                return;  // 状态机暂停，安装完成回调继续
+            }
             abortCheck(tr("Java 可执行文件"),
                        tr("路径: %1").arg(m_pendingJavaPath));
             return;

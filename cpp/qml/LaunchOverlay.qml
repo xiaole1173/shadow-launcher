@@ -216,13 +216,13 @@ Rectangle {
             }
             // Update Java download progress in toast
             if (_javaDlActive && !_javaDlDone && step) {
-                if (step.indexOf("Java") >= 0)
-                    _javaDlText = step
-                else if (step.indexOf("正在启动") >= 0) {
-                    // 安装完成 → 启动中：保持 toast 显示"完成"
+                if (step.indexOf("下载完成") >= 0 || step.indexOf("就绪") >= 0) {
+                    // 安装完成：toast 转成功态 + 定时退出
                     _javaDlDone = true
                     _javaDlText = "Java 下载完成，正在启动..."
                     _javaDlDoneTimer.start()
+                } else if (step.indexOf("Java") >= 0) {
+                    _javaDlText = step
                 }
             }
         }

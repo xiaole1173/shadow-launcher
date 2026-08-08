@@ -126,6 +126,14 @@ ShadowBackend::ShadowBackend(QObject* parent)
     m_java = new JavaBackend(this);
     bp("JavaBackend");
 
+    // ── 注入 Java 自动安装器到 LaunchBackend（启动状态机内 Java 缺失时自动安装）──
+    m_launch->setJavaInstaller(
+        [this](int major,
+               std::function<void(int, const QString&)> onProgress,
+               std::function<void(bool, const QString&, const QString&)> onDone) {
+            m_java->installJavaForLaunch(major, std::move(onProgress), std::move(onDone));
+        });
+
     // ── Java 一键安装完成后：自动刷新两处 Java 状态 ──
     // 1) SettingsBackend 重新扫描系统 Java（设置-Java 列表更新）
     // 2) JavaRuntimeInstaller 重新前置检测（关于页一键安装卡片更新）
@@ -2138,17 +2146,20 @@ void ShadowBackend::launch(const QString& versionId, bool online) {
     }
 
     if (javaPath.isEmpty()) {
-        // ── 2026-08-08：Java 缺失 → 自动下载安装后继续启动 ──
-        // 有扫描进行中的情况：等扫描完再判断（避免误判缺失）
+        // ── 2026-08-08：Java 缺失 → 纳入启动状态机自动安装 ──
+        // 不在此拦截：设置需求版本 + 传空路径给 LaunchBackend，由状态机
+        // Step 1 检测后触发自动安装（overlay 全程可见，下载进度走 toast）。
         if (m_settings->isJavaScanning()) {
             emit logMessage(QStringLiteral("[JAVA] Java scan still in progress, please wait and try again"));
             emit launchBlocked(tr("Java 扫描进行中，请稍后再试"));
             return;
         }
-        emit logMessage(tr("[提示] 此版本需要 Java %1，但系统中未找到匹配的 Java，开始自动安装...")
+        emit logMessage(tr("[提示] 此版本需要 Java %1，但系统中未找到匹配的 Java，将在启动流程中自动安装...")
                             .arg(requiredMajor));
-        autoInstallJavaThenLaunch(versionId, requiredMajor, online);
-        return;
+        // 版本归一化：Tuna 无 JRE 16（404 实测），Java 17 兼容 1.17
+        if (requiredMajor == 16) requiredMajor = 17;
+        m_launch->setJavaAutoInstallRequest(requiredMajor);
+        javaPath.clear();   // 空路径 → LaunchBackend Step 1 触发自动安装
     }
 
     // Pass auth info based on mode
@@ -2176,6 +2187,7 @@ void ShadowBackend::proceedLaunch(const QString& versionId, bool online, const Q
                                   int maxMemory, const QString& jvmArgs, const QString& gameArgs,
                                   bool highPerfGpu)
 {
+    // 启动参数由 LaunchBackend 状态机持有；Java 自动安装已在状态机内完成（若需要）
     m_launch->setAutoLangMode(m_settings->autoLangMode());
     m_launch->setDetectedRegion(m_geoIp ? m_geoIp->cachedRegion() : QString());
     m_launch->setVersionGameDir(m_settings->getVersionGameDir(versionId));
@@ -2183,103 +2195,8 @@ void ShadowBackend::proceedLaunch(const QString& versionId, bool online, const Q
                      m_settings->windowWidth(), m_settings->windowHeight());
 }
 
-void ShadowBackend::autoInstallJavaThenLaunch(const QString& versionId, int requiredMajor, bool online)
-{
-    if (m_launchJavaInstalling) {
-        emit launchBlocked(tr("Java 正在安装中，请稍候"));
-        return;
-    }
-    // 版本归一化：Tuna 镜像无 JRE 16（404），Java 17 完全兼容 1.17（class 格式兼容）
-    if (requiredMajor == 16)
-        requiredMajor = 17;
-    m_launchJavaInstalling = true;
-    m_launchJavaRequiredMajor = requiredMajor;
-    m_launchJavaInstallVersion = versionId;
-    m_launchJavaInstallOnline = online;
-
-    // 快照当前启动参数（安装完成后续用，避免重入 launch() 重新解析）
-    // 内存计算与 launch() 完全一致（per-version override → 全局）
-    const int verMode = m_settings->versionMemoryMode(versionId);
-    if (verMode == 1) {
-        m_launchJavaPendingMemory = m_launch->getAutoMemoryForVersion(versionId);
-    } else if (verMode == 2) {
-        m_launchJavaPendingMemory = m_settings->versionMemoryManualMB(versionId);
-    } else {
-        m_launchJavaPendingMemory = m_settings->autoMemoryEnabled()
-            ? m_launch->getAutoMemoryForVersion(versionId)
-            : m_settings->maxMemoryMB();
-    }
-    m_launchJavaPendingJvmArgs = resolvedJvmArgs(versionId);
-    m_launchJavaPendingGameArgs = resolvedGameArgs(versionId);
-    m_launchJavaPendingHighPerfGpu = resolvedHighPerfGpu(versionId);
-
-    emit launchCheckWarning(tr("正在自动下载 Java %1...").arg(requiredMajor));
-    emit launchCheckProgress(tr("正在自动下载 Java %1...").arg(requiredMajor));
-    qCInfo(logLaunch) << QStringLiteral("[JAVA] 启动自动安装 Java %1 (版本 %2)").arg(requiredMajor).arg(versionId);
-
-    // 进度轮询：JavaRuntimeInstaller 下载进度属性 → launchCheckProgress（QML toast 显示）
-    QTimer* poll = new QTimer(this);
-    poll->setInterval(250);
-    connect(poll, &QTimer::timeout, this, [this, poll, requiredMajor]() {
-        if (!m_launchJavaInstalling) { poll->stop(); poll->deleteLater(); return; }
-        const int pct = m_java->javaDownloadPercent();
-        const QString status = m_java->javaInstallStatus();
-        if (pct > 0)
-            emit launchCheckProgress(tr("正在下载 Java %1 (%2%)...").arg(requiredMajor).arg(pct));
-        else if (!status.isEmpty())
-            emit launchCheckProgress(status);
-    });
-    poll->start();
-
-    m_java->installJavaForLaunch(requiredMajor,
-        [this, poll, versionId, requiredMajor, online](bool ok, const QString& err, const QString& javaExe) {
-            poll->stop();
-            poll->deleteLater();
-            if (!m_launchJavaInstalling) {
-                // 已被 cancelLaunch 中止（已发取消提示），忽略迟到回调
-                return;
-            }
-            m_launchJavaInstalling = false;
-            if (!ok) {
-                qCWarning(logLaunch) << QStringLiteral("[JAVA] 自动安装 Java %1 失败: %2").arg(requiredMajor).arg(err);
-                emit logMessage(tr("[失败] Java %1 自动安装失败: %2").arg(requiredMajor).arg(err));
-                emit launchBlocked(tr("Java %1 自动安装失败: %2").arg(requiredMajor).arg(err));
-                return;
-            }
-            qCInfo(logLaunch) << QStringLiteral("[JAVA] 自动安装 Java %1 完成: %2").arg(requiredMajor).arg(javaExe);
-            emit logMessage(tr("[完成] Java %1 已自动安装: %2").arg(requiredMajor).arg(javaExe));
-            emit launchCheckProgress(tr("Java %1 下载完成，正在刷新 Java 列表...").arg(requiredMajor));
-
-            // 刷新 Java 列表（java_cache 新装的会进入 scanJavaInstallations）——异步，
-            // 不阻塞启动；findJavaForVersion 用已知的 javaExe 路径兜底（onDone 已给）
-            m_settings->scanJavaInstallations();
-            m_java->scanSystemJavas();
-
-            // 用安装回调返回的 java.exe 直接启动（scanJavaInstallations 异步刷新列表，
-            // 立即 findJavaForVersion 可能拿旧缓存；安装路径已知，无需再查）
-            const QString newJava = javaExe;
-            if (newJava.isEmpty() || !QFileInfo::exists(newJava)) {
-                emit logMessage(tr("[失败] Java %1 安装完成但可执行文件缺失: %2")
-                                    .arg(requiredMajor).arg(newJava));
-                emit launchBlocked(tr("Java %1 安装完成，但未找到可执行文件").arg(requiredMajor));
-                return;
-            }
-            emit logMessage(tr("[完成] 使用自动安装的 Java %1 启动").arg(newJava));
-            emit launchCheckProgress(tr("Java 就绪，正在启动..."));
-            // 刷新列表后重放 auth 注入 + 启动（内存参数沿用快照）
-            proceedLaunch(versionId, online, newJava,
-                          m_launchJavaPendingMemory, m_launchJavaPendingJvmArgs,
-                          m_launchJavaPendingGameArgs, m_launchJavaPendingHighPerfGpu);
-        });
-}
-
 void ShadowBackend::cancelLaunch() {
-    // 自动安装 Java 进行中：中止安装（JavaRuntimeInstaller 支持取消）
-    if (m_launchJavaInstalling) {
-        m_launchJavaInstalling = false;
-        m_java->cancelJavaInstall();
-        emit launchBlocked(tr("已取消 Java 自动安装"));
-    }
+    // Java 自动安装在 LaunchBackend 状态机内（cancelLaunch 内部会清理安装状态）
     m_launch->cancelLaunch();
 }
 
