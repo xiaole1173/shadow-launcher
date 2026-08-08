@@ -164,6 +164,18 @@ ShadowBackend::ShadowBackend(QObject* parent)
                 emit logMessage(tr("[完成] 已自动匹配 Java %1: %2").arg(requiredMajor).arg(matched));
             return matched;
         });
+    // 列表刷新器：扫描 + 等 javaScanFinished（SingleShot 连接）→ onDone；不弹 toast
+    m_launch->setJavaRefresher(
+        [this](std::function<void()> onDone) {
+            auto* conn = new QMetaObject::Connection;
+            *conn = connect(m_settings, &SettingsBackend::javaScanFinished, this,
+                [this, conn, onDone]() {
+                    disconnect(*conn);
+                    delete conn;
+                    if (onDone) onDone();
+                });
+            m_settings->scanJavaInstallations();
+        });
 
     // ── Java 一键安装完成后：自动刷新两处 Java 状态 ──
     // 1) SettingsBackend 重新扫描系统 Java（设置-Java 列表更新）

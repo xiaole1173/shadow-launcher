@@ -94,6 +94,7 @@ void LaunchBackend::launch(const QString& versionId, const QString& username,
     qCInfo(logUI) << QStringLiteral("启动游戏: ") << versionId << username;
     m_cancelled = false;
     m_launchProgress = 0;
+    m_javaListRefreshed = false;   // 新一轮启动：Step 1 重新刷新 Java 列表
 
     m_launchStatus = tr("正在准备...");
     emit launchStateChanged();
@@ -606,11 +607,26 @@ void LaunchBackend::runNextCheck()
     case 1: {
         // Step 1 (10%): Java environment
         // ── 2026-08-08：Java 检测/匹配/自动安装全部在启动状态机内完成 ──
-        // 不依赖 ShadowBackend 提前判定：这里解析需求 → 匹配 → 缺失则自动安装。
+        // 先刷新 Java 列表（保证检测基于最新安装，启动器开着时删 Java 也能感知；
+        // 刷新不弹 toast），完成后再做需求判定与匹配。
         emit launchCheckProgress(tr("检查 Java 环境..."));
         m_launchProgress = 10;
         emit launchProgressChanged(10, tr("检查 Java 环境..."));
         qCDebug(logLaunch) << "[PROGRESS] 10% - 检查 Java 环境...";
+
+        // 0) 首次进入 Step 1：刷新 Java 列表（异步），完成后重新进入本步继续
+        if (!m_javaListRefreshed && m_javaRefreshFn) {
+            m_javaListRefreshed = true;
+            m_checkTimer->stop();   // 暂停状态机，等刷新完成
+            emit launchCheckProgress(tr("正在检测 Java 环境..."));
+            qCInfo(logLaunch) << QStringLiteral("[启动] 刷新 Java 列表...");
+            m_javaRefreshFn([this]() {
+                if (m_cancelled) return;
+                qCInfo(logLaunch) << QStringLiteral("[启动] Java 列表刷新完成，继续检查");
+                if (m_checkTimer) m_checkTimer->start();   // 重新进入 Step 1
+            });
+            return;
+        }
 
         // 0) 若调用方已提供明确路径（手动选择）且存在 → 直接用
         if (!m_pendingJavaPath.isEmpty() && QFileInfo::exists(m_pendingJavaPath)) {

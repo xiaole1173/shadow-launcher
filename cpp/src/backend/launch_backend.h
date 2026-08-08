@@ -94,6 +94,11 @@ public:
     /// 返回匹配路径；空 = 未找到（此时由状态机决定自动安装）。
     using JavaMatcherFn = std::function<QString(int requiredMajor)>;
     void setJavaMatcher(JavaMatcherFn fn) { m_javaMatcher = std::move(fn); }
+    /// 注入 Java 列表刷新器（ShadowBackend 提供）：刷新已安装 Java 列表（异步），
+    /// 完成后调用 onDone。启动 Step 1 先刷新再匹配，保证检测基于最新列表
+    /// （启动器开着时删除 Java 也能感知；刷新不弹 toast）。
+    using JavaRefreshFn = std::function<void(std::function<void()> onDone)>;
+    void setJavaRefresher(JavaRefreshFn fn) { m_javaRefreshFn = std::move(fn); }
     /// 请求在启动状态机内自动安装指定版本 Java（由 ShadowBackend 在 Java 匹配失败时设置）
     void setJavaAutoInstallRequest(int major) { m_javaAutoInstallMajor = major; }
 
@@ -189,9 +194,11 @@ private:
     JavaCancelFn m_javaCancelFn;
     JavaMajorResolverFn m_javaMajorResolver;
     JavaMatcherFn m_javaMatcher;
+    JavaRefreshFn m_javaRefreshFn;
     int m_javaAutoInstallMajor = 0;      // >0 表示当前在自动安装该版本 Java
     QTimer* m_javaInstallPoll = nullptr; // 下载进度轮询 → launchCheckProgress
     bool m_javaInstallFailed = false;    // 安装失败标志（避免重入）
+    bool m_javaListRefreshed = false;    // Step 1 本轮已刷新列表（防重复刷新）
 
     // ── Crash analysis state ──
     QStringList m_pendingOutput;   // last output of the crashed game
