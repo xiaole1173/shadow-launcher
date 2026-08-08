@@ -109,6 +109,23 @@ public:
     Q_INVOKABLE void setVersionGcMode(const QString& versionId, int mode);
     Q_INVOKABLE QString versionAutoJoinServer(const QString& versionId) const;  // 空=跟随全局
     Q_INVOKABLE void setVersionAutoJoinServer(const QString& versionId, const QString& addr);
+    // 全屏/窗口标题/命令：mode 语义同 highPerfGpu（0=跟随全局 1=版本覆盖）
+    Q_INVOKABLE int versionFullscreenMode(const QString& versionId) const;
+    Q_INVOKABLE void setVersionFullscreenMode(const QString& versionId, int mode);
+    Q_INVOKABLE bool versionFullscreen(const QString& versionId) const;
+    Q_INVOKABLE void setVersionFullscreen(const QString& versionId, bool v);
+    Q_INVOKABLE int versionWindowTitleMode(const QString& versionId) const;
+    Q_INVOKABLE void setVersionWindowTitleMode(const QString& versionId, int mode);
+    Q_INVOKABLE QString versionWindowTitle(const QString& versionId) const;
+    Q_INVOKABLE void setVersionWindowTitle(const QString& versionId, const QString& v);
+    Q_INVOKABLE int versionPreLaunchMode(const QString& versionId) const;
+    Q_INVOKABLE void setVersionPreLaunchMode(const QString& versionId, int mode);
+    Q_INVOKABLE QString versionPreLaunchCommand(const QString& versionId) const;
+    Q_INVOKABLE void setVersionPreLaunchCommand(const QString& versionId, const QString& v);
+    Q_INVOKABLE int versionPostExitMode(const QString& versionId) const;
+    Q_INVOKABLE void setVersionPostExitMode(const QString& versionId, int mode);
+    Q_INVOKABLE QString versionPostExitCommand(const QString& versionId) const;
+    Q_INVOKABLE void setVersionPostExitCommand(const QString& versionId, const QString& v);
 
     Q_INVOKABLE QVariantList availableJavaList();
     Q_INVOKABLE void selectJavaByIndex(int index);

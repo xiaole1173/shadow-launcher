@@ -51,8 +51,13 @@ Window {
     // 截图测试模式 / 外部调用：打开版本设置浮层并跳到指定分区（-1=保持概览）
     function openVersionSettingsSection(section) {
         showVersionSettings = true
-        if (section >= 0 && versionSettingsLoader.item) {
-            versionSettingsLoader.item.currentNavIndex = section
+        if (versionSettingsLoader.item) {
+            if (section >= 0) {
+                versionSettingsLoader.item.currentNavIndex = section
+            }
+        } else if (section >= 0) {
+            // Loader 尚未就绪：等 onLoaded 后重试（截图模式时序需要）
+            var t = Qt.createQmlObject('import QtQuick; Timer { interval: 300; running: true; repeat: false; onTriggered: { if (versionSettingsLoader.item) versionSettingsLoader.item.currentNavIndex = ' + section + '; destroy() } }', appWindow)
         }
     }
 

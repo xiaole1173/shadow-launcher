@@ -309,37 +309,79 @@ Rectangle {
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 8
-                    Repeater {
-                        model: [
-                            { label: qsTr("高"), value: 0 },
-                            { label: qsTr("正常"), value: 1 },
-                            { label: qsTr("低"), value: 2 }
-                        ]
-                        Rectangle {
-                            id: priChip
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 32
-                            radius: StyleTokens.radiusMd
-                            color: (backend && backend.processPriority === modelData.value) ? StyleTokens.accentLight : StyleTokens.bgSecondary
-                            border.color: (backend && backend.processPriority === modelData.value) ? StyleTokens.accent : StyleTokens.bgInput
-                            border.width: 1
-                            scale: priMa.pressed ? 0.94 : 1.0
-                            Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
-                            Behavior on color { ColorAnimation { duration: 150 } }
-                            Text {
-                                anchors.centerIn: parent
-                                text: modelData.label
-                                font.pixelSize: StyleTokens.fontSizeSm
-                                color: (backend && backend.processPriority === modelData.value) ? StyleTokens.textPrimary : StyleTokens.textTertiary
-                            }
-                            MouseArea {
-                                id: priMa
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    if (backend) backend.setProcessPriority(modelData.value)
-                                }
-                            }
+
+                    // 高
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 32
+                        radius: StyleTokens.radiusMd
+                        color: (backend && backend.processPriority === 0) ? StyleTokens.accentLight : StyleTokens.bgSecondary
+                        border.color: (backend && backend.processPriority === 0) ? StyleTokens.accent : StyleTokens.bgInput
+                        border.width: 1
+                        scale: priHighMa.pressed ? 0.94 : 1.0
+                        Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+                        Behavior on color { ColorAnimation { duration: 150 } }
+                        Text {
+                            anchors.centerIn: parent
+                            text: qsTr("高")
+                            font.pixelSize: StyleTokens.fontSizeSm
+                            color: (backend && backend.processPriority === 0) ? StyleTokens.textPrimary : StyleTokens.textTertiary
+                        }
+                        MouseArea {
+                            id: priHighMa
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: { if (backend) backend.setProcessPriority(0) }
+                        }
+                    }
+
+                    // 正常
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 32
+                        radius: StyleTokens.radiusMd
+                        color: (backend && backend.processPriority === 1) ? StyleTokens.accentLight : StyleTokens.bgSecondary
+                        border.color: (backend && backend.processPriority === 1) ? StyleTokens.accent : StyleTokens.bgInput
+                        border.width: 1
+                        scale: priNormMa.pressed ? 0.94 : 1.0
+                        Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+                        Behavior on color { ColorAnimation { duration: 150 } }
+                        Text {
+                            anchors.centerIn: parent
+                            text: qsTr("正常")
+                            font.pixelSize: StyleTokens.fontSizeSm
+                            color: (backend && backend.processPriority === 1) ? StyleTokens.textPrimary : StyleTokens.textTertiary
+                        }
+                        MouseArea {
+                            id: priNormMa
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: { if (backend) backend.setProcessPriority(1) }
+                        }
+                    }
+
+                    // 低
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 32
+                        radius: StyleTokens.radiusMd
+                        color: (backend && backend.processPriority === 2) ? StyleTokens.accentLight : StyleTokens.bgSecondary
+                        border.color: (backend && backend.processPriority === 2) ? StyleTokens.accent : StyleTokens.bgInput
+                        border.width: 1
+                        scale: priLowMa.pressed ? 0.94 : 1.0
+                        Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+                        Behavior on color { ColorAnimation { duration: 150 } }
+                        Text {
+                            anchors.centerIn: parent
+                            text: qsTr("低")
+                            font.pixelSize: StyleTokens.fontSizeSm
+                            color: (backend && backend.processPriority === 2) ? StyleTokens.textPrimary : StyleTokens.textTertiary
+                        }
+                        MouseArea {
+                            id: priLowMa
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: { if (backend) backend.setProcessPriority(2) }
                         }
                     }
                 }
@@ -370,6 +412,49 @@ Rectangle {
                         if (backend) backend.setAutoJoinServer(text.trim())
                     }
                 }
+
+                // ── 全屏启动（全局默认）──
+                RowLayout {
+                    Layout.fillWidth: true
+                    Text { text: qsTr("全屏启动"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary; Layout.topMargin: 8; Layout.fillWidth: true }
+                    ShadowSwitch {
+                        Layout.topMargin: 8
+                        checked: (backend) ? !!backend.fullscreenEnabled : false
+                        onToggled: { if (backend) backend.setFullscreenEnabled(checked) }
+                    }
+                }
+
+                // ── 窗口标题（全局默认）──
+                Text { text: qsTr("窗口标题"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary; Layout.topMargin: 8 }
+                InputBox {
+                    Layout.fillWidth: true
+                    placeholderText: qsTr("启动后修改游戏窗口标题（留空不修改）")
+                    text: (backend) ? (backend.windowTitleOverride || "") : ""
+                    onAccepted: {
+                        if (backend) backend.setWindowTitleOverride(text.trim())
+                    }
+                }
+
+                // ── 启动前/退出后命令（全局默认）──
+                Text { text: qsTr("启动前命令"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary; Layout.topMargin: 8 }
+                InputBox {
+                    Layout.fillWidth: true
+                    placeholderText: qsTr("如：start D:\\tools\\sync.bat（留空不执行）")
+                    text: (backend) ? (backend.preLaunchCommand || "") : ""
+                    onAccepted: {
+                        if (backend) backend.setPreLaunchCommand(text.trim())
+                    }
+                }
+                Text { text: qsTr("退出后命令"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary; Layout.topMargin: 8 }
+                InputBox {
+                    Layout.fillWidth: true
+                    placeholderText: qsTr("如：start D:\\tools\\backup.bat（留空不执行）")
+                    text: (backend) ? (backend.postExitCommand || "") : ""
+                    onAccepted: {
+                        if (backend) backend.setPostExitCommand(text.trim())
+                    }
+                }
+                Text { text: qsTr("以上默认值可在版本设置-启动配置中按版本单独覆盖"); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textMuted }
 
                 // ═══ 配置管理（设置导入导出）═══
                 Text { text: qsTr("配置管理"); font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold; color: "#b8c0d0"; Layout.topMargin: 8 }

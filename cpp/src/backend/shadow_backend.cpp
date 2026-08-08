@@ -1528,6 +1528,85 @@ QString ShadowBackend::resolvedAutoJoinServer(const QString& versionId) const {
     return ver.isEmpty() ? m_settings->autoJoinServer() : ver;
 }
 
+// ── 全屏/窗口标题/命令：版本级覆盖（mode==1 用版本值，否则全局）──
+
+int ShadowBackend::versionFullscreenMode(const QString& versionId) const {
+    return m_settings->versionFullscreenMode(versionId);
+}
+void ShadowBackend::setVersionFullscreenMode(const QString& versionId, int mode) {
+    m_settings->setVersionFullscreenMode(versionId, mode);
+    emit versionLaunchSettingsChanged(versionId);
+}
+bool ShadowBackend::versionFullscreen(const QString& versionId) const {
+    return m_settings->versionFullscreen(versionId);
+}
+void ShadowBackend::setVersionFullscreen(const QString& versionId, bool v) {
+    m_settings->setVersionFullscreen(versionId, v);
+    emit versionLaunchSettingsChanged(versionId);
+}
+int ShadowBackend::versionWindowTitleMode(const QString& versionId) const {
+    return m_settings->versionWindowTitleMode(versionId);
+}
+void ShadowBackend::setVersionWindowTitleMode(const QString& versionId, int mode) {
+    m_settings->setVersionWindowTitleMode(versionId, mode);
+    emit versionLaunchSettingsChanged(versionId);
+}
+QString ShadowBackend::versionWindowTitle(const QString& versionId) const {
+    return m_settings->versionWindowTitle(versionId);
+}
+void ShadowBackend::setVersionWindowTitle(const QString& versionId, const QString& v) {
+    m_settings->setVersionWindowTitle(versionId, v);
+    emit versionLaunchSettingsChanged(versionId);
+}
+int ShadowBackend::versionPreLaunchMode(const QString& versionId) const {
+    return m_settings->versionPreLaunchMode(versionId);
+}
+void ShadowBackend::setVersionPreLaunchMode(const QString& versionId, int mode) {
+    m_settings->setVersionPreLaunchMode(versionId, mode);
+    emit versionLaunchSettingsChanged(versionId);
+}
+QString ShadowBackend::versionPreLaunchCommand(const QString& versionId) const {
+    return m_settings->versionPreLaunchCommand(versionId);
+}
+void ShadowBackend::setVersionPreLaunchCommand(const QString& versionId, const QString& v) {
+    m_settings->setVersionPreLaunchCommand(versionId, v);
+    emit versionLaunchSettingsChanged(versionId);
+}
+int ShadowBackend::versionPostExitMode(const QString& versionId) const {
+    return m_settings->versionPostExitMode(versionId);
+}
+void ShadowBackend::setVersionPostExitMode(const QString& versionId, int mode) {
+    m_settings->setVersionPostExitMode(versionId, mode);
+    emit versionLaunchSettingsChanged(versionId);
+}
+QString ShadowBackend::versionPostExitCommand(const QString& versionId) const {
+    return m_settings->versionPostExitCommand(versionId);
+}
+void ShadowBackend::setVersionPostExitCommand(const QString& versionId, const QString& v) {
+    m_settings->setVersionPostExitCommand(versionId, v);
+    emit versionLaunchSettingsChanged(versionId);
+}
+bool ShadowBackend::resolvedFullscreen(const QString& versionId) const {
+    if (m_settings->versionFullscreenMode(versionId) == 1)
+        return m_settings->versionFullscreen(versionId);
+    return m_settings->fullscreenEnabled();
+}
+QString ShadowBackend::resolvedWindowTitle(const QString& versionId) const {
+    if (m_settings->versionWindowTitleMode(versionId) == 1)
+        return m_settings->versionWindowTitle(versionId);
+    return m_settings->windowTitleOverride();
+}
+QString ShadowBackend::resolvedPreLaunchCommand(const QString& versionId) const {
+    if (m_settings->versionPreLaunchMode(versionId) == 1)
+        return m_settings->versionPreLaunchCommand(versionId);
+    return m_settings->preLaunchCommand();
+}
+QString ShadowBackend::resolvedPostExitCommand(const QString& versionId) const {
+    if (m_settings->versionPostExitMode(versionId) == 1)
+        return m_settings->versionPostExitCommand(versionId);
+    return m_settings->postExitCommand();
+}
+
 bool ShadowBackend::exportSettingsToFile(const QString& path) {
     return m_settings->exportSettingsToFile(path);
 }
@@ -2215,11 +2294,11 @@ void ShadowBackend::proceedLaunch(const QString& versionId, bool online, const Q
     // ── 启动细节（低垂果实批，2026-08-08）：版本级优先 → 全局 ──
     m_launch->setGcMode(resolvedGcMode(versionId));
     m_launch->setProcessPriority(m_settings->processPriority());
-    m_launch->setFullscreenEnabled(m_settings->fullscreenEnabled());
+    m_launch->setFullscreenEnabled(resolvedFullscreen(versionId));
     m_launch->setAutoJoinServer(resolvedAutoJoinServer(versionId));
-    m_launch->setWindowTitleOverride(m_settings->windowTitleOverride());
-    m_launch->setPreLaunchCommand(m_settings->preLaunchCommand());
-    m_launch->setPostExitCommand(m_settings->postExitCommand());
+    m_launch->setWindowTitleOverride(resolvedWindowTitle(versionId));
+    m_launch->setPreLaunchCommand(resolvedPreLaunchCommand(versionId));
+    m_launch->setPostExitCommand(resolvedPostExitCommand(versionId));
     m_launch->launch(versionId, m_launchUsername, javaPath, maxMemory, jvmArgs, gameArgs, highPerfGpu,
                      m_settings->windowWidth(), m_settings->windowHeight());
 }

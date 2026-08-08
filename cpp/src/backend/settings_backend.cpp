@@ -681,6 +681,113 @@ void SettingsBackend::setVersionAutoJoinServer(const QString& versionId, const Q
     s.sync();
 }
 
+// ── 全屏/窗口标题/命令 版本级（mode 语义同 highPerfGpu：0=跟随全局 1=版本覆盖）──
+
+int SettingsBackend::versionFullscreenMode(const QString& versionId) const
+{
+    QSettings s(QCoreApplication::organizationName(),
+                QCoreApplication::applicationName());
+    return s.value(QStringLiteral("versionLaunch/") + versionId + QStringLiteral("/fullscreenMode"), 0).toInt();
+}
+void SettingsBackend::setVersionFullscreenMode(const QString& versionId, int mode)
+{
+    QSettings s(QCoreApplication::organizationName(),
+                QCoreApplication::applicationName());
+    s.setValue(QStringLiteral("versionLaunch/") + versionId + QStringLiteral("/fullscreenMode"), mode);
+    s.sync();
+}
+bool SettingsBackend::versionFullscreen(const QString& versionId) const
+{
+    QSettings s(QCoreApplication::organizationName(),
+                QCoreApplication::applicationName());
+    return s.value(QStringLiteral("versionLaunch/") + versionId + QStringLiteral("/fullscreen"), false).toBool();
+}
+void SettingsBackend::setVersionFullscreen(const QString& versionId, bool v)
+{
+    QSettings s(QCoreApplication::organizationName(),
+                QCoreApplication::applicationName());
+    s.setValue(QStringLiteral("versionLaunch/") + versionId + QStringLiteral("/fullscreen"), v);
+    s.sync();
+}
+int SettingsBackend::versionWindowTitleMode(const QString& versionId) const
+{
+    QSettings s(QCoreApplication::organizationName(),
+                QCoreApplication::applicationName());
+    return s.value(QStringLiteral("versionLaunch/") + versionId + QStringLiteral("/windowTitleMode"), 0).toInt();
+}
+void SettingsBackend::setVersionWindowTitleMode(const QString& versionId, int mode)
+{
+    QSettings s(QCoreApplication::organizationName(),
+                QCoreApplication::applicationName());
+    s.setValue(QStringLiteral("versionLaunch/") + versionId + QStringLiteral("/windowTitleMode"), mode);
+    s.sync();
+}
+QString SettingsBackend::versionWindowTitle(const QString& versionId) const
+{
+    QSettings s(QCoreApplication::organizationName(),
+                QCoreApplication::applicationName());
+    return s.value(QStringLiteral("versionLaunch/") + versionId + QStringLiteral("/windowTitle"), QString()).toString();
+}
+void SettingsBackend::setVersionWindowTitle(const QString& versionId, const QString& v)
+{
+    QSettings s(QCoreApplication::organizationName(),
+                QCoreApplication::applicationName());
+    s.setValue(QStringLiteral("versionLaunch/") + versionId + QStringLiteral("/windowTitle"), v);
+    s.sync();
+}
+int SettingsBackend::versionPreLaunchMode(const QString& versionId) const
+{
+    QSettings s(QCoreApplication::organizationName(),
+                QCoreApplication::applicationName());
+    return s.value(QStringLiteral("versionLaunch/") + versionId + QStringLiteral("/preLaunchMode"), 0).toInt();
+}
+void SettingsBackend::setVersionPreLaunchMode(const QString& versionId, int mode)
+{
+    QSettings s(QCoreApplication::organizationName(),
+                QCoreApplication::applicationName());
+    s.setValue(QStringLiteral("versionLaunch/") + versionId + QStringLiteral("/preLaunchMode"), mode);
+    s.sync();
+}
+QString SettingsBackend::versionPreLaunchCommand(const QString& versionId) const
+{
+    QSettings s(QCoreApplication::organizationName(),
+                QCoreApplication::applicationName());
+    return s.value(QStringLiteral("versionLaunch/") + versionId + QStringLiteral("/preLaunchCommand"), QString()).toString();
+}
+void SettingsBackend::setVersionPreLaunchCommand(const QString& versionId, const QString& v)
+{
+    QSettings s(QCoreApplication::organizationName(),
+                QCoreApplication::applicationName());
+    s.setValue(QStringLiteral("versionLaunch/") + versionId + QStringLiteral("/preLaunchCommand"), v);
+    s.sync();
+}
+int SettingsBackend::versionPostExitMode(const QString& versionId) const
+{
+    QSettings s(QCoreApplication::organizationName(),
+                QCoreApplication::applicationName());
+    return s.value(QStringLiteral("versionLaunch/") + versionId + QStringLiteral("/postExitMode"), 0).toInt();
+}
+void SettingsBackend::setVersionPostExitMode(const QString& versionId, int mode)
+{
+    QSettings s(QCoreApplication::organizationName(),
+                QCoreApplication::applicationName());
+    s.setValue(QStringLiteral("versionLaunch/") + versionId + QStringLiteral("/postExitMode"), mode);
+    s.sync();
+}
+QString SettingsBackend::versionPostExitCommand(const QString& versionId) const
+{
+    QSettings s(QCoreApplication::organizationName(),
+                QCoreApplication::applicationName());
+    return s.value(QStringLiteral("versionLaunch/") + versionId + QStringLiteral("/postExitCommand"), QString()).toString();
+}
+void SettingsBackend::setVersionPostExitCommand(const QString& versionId, const QString& v)
+{
+    QSettings s(QCoreApplication::organizationName(),
+                QCoreApplication::applicationName());
+    s.setValue(QStringLiteral("versionLaunch/") + versionId + QStringLiteral("/postExitCommand"), v);
+    s.sync();
+}
+
 // ============================================================
 // 设置导入导出（2026-08-08：主流启动器 CacheExportConfig 对齐）
 // 导出：全部 QSettings 键值 → ini 文件（QSettings 原生格式，跨启动器可读）

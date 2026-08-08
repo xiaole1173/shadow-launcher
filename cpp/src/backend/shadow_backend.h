@@ -290,29 +290,57 @@ public:
 
     // ── 启动细节（低垂果实批，2026-08-08）──
     int gcMode() const;
-    void setGcMode(int v);
+    Q_INVOKABLE void setGcMode(int v);
     int processPriority() const;
-    void setProcessPriority(int v);
+    Q_INVOKABLE void setProcessPriority(int v);
     bool fullscreenEnabled() const;
-    void setFullscreenEnabled(bool v);
+    Q_INVOKABLE void setFullscreenEnabled(bool v);
     QString autoJoinServer() const;
-    void setAutoJoinServer(const QString& v);
+    Q_INVOKABLE void setAutoJoinServer(const QString& v);
     QString windowTitleOverride() const;
-    void setWindowTitleOverride(const QString& v);
+    Q_INVOKABLE void setWindowTitleOverride(const QString& v);
     QString preLaunchCommand() const;
-    void setPreLaunchCommand(const QString& v);
+    Q_INVOKABLE void setPreLaunchCommand(const QString& v);
     QString postExitCommand() const;
-    void setPostExitCommand(const QString& v);
+    Q_INVOKABLE void setPostExitCommand(const QString& v);
     /// 版本级覆盖：GC 模式（0=跟随全局）
     Q_INVOKABLE int versionGcMode(const QString& versionId) const;
     Q_INVOKABLE void setVersionGcMode(const QString& versionId, int mode);
     /// 版本级覆盖：自动进服地址（空=跟随全局）
     Q_INVOKABLE QString versionAutoJoinServer(const QString& versionId) const;
     Q_INVOKABLE void setVersionAutoJoinServer(const QString& versionId, const QString& addr);
+    /// 版本级覆盖：全屏（mode 0=跟随全局 1=版本覆盖）
+    Q_INVOKABLE int versionFullscreenMode(const QString& versionId) const;
+    Q_INVOKABLE void setVersionFullscreenMode(const QString& versionId, int mode);
+    Q_INVOKABLE bool versionFullscreen(const QString& versionId) const;
+    Q_INVOKABLE void setVersionFullscreen(const QString& versionId, bool v);
+    /// 版本级覆盖：窗口标题
+    Q_INVOKABLE int versionWindowTitleMode(const QString& versionId) const;
+    Q_INVOKABLE void setVersionWindowTitleMode(const QString& versionId, int mode);
+    Q_INVOKABLE QString versionWindowTitle(const QString& versionId) const;
+    Q_INVOKABLE void setVersionWindowTitle(const QString& versionId, const QString& v);
+    /// 版本级覆盖：启动前命令
+    Q_INVOKABLE int versionPreLaunchMode(const QString& versionId) const;
+    Q_INVOKABLE void setVersionPreLaunchMode(const QString& versionId, int mode);
+    Q_INVOKABLE QString versionPreLaunchCommand(const QString& versionId) const;
+    Q_INVOKABLE void setVersionPreLaunchCommand(const QString& versionId, const QString& v);
+    /// 版本级覆盖：退出后命令
+    Q_INVOKABLE int versionPostExitMode(const QString& versionId) const;
+    Q_INVOKABLE void setVersionPostExitMode(const QString& versionId, int mode);
+    Q_INVOKABLE QString versionPostExitCommand(const QString& versionId) const;
+    Q_INVOKABLE void setVersionPostExitCommand(const QString& versionId, const QString& v);
     /// 解析后的 GC 模式（版本级优先）
     Q_INVOKABLE int resolvedGcMode(const QString& versionId) const;
     /// 解析后的自动进服地址（版本级优先）
     Q_INVOKABLE QString resolvedAutoJoinServer(const QString& versionId) const;
+    /// 解析后的全屏（版本级优先）
+    Q_INVOKABLE bool resolvedFullscreen(const QString& versionId) const;
+    /// 解析后的窗口标题（版本级优先）
+    Q_INVOKABLE QString resolvedWindowTitle(const QString& versionId) const;
+    /// 解析后的启动前命令（版本级优先）
+    Q_INVOKABLE QString resolvedPreLaunchCommand(const QString& versionId) const;
+    /// 解析后的退出后命令（版本级优先）
+    Q_INVOKABLE QString resolvedPostExitCommand(const QString& versionId) const;
     // ── 设置导入导出（转发 SettingsBackend）──
     Q_INVOKABLE bool exportSettingsToFile(const QString& path);
     Q_INVOKABLE bool importSettingsFromFile(const QString& path);
