@@ -137,6 +137,33 @@ ShadowBackend::ShadowBackend(QObject* parent)
         // JavaRuntimeInstaller::cancelInstall：下载中 abort+清理，解压/安装中不打断
         m_java->cancelJavaInstall();
     });
+    // 需求解析：版本 JSON 链 + MC 版本推断（原 ShadowBackend::requiredJavaMajor）
+    m_launch->setJavaMajorResolver(
+        [this](const QString& versionId) { return requiredJavaMajor(versionId); });
+    // 匹配器：手动 Java 优先（满足版本区间），否则自动匹配；含 8 精确 / 17→max21 规则
+    m_launch->setJavaMatcher(
+        [this](int requiredMajor) {
+            if (requiredMajor <= 0) return QString();
+            // 版本归一化：Tuna 无 JRE 16（404 实测），Java 17 兼容 1.17
+            if (requiredMajor == 16) requiredMajor = 17;
+            // 兼容上限：老版本 Forge/Mixin 不支持太新的 Java 类格式
+            int maxMajor = 0;
+            if (requiredMajor == 17) maxMajor = 21;
+            const QString manualJava = m_settings->javaPath();
+            if (!manualJava.isEmpty() && QFileInfo::exists(manualJava)) {
+                const int manualMajor = m_settings->javaMajor();
+                // Java 8 精确匹配（Java 9+ 模块问题，pre-1.13 LaunchWrapper 必崩）
+                if (requiredMajor == 8 && manualMajor == 8)
+                    return manualJava;
+                if (requiredMajor != 8 && manualMajor >= requiredMajor
+                    && (maxMajor <= 0 || manualMajor <= maxMajor))
+                    return manualJava;
+            }
+            const QString matched = m_settings->findJavaForVersion(requiredMajor, maxMajor);
+            if (!matched.isEmpty())
+                emit logMessage(tr("[完成] 已自动匹配 Java %1: %2").arg(requiredMajor).arg(matched));
+            return matched;
+        });
 
     // ── Java 一键安装完成后：自动刷新两处 Java 状态 ──
     // 1) SettingsBackend 重新扫描系统 Java（设置-Java 列表更新）
@@ -2088,83 +2115,11 @@ void ShadowBackend::launch(const QString& versionId, bool online) {
     m_launchVersion = versionId;
     m_launchUsername = username;
 
-    // Determine required Java version from version JSON
-    int requiredMajor = requiredJavaMajor(versionId);
-    
-    // Find best matching Java: prefer manual selection, fallback to auto-match
+    // ── 2026-08-08：Java 检测/匹配/自动安装全部下沉到 LaunchBackend 状态机 Step 1 ──
+    // 这里不提前解析需求、不匹配、不安装——避免 Java 检测独立于启动检查流程
+    // （用户要求：正常启动流程不受影响，Java 检测是启动检查的一部分）。
+    // javaPath 传空，由状态机 Step 1 判定需求 → 匹配 → 缺失自动安装。
     QString javaPath;
-    QString manualJava = m_settings->javaPath();
-
-    // 兼容上限：老版本 Forge/Mixin 不支持太新的 Java 类格式
-    //   8（LWJGL2 / pre-1.13）：精确 8（Java 9+ 模块系统问题，已有 needExactJava8 处理）
-    //   17（1.17-1.20.4）：上限 21（Forge 47.x 的 Mixin 不认识 >Java 21 的类格式，
-    //       默认 Java 25 时 25>=17 会被旧逻辑放行 → Mixin 崩溃）
-    //   21+（1.20.5+）：新 Mixin，无上限
-    int maxMajor = 0;
-    if (requiredMajor == 17) maxMajor = 21;
-
-    if (!manualJava.isEmpty() && QFileInfo::exists(manualJava)) {
-        // Check manually configured Java version against version requirement
-        int manualMajor = m_settings->javaMajor();
-
-        // LWJGL 2 versions (pre-1.13, requiredMajor==8) need Java 8 specifically:
-        // Java 9+ has module system issues and LWJGL 2 compatibility problems.
-        // Even with --add-opens flags, old versions work best with Java 8.
-        bool needExactJava8 = (requiredMajor == 8 && manualMajor > 8);
-
-        if (needExactJava8) {
-            emit logMessage(tr("[提示] 此版本依赖 LWJGL 2，建议使用 Java 8，尝试自动匹配..."));
-            javaPath = m_settings->findJavaForVersion(requiredMajor);
-            if (!javaPath.isEmpty()) {
-                emit logMessage(tr("[完成] 已自动降级 Java 8: %1").arg(javaPath));
-            } else {
-                // 2026-08-08：不再回退不兼容的手动 Java（Java 9+ 跑 pre-1.13 会崩），
-                // 留空 → 走自动安装分支下载 Java 8
-                emit logMessage(tr("[警告] 未找到 Java 8，将自动下载安装"));
-                javaPath.clear();
-            }
-        } else if (manualMajor >= requiredMajor
-                   && (maxMajor <= 0 || manualMajor <= maxMajor)) {
-            javaPath = manualJava;
-            emit logMessage(tr("[完成] 使用设置的 Java %1: %2").arg(manualMajor).arg(javaPath));
-        } else {
-            emit logMessage(tr("[提示] 设置的 Java %1 (%2) 不满足版本要求 (需要 %3%4)，尝试自动匹配...")
-                                .arg(manualMajor).arg(manualJava).arg(requiredMajor)
-                                .arg(maxMajor > 0 ? tr("~%1").arg(maxMajor) : tr("+")));
-            javaPath = m_settings->findJavaForVersion(requiredMajor, maxMajor);
-            if (!javaPath.isEmpty()) {
-                emit logMessage(tr("[完成] 已自动匹配 Java %1: %2").arg(requiredMajor).arg(javaPath));
-            } else {
-                // 2026-08-08：区间内无匹配且手动 Java 不满足要求 → 不回退（避免用不兼容
-                // Java 启动崩溃），留空 → 走自动安装分支
-                emit logMessage(tr("[警告] 未找到兼容区间内的 Java，将自动下载安装 Java %1")
-                                    .arg(requiredMajor));
-                javaPath.clear();
-            }
-        }
-    } else {
-        javaPath = m_settings->findJavaForVersion(requiredMajor, maxMajor);
-        if (!javaPath.isEmpty()) {
-            emit logMessage(tr("[完成] 已自动匹配 Java %1: %2").arg(requiredMajor).arg(javaPath));
-        }
-    }
-
-    if (javaPath.isEmpty()) {
-        // ── 2026-08-08：Java 缺失 → 纳入启动状态机自动安装 ──
-        // 不在此拦截：设置需求版本 + 传空路径给 LaunchBackend，由状态机
-        // Step 1 检测后触发自动安装（overlay 全程可见，下载进度走 toast）。
-        if (m_settings->isJavaScanning()) {
-            emit logMessage(QStringLiteral("[JAVA] Java scan still in progress, please wait and try again"));
-            emit launchBlocked(tr("Java 扫描进行中，请稍后再试"));
-            return;
-        }
-        emit logMessage(tr("[提示] 此版本需要 Java %1，但系统中未找到匹配的 Java，将在启动流程中自动安装...")
-                            .arg(requiredMajor));
-        // 版本归一化：Tuna 无 JRE 16（404 实测），Java 17 兼容 1.17
-        if (requiredMajor == 16) requiredMajor = 17;
-        m_launch->setJavaAutoInstallRequest(requiredMajor);
-        javaPath.clear();   // 空路径 → LaunchBackend Step 1 触发自动安装
-    }
 
     // Pass auth info based on mode
     if (online) {

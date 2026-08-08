@@ -86,6 +86,14 @@ public:
     /// 下载中取消 → abort + 清理残存；解压/安装中取消 → 不打断（留着装完下次用）
     using JavaCancelFn = std::function<void()>;
     void setJavaCanceler(JavaCancelFn fn) { m_javaCancelFn = std::move(fn); }
+    /// 注入 Java 需求解析器（ShadowBackend 提供）：给定版本 id，返回所需 Java 主版本号。
+    /// 状态机 Step 1 用它判定需求（避免 Java 检测独立于启动检查流程）。
+    using JavaMajorResolverFn = std::function<int(const QString& versionId)>;
+    void setJavaMajorResolver(JavaMajorResolverFn fn) { m_javaMajorResolver = std::move(fn); }
+    /// 注入 Java 匹配器（ShadowBackend 提供）：在已安装 Java 中找兼容版本。
+    /// 返回匹配路径；空 = 未找到（此时由状态机决定自动安装）。
+    using JavaMatcherFn = std::function<QString(int requiredMajor)>;
+    void setJavaMatcher(JavaMatcherFn fn) { m_javaMatcher = std::move(fn); }
     /// 请求在启动状态机内自动安装指定版本 Java（由 ShadowBackend 在 Java 匹配失败时设置）
     void setJavaAutoInstallRequest(int major) { m_javaAutoInstallMajor = major; }
 
@@ -179,6 +187,8 @@ private:
     // ── 启动自动安装 Java（2026-08-08）：Java 缺失/不满足时纳入启动状态机 ──
     JavaInstallFn m_javaInstallFn;
     JavaCancelFn m_javaCancelFn;
+    JavaMajorResolverFn m_javaMajorResolver;
+    JavaMatcherFn m_javaMatcher;
     int m_javaAutoInstallMajor = 0;      // >0 表示当前在自动安装该版本 Java
     QTimer* m_javaInstallPoll = nullptr; // 下载进度轮询 → launchCheckProgress
     bool m_javaInstallFailed = false;    // 安装失败标志（避免重入）

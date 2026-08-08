@@ -344,12 +344,21 @@ QVariantMap LaunchBackend::getMemoryStatus()
 // ============================================================
 
 /// 启动状态机内自动安装 Java：调注入的安装器（worker 下载/解压），
-/// 进度经 launchCheckProgress 轮询上报（QML toast 显示），完成后
+/// 进度经 launchCheckProgress 上报（QML toast 显示），完成后
 /// 更新 m_pendingJavaPath 并继续状态机；失败则 abortCheck。
+/// 注意：必须先暂停状态机 timer（否则 300ms 后 runNextCheck 重入 Step 1
+/// → 二次安装 → 锁冲突 + 互相清理，2026-08-08 实测双触发 bug）。
 void LaunchBackend::startJavaAutoInstall(int requiredMajor)
 {
     if (!m_javaInstallFn) {
         abortCheck(tr("Java 自动安装"), tr("安装器未就绪"));
+        return;
+    }
+    // 防重入：暂停状态机 + 忽略重复请求（Step 1 检测到已在安装则直接等待）
+    if (m_checkTimer) m_checkTimer->stop();
+    if (m_javaAutoInstallMajor > 0) {
+        qCInfo(logLaunch) << QStringLiteral("[启动] Java %1 已在安装中，忽略重复请求")
+            .arg(requiredMajor);
         return;
     }
     m_javaAutoInstallMajor = requiredMajor;
@@ -596,25 +605,45 @@ void LaunchBackend::runNextCheck()
     }
     case 1: {
         // Step 1 (10%): Java environment
+        // ── 2026-08-08：Java 检测/匹配/自动安装全部在启动状态机内完成 ──
+        // 不依赖 ShadowBackend 提前判定：这里解析需求 → 匹配 → 缺失则自动安装。
         emit launchCheckProgress(tr("检查 Java 环境..."));
         m_launchProgress = 10;
         emit launchProgressChanged(10, tr("检查 Java 环境..."));
         qCDebug(logLaunch) << "[PROGRESS] 10% - 检查 Java 环境...";
-        if (!QFileInfo::exists(m_pendingJavaPath)) {
-            // ── 2026-08-08：Java 缺失/无效 → 纳入启动状态机自动安装 ──
-            // 若调用方（ShadowBackend）已判定需求版本并置 m_javaAutoInstallMajor，
-            // 则走自动安装子流程（下载完成回调后更新 m_pendingJavaPath 并继续）；
-            // 否则（无安装器/未指定需求）维持原 abort 行为。
-            if (m_javaAutoInstallMajor > 0 && m_javaInstallFn) {
-                qCInfo(logLaunch) << QStringLiteral("[启动] Java 无效，自动安装 Java %1").arg(m_javaAutoInstallMajor);
-                emit launchCheckWarning(tr("正在自动下载 Java %1...").arg(m_javaAutoInstallMajor));
-                emit launchCheckProgress(tr("正在自动下载 Java %1...").arg(m_javaAutoInstallMajor));
-                startJavaAutoInstall(m_javaAutoInstallMajor);
-                return;  // 状态机暂停，安装完成回调继续
+
+        // 0) 若调用方已提供明确路径（手动选择）且存在 → 直接用
+        if (!m_pendingJavaPath.isEmpty() && QFileInfo::exists(m_pendingJavaPath)) {
+            qCInfo(logLaunch) << QStringLiteral("[启动] 使用指定的 Java: %1").arg(m_pendingJavaPath);
+        } else {
+            // 1) 解析需求版本（版本 JSON + inheritsFrom 链 / MC 版本推断）
+            int requiredMajor = m_javaMajorResolver ? m_javaMajorResolver(m_pendingVersionId) : 0;
+            if (requiredMajor > 0)
+                qCInfo(logLaunch) << QStringLiteral("[启动] 版本 %1 需要 Java %2")
+                    .arg(m_pendingVersionId).arg(requiredMajor);
+
+            // 2) 在已安装 Java 中匹配兼容版本
+            if (m_javaMatcher) {
+                const QString matched = m_javaMatcher(requiredMajor);
+                if (!matched.isEmpty()) {
+                    m_pendingJavaPath = matched;
+                    qCInfo(logLaunch) << QStringLiteral("[启动] 已匹配 Java: %1").arg(matched);
+                }
             }
-            abortCheck(tr("Java 可执行文件"),
-                       tr("路径: %1").arg(m_pendingJavaPath));
-            return;
+
+            // 3) 未匹配 → 自动安装（纳入启动流程，overlay/toast 可见）
+            if (m_pendingJavaPath.isEmpty()) {
+                if (requiredMajor > 0 && m_javaInstallFn) {
+                    qCInfo(logLaunch) << QStringLiteral("[启动] Java 无效，自动安装 Java %1").arg(requiredMajor);
+                    emit launchCheckWarning(tr("正在自动下载 Java %1...").arg(requiredMajor));
+                    emit launchCheckProgress(tr("正在自动下载 Java %1...").arg(requiredMajor));
+                    startJavaAutoInstall(requiredMajor);
+                    return;  // 状态机暂停，安装完成回调继续
+                }
+                abortCheck(tr("Java 可执行文件"),
+                           tr("未找到匹配的 Java（需要 %1+）").arg(requiredMajor));
+                return;
+            }
         }
         QString arch = checkJavaArchitecture(m_pendingJavaPath);
         if (arch == QStringLiteral("32")) {
