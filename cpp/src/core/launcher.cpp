@@ -12,6 +12,7 @@
 #include <QJsonObject>
 #include <QLocale>
 #include <QRegularExpression>
+#include <QSettings>
 #include <QSysInfo>
 #include <QTextStream>
 #include <QTimer>
@@ -82,9 +83,16 @@ static QString toShortPath(const QString& path) { return path; }
 // Java 21+ → 分代 ZGC, Java 15-20 → ZGC, Java 14- → G1GC
 // 策略: Java 21+ → 分代 ZGC (性能最优), Java 15-20 → ZGC, Java 14- → G1GC
 // ZGC 需要 Windows 10 1809+ (build 17763)，不支持时回退到 G1GC
-static QStringList collectGcArgs(int javaMajor, bool debugMode)
+// gcMode: 0=自动（智能选择） 1=分代ZGC 优先 2=仅 G1GC 3=不指定（返回空，跟随自定义参数）
+// 对齐主流启动器实现 LaunchAdvanceGC 四档语义（SetupType 0/1/2/3）
+static QStringList collectGcArgs(int javaMajor, bool debugMode, int gcMode = 0)
 {
     QStringList gc;
+
+    if (gcMode == 3) {
+        qCInfo(logLaunch) << QStringLiteral("[启动] GC策略: 不指定（跟随自定义参数）");
+        return gc;  // 空——buildArgs 不再注入任何 GC 参数
+    }
 
     bool canUseZgc = false;
 #ifdef Q_OS_WIN
@@ -101,7 +109,19 @@ static QStringList collectGcArgs(int javaMajor, bool debugMode)
     canUseZgc = true;
 #endif
 
-    if (canUseZgc && javaMajor >= 15) {
+    // 模式 2：强制 G1GC（主流启动器 SetupType=2“仅 G1GC”）
+    // 模式 1：ZGC 优先（主流启动器 SetupType=1：Java 21+ 分代 ZGC，20- G1GC）
+    // 模式 0：自动（主流启动器 SetupType=0：Java 21+ 分代 ZGC，15-20 ZGC，14- G1GC）
+    bool useZgc = false;
+    if (gcMode == 1) {
+        useZgc = canUseZgc && javaMajor >= 21;
+    } else if (gcMode == 2) {
+        useZgc = false;
+    } else {  // 0 auto
+        useZgc = canUseZgc && javaMajor >= 15;
+    }
+
+    if (useZgc) {
         gc << QStringLiteral("-XX:+UnlockExperimentalVMOptions");
         gc << QStringLiteral("-XX:+UseZGC");
         // -XX:+ZGenerational: default on Java 23+, optional on 21-22
@@ -111,7 +131,7 @@ static QStringList collectGcArgs(int javaMajor, bool debugMode)
         if (javaMajor >= 24) {
             gc << QStringLiteral("-XX:+UseCompactObjectHeaders");
         }
-        qCInfo(logLaunch) << QStringLiteral("[启动] GC策略: ZGC (Java=%1)").arg(javaMajor);
+        qCInfo(logLaunch) << QStringLiteral("[启动] GC策略: ZGC (Java=%1, 模式=%2)").arg(javaMajor).arg(gcMode);
     } else {
         // G1GC (optimized)
         gc << QStringLiteral("-XX:+UseG1GC");
@@ -127,8 +147,8 @@ static QStringList collectGcArgs(int javaMajor, bool debugMode)
         if (javaMajor == 8) {
             gc << QStringLiteral("-XX:+ParallelRefProcEnabled");
         }
-        qCInfo(logLaunch) << QStringLiteral("[启动] GC策略: G1GC (ZGC不可用, Win10=%1, Java=%2)")
-                           .arg(canUseZgc).arg(javaMajor);
+        qCInfo(logLaunch) << QStringLiteral("[启动] GC策略: G1GC (ZGC不可用或强制G1, Win10=%1, Java=%2, 模式=%3)")
+                           .arg(canUseZgc).arg(javaMajor).arg(gcMode);
     }
 
     return gc;
@@ -196,6 +216,8 @@ void Launcher::start(const QString& versionId, const QString& javaPath, int maxM
     }
 
     // Detect Java major version from the executable (used by buildArgs for --add-opens)
+    // ── 32 位判定 + 系统内存（JVM 补全参数用，2026-08-08）──
+    m_is32BitJvm = false;
     {
         QProcess javap;
         javap.start(javaPath, {QStringLiteral("-version")});
@@ -215,6 +237,20 @@ void Launcher::start(const QString& versionId, const QString& javaPath, int maxM
                 m_javaMajorVersion = v;
             }
         }
+        // 32 位 JVM：Java 输出 "32-Bit"（Java 8）或 "32-Bit Server VM"
+        if (output.contains(QStringLiteral("32-Bit"))) {
+            m_is32BitJvm = true;
+        }
+        // 系统物理内存（JIT 优化组阈值：>4GB 才启用）
+#ifdef Q_OS_WIN
+        MEMORYSTATUSEX ms;
+        ms.dwLength = sizeof(ms);
+        if (GlobalMemoryStatusEx(&ms)) {
+            m_totalSystemMemoryMB = static_cast<qint64>(ms.ullTotalPhys / (1024 * 1024));
+        }
+#endif
+        qCInfo(logLaunch) << QStringLiteral("[启动] Java 主版本=%1 32位=%2 系统内存=%3MB")
+            .arg(m_javaMajorVersion).arg(m_is32BitJvm).arg(m_totalSystemMemoryMB);
     }
 
     // --- Load version JSON (支持灵活路径) ---
@@ -331,10 +367,25 @@ void Launcher::start(const QString& versionId, const QString& javaPath, int maxM
         auto env = QProcessEnvironment::systemEnvironment();
         env.insert(QStringLiteral("SHIM_MCCOMPAT"), QStringLiteral("0x800000001"));
         m_process->setProcessEnvironment(env);
+
+        // ── 注册表 GPU 偏好（对齐主流启动器实现 SetGPUPreference）：HKCU\Software\Microsoft\DirectX\UserGpuPreferences
+        //    GpuPreference=2 让 NVIDIA/AMD 驱动优先使用独显（对 Optimus 双显卡更通用）
+#ifdef Q_OS_WIN
+        {
+            const QString regPath = QStringLiteral("HKEY_CURRENT_USER\\Software\\Microsoft\\DirectX\\UserGpuPreferences");
+            QSettings gpuPref(regPath, QSettings::NativeFormat);
+            gpuPref.setValue(javaPath, QStringLiteral("GpuPreference=2;"));
+            gpuPref.sync();
+            qCInfo(logLaunch) << QStringLiteral("[启动] 已写入 GPU 高性能注册表: %1").arg(javaPath);
+        }
+#endif
     }
 
     qCInfo(logLaunch) << QStringLiteral("[启动] 启动参数: %1").arg(args.join(QLatin1Char(' ')));
     qCInfo(logLaunch) << QStringLiteral("[启动] 启动参数共 %1 个").arg(args.size());
+
+    // 启动前自定义命令（异步，不阻塞）——主流启动器 preLaunchCommand 对齐
+    runPreLaunchCommand();
 
     m_process->start(javaPath, args);
 }
@@ -383,6 +434,30 @@ void Launcher::onProcessStarted()
     emit launchProgress(tr("Minecraft 进程已启动 (PID: %1)")
                         .arg(m_pid));
     qCInfo(logLaunch) << QStringLiteral("[启动] 游戏启动完成 版本=%1").arg(m_currentVersionId);
+
+    // ── 进程优先级（主流启动器 LaunchArgumentPriority：0=高 1=中 2=低）──
+#ifdef Q_OS_WIN
+    if (m_processPriority != 1) {
+        HANDLE hProc = OpenProcess(PROCESS_SET_INFORMATION, FALSE, static_cast<DWORD>(m_pid));
+        if (hProc) {
+            DWORD prio = (m_processPriority == 2) ? BELOW_NORMAL_PRIORITY_CLASS
+                       : (m_processPriority == 0) ? ABOVE_NORMAL_PRIORITY_CLASS
+                       : NORMAL_PRIORITY_CLASS;
+            if (SetPriorityClass(hProc, prio)) {
+                qCInfo(logLaunch) << QStringLiteral("[启动] 已设置进程优先级=%1 (PID=%2)")
+                    .arg(m_processPriority == 0 ? QStringLiteral("高") : QStringLiteral("低")).arg(m_pid);
+            } else {
+                qCWarning(logLaunch) << QStringLiteral("[启动] 设置进程优先级失败 错误=%1").arg(GetLastError());
+            }
+            CloseHandle(hProc);
+        } else {
+            qCWarning(logLaunch) << QStringLiteral("[启动] 打开进程失败，无法设置优先级 PID=%1").arg(m_pid);
+        }
+    }
+#endif
+
+    // 窗口标题覆盖（尽力而为，异步轮询 FindWindow）
+    applyWindowTitleOverride();
 }
 
 void Launcher::onReadyReadStdout()
@@ -517,6 +592,9 @@ void Launcher::onProcessFinished(int exitCode, QProcess::ExitStatus exitStatus)
     // flush 全量 JVM 输出，确保崩溃分析/导出时文件完整
     if (m_jvmFullLog.isOpen())
         m_jvmFullLog.flush();
+
+    // 游戏退出后自定义命令（异步）——主流启动器 postExitCommand 对齐
+    runPostExitCommand();
 
     if (m_cancelling) {
         emit launchFinished(true, QString());
@@ -949,21 +1027,64 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
     }
     if (!chainHasGc) {
         const bool debugMode = false;  // Release mode: 关闭 PerfDisableSharedMem
-        for (const QString& gcArg : collectGcArgs(m_javaMajorVersion, debugMode)) {
+        for (const QString& gcArg : collectGcArgs(m_javaMajorVersion, debugMode, m_gcMode)) {
             args << gcArg;
         }
     } else {
         qCInfo(logLaunch) << QStringLiteral("[启动] 版本 JSON 已指定 GC 策略，跳过自动选择");
     }
 
-    // ── JVM encoding params (prevent CJK log garbling) ──
-    // Check if chainJvmArgs already set these before adding
+    // ── JVM 版本补全参数（对齐主流启动器实现 DefaultLauncher）──
     auto hasArgPrefix = [&](const QString& prefix) -> bool {
         for (const QString& a : args) {
             if (a.startsWith(prefix)) return true;
         }
         return false;
     };
+    // Java 24/25: --sun-misc-unsafe-memory-access=allow（26.2 用 Java 25 需要）
+    if (m_javaMajorVersion == 24 || m_javaMajorVersion == 25) {
+        if (!hasArgPrefix(QStringLiteral("--sun-misc-unsafe-memory-access="))) {
+            args << QStringLiteral("--sun-misc-unsafe-memory-access=allow");
+        }
+    }
+    // Java 16: --illegal-access=permit（同主流启动器）
+    if (m_javaMajorVersion == 16) {
+        if (!hasArgPrefix(QStringLiteral("--illegal-access="))) {
+            args << QStringLiteral("--illegal-access=permit");
+        }
+    }
+    // 32 位 JVM：-Xss 1m（主流启动器：32 位默认 320KB 栈导致 1.13 崩 StackOverflowError）
+    if (m_is32BitJvm) {
+        args << QStringLiteral("-Xss1m");
+    }
+    // JIT 优化组（主流启动器：64 位 + 内存 >4GB 时启用）
+    if (!m_is32BitJvm && m_totalSystemMemoryMB > 4096) {
+        if (!hasArgPrefix(QStringLiteral("-XX:ReservedCodeCacheSize="))) {
+            args << QStringLiteral("-XX:ReservedCodeCacheSize=400M");
+        }
+        if (!hasArgPrefix(QStringLiteral("-XX:MaxNodeLimit="))) {
+            args << QStringLiteral("-XX:MaxNodeLimit=240000");
+        }
+        if (!hasArgPrefix(QStringLiteral("-XX:NodeLimitFudgeFactor="))) {
+            args << QStringLiteral("-XX:NodeLimitFudgeFactor=8000");
+        }
+        if (!hasArgPrefix(QStringLiteral("-XX:TieredCompileTaskTimeout="))) {
+            args << QStringLiteral("-XX:TieredCompileTaskTimeout=10000");
+        }
+        if (m_javaMajorVersion >= 8) {
+            if (!hasArgPrefix(QStringLiteral("-XX:NmethodSweepActivity="))) {
+                args << QStringLiteral("-XX:NmethodSweepActivity=1");
+            }
+        }
+    }
+    if (m_javaMajorVersion <= 8) {
+        if (!hasArgPrefix(QStringLiteral("-XX:MaxInlineLevel="))) {
+            args << QStringLiteral("-XX:MaxInlineLevel=15");
+        }
+    }
+
+    // ── JVM encoding params (prevent CJK log garbling) ──
+    // Check if chainJvmArgs already set these before adding
     if (m_javaMajorVersion > 8) {
         if (!hasArgPrefix(QStringLiteral("-Dstdout.encoding="))) {
             args << QStringLiteral("-Dstdout.encoding=UTF-8");
@@ -1396,7 +1517,155 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
     // Ensure game directory exists (could be game/ or version root for scattered structure)
     QDir().mkpath(m_versionGameDir);
 
+    // ── 启动细节参数追加（全屏 / 自动进服，主流启动器 QuickPlay 语义）──
+    appendGameDetailArgs(args, versionJson);
+
     return args;
+}
+
+// ============================================================
+// Private Helpers — Launch Detail Args (全屏 / 自动进服)
+// ============================================================
+
+void Launcher::appendGameDetailArgs(QStringList& args, const QJsonObject& versionJson) const
+{
+    // ── 全屏启动（--fullscreen，主流启动器 LaunchArgumentWindowType=0 语义）──
+    if (m_fullscreen) {
+        if (!args.contains(QStringLiteral("--fullscreen"))) {
+            args << QStringLiteral("--fullscreen");
+            qCInfo(logLaunch) << QStringLiteral("[启动] 已启用全屏启动");
+        }
+    }
+
+    // ── 自动进服（主流启动器 QuickPlay 语义）──
+    // 新版（2023-04-05 后，1.20+）：--quickPlayMultiplayer <addr>
+    // 老版（1.20-）：--server <host> --port <port>（主流启动器 ReleaseTime > 2023/4/4 判定）
+    if (!m_autoJoinServer.isEmpty()) {
+        QString addr = m_autoJoinServer.trimmed();
+        // 去重：用户自定义 gameArgs 已带 --server/--quickPlayMultiplayer 时不重复注入
+        bool alreadyInjected = false;
+        for (const QString& a : args) {
+            if (a == QStringLiteral("--server") || a == QStringLiteral("--quickPlayMultiplayer")
+                || a.startsWith(QStringLiteral("--quickPlayMultiplayer="))) {
+                alreadyInjected = true;
+                break;
+            }
+        }
+        if (!alreadyInjected) {
+            // 版本发布时间判定（主流启动器 ReleaseTime > 2023-04-04 → QuickPlay）
+            bool useQuickPlay = false;
+            QString releaseTime = versionJson.value(QStringLiteral("releaseTime")).toString();
+            if (!releaseTime.isEmpty()) {
+                QDateTime rt = QDateTime::fromString(releaseTime, Qt::ISODate);
+                if (rt.isValid() && rt > QDateTime(QDate(2023, 4, 4), QTime(0, 0), Qt::UTC)) {
+                    useQuickPlay = true;
+                }
+            } else {
+                // 无 releaseTime（老版 JSON）：尝试从版本号判断 1.20+
+                static const QRegularExpression reVer(QStringLiteral(R"(^1\.(\d+))"));
+                QRegularExpressionMatch m2 = reVer.match(m_currentVersionId);
+                if (m2.hasMatch()) {
+                    int minor = m2.captured(1).toInt();
+                    useQuickPlay = (minor >= 20);
+                }
+            }
+
+            if (useQuickPlay) {
+                args << QStringLiteral("--quickPlayMultiplayer") << addr;
+                qCInfo(logLaunch) << QStringLiteral("[启动] 自动进服(QuickPlay): %1").arg(addr);
+            } else {
+                QString host = addr;
+                int port = 25565;
+                int colon = addr.indexOf(QLatin1Char(':'));
+                if (colon > 0) {
+                    host = addr.left(colon);
+                    bool ok = false;
+                    int p = addr.mid(colon + 1).toInt(&ok);
+                    if (ok && p > 0 && p <= 65535) port = p;
+                }
+                args << QStringLiteral("--server") << host << QStringLiteral("--port") << QString::number(port);
+                qCInfo(logLaunch) << QStringLiteral("[启动] 自动进服(老版): %1:%2").arg(host).arg(port);
+            }
+        }
+    }
+}
+
+// ============================================================
+// Private Helpers — Pre/Post Commands & Window Title
+// ============================================================
+
+void Launcher::runPreLaunchCommand()
+{
+    if (m_preLaunchCommand.trimmed().isEmpty()) return;
+    // 异步执行，不阻塞主线程（对齐主流启动器实现 preLaunchCommand；主流启动器 用 Loader 同步但我们绝不阻塞 UI）
+    QProcess* p = new QProcess(this);
+    p->setWorkingDirectory(m_versionGameDir.isEmpty() ? m_gameDir : m_versionGameDir);
+    connect(p, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+            this, [p](int code, QProcess::ExitStatus) {
+                qCInfo(logLaunch) << QStringLiteral("[启动] 启动前命令完成 退出码=%1").arg(code);
+                p->deleteLater();
+            });
+    qCInfo(logLaunch) << QStringLiteral("[启动] 执行启动前命令: %1").arg(m_preLaunchCommand);
+    p->start(m_preLaunchCommand);
+}
+
+void Launcher::runPostExitCommand()
+{
+    if (m_postExitCommand.trimmed().isEmpty()) return;
+    QProcess* p = new QProcess(this);
+    p->setWorkingDirectory(m_versionGameDir.isEmpty() ? m_gameDir : m_versionGameDir);
+    connect(p, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+            this, [p](int code, QProcess::ExitStatus) {
+                qCInfo(logLaunch) << QStringLiteral("[启动] 退出后命令完成 退出码=%1").arg(code);
+                p->deleteLater();
+            });
+    qCInfo(logLaunch) << QStringLiteral("[启动] 执行退出后命令: %1").arg(m_postExitCommand);
+    p->start(m_postExitCommand);
+}
+
+void Launcher::applyWindowTitleOverride()
+{
+    if (m_windowTitleOverride.trimmed().isEmpty()) return;
+    if (m_pid <= 0) return;
+#ifdef Q_OS_WIN
+    // 尽力而为：轮询 FindWindow 找到游戏主窗口（主流启动器 Watcher 语义），最多 10 秒
+    qCInfo(logLaunch) << QStringLiteral("[启动] 尝试修改游戏窗口标题: %1").arg(m_windowTitleOverride);
+    QTimer* timer = new QTimer(this);
+    timer->setInterval(500);
+    int* remaining = new int(20);  // 20 × 500ms = 10s
+    connect(timer, &QTimer::timeout, this, [this, timer, remaining]() {
+        (*remaining)--;
+        HWND hwnd = nullptr;
+        // 按 PID 找窗口（EnumWindows + GetWindowThreadProcessId）
+        struct EnumCtx { DWORD pid; HWND hwnd; };
+        EnumCtx ctx{ static_cast<DWORD>(m_pid), nullptr };
+        EnumWindows([](HWND h, LPARAM lp) -> BOOL {
+            EnumCtx* c = reinterpret_cast<EnumCtx*>(lp);
+            DWORD wpid = 0;
+            GetWindowThreadProcessId(h, &wpid);
+            if (wpid == c->pid && IsWindowVisible(h)) {
+                c->hwnd = h;
+                return FALSE;
+            }
+            return TRUE;
+        }, reinterpret_cast<LPARAM>(&ctx));
+        if (ctx.hwnd) {
+            SetWindowTextW(ctx.hwnd, reinterpret_cast<LPCWSTR>(m_windowTitleOverride.utf16()));
+            qCInfo(logLaunch) << QStringLiteral("[启动] 游戏窗口标题已修改");
+            timer->stop();
+            delete remaining;
+            timer->deleteLater();
+            return;
+        }
+        if (*remaining <= 0) {
+            qCDebug(logLaunch) << QStringLiteral("[启动] 窗口标题修改超时，放弃（游戏可能无窗口模式）");
+            timer->stop();
+            delete remaining;
+            timer->deleteLater();
+        }
+    });
+    timer->start();
+#endif
 }
 
 QString Launcher::buildLaunchScript(const QString& versionId, const QString& javaPath,

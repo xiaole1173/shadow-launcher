@@ -67,6 +67,15 @@ public:
     void setDetectedRegion(const QString& region) { m_detectedRegion = region; }
     void setVersionGameDir(const QString& dir) { m_versionGameDir = dir; }
 
+    // ── 启动细节配置（低垂果实批，2026-08-08：ShadowBackend 启动前注入）──
+    void setGcMode(int mode) { m_gcMode = mode; }
+    void setProcessPriority(int priority) { m_processPriority = priority; }
+    void setFullscreenEnabled(bool v) { m_fullscreenEnabled = v; }
+    void setAutoJoinServer(const QString& addr) { m_autoJoinServer = addr; }
+    void setWindowTitleOverride(const QString& title) { m_windowTitleOverride = title; }
+    void setPreLaunchCommand(const QString& cmd) { m_preLaunchCommand = cmd; }
+    void setPostExitCommand(const QString& cmd) { m_postExitCommand = cmd; }
+
     // Auth info for online mode
     void setAuthInfo(const QString& username, const QString& uuid,
                     const QString& accessToken, bool isOnline);
@@ -170,6 +179,15 @@ private:
     int m_autoLangMode = 1;
     QString m_detectedRegion;
     QString m_versionGameDir;
+
+    // ── 启动细节配置（2026-08-08）──
+    int m_gcMode = 0;                 // 0=自动 1=分代ZGC优先 2=仅G1GC 3=不指定
+    int m_processPriority = 1;        // 0=高 1=中 2=低
+    bool m_fullscreenEnabled = false; // --fullscreen
+    QString m_autoJoinServer;         // 自动进服 host[:port]
+    QString m_windowTitleOverride;    // 游戏窗口标题覆盖
+    QString m_preLaunchCommand;       // 启动前命令
+    QString m_postExitCommand;        // 退出后命令
 
     // ── Token refresh retry state ──
     int m_refreshRetryCount = 0;

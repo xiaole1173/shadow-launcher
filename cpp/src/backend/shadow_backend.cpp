@@ -1488,6 +1488,56 @@ void ShadowBackend::setHighPerfGpu(bool v) {
     emit highPerfGpuChanged();
 }
 
+// ── 启动细节（低垂果实批，2026-08-08：对齐 主流启动器/主流启动器）──
+
+int ShadowBackend::gcMode() const { return m_settings->gcMode(); }
+void ShadowBackend::setGcMode(int v) { m_settings->setGcMode(v); emit launchDetailChanged(); }
+int ShadowBackend::processPriority() const { return m_settings->processPriority(); }
+void ShadowBackend::setProcessPriority(int v) { m_settings->setProcessPriority(v); emit launchDetailChanged(); }
+bool ShadowBackend::fullscreenEnabled() const { return m_settings->fullscreenEnabled(); }
+void ShadowBackend::setFullscreenEnabled(bool v) { m_settings->setFullscreenEnabled(v); emit launchDetailChanged(); }
+QString ShadowBackend::autoJoinServer() const { return m_settings->autoJoinServer(); }
+void ShadowBackend::setAutoJoinServer(const QString& v) { m_settings->setAutoJoinServer(v); emit launchDetailChanged(); }
+QString ShadowBackend::windowTitleOverride() const { return m_settings->windowTitleOverride(); }
+void ShadowBackend::setWindowTitleOverride(const QString& v) { m_settings->setWindowTitleOverride(v); emit launchDetailChanged(); }
+QString ShadowBackend::preLaunchCommand() const { return m_settings->preLaunchCommand(); }
+void ShadowBackend::setPreLaunchCommand(const QString& v) { m_settings->setPreLaunchCommand(v); emit launchDetailChanged(); }
+QString ShadowBackend::postExitCommand() const { return m_settings->postExitCommand(); }
+void ShadowBackend::setPostExitCommand(const QString& v) { m_settings->setPostExitCommand(v); emit launchDetailChanged(); }
+
+int ShadowBackend::versionGcMode(const QString& versionId) const {
+    return m_settings->versionGcMode(versionId);
+}
+void ShadowBackend::setVersionGcMode(const QString& versionId, int mode) {
+    m_settings->setVersionGcMode(versionId, mode);
+    emit versionLaunchSettingsChanged(versionId);
+}
+QString ShadowBackend::versionAutoJoinServer(const QString& versionId) const {
+    return m_settings->versionAutoJoinServer(versionId);
+}
+void ShadowBackend::setVersionAutoJoinServer(const QString& versionId, const QString& addr) {
+    m_settings->setVersionAutoJoinServer(versionId, addr);
+    emit versionLaunchSettingsChanged(versionId);
+}
+int ShadowBackend::resolvedGcMode(const QString& versionId) const {
+    int ver = m_settings->versionGcMode(versionId);
+    return ver > 0 ? ver : m_settings->gcMode();
+}
+QString ShadowBackend::resolvedAutoJoinServer(const QString& versionId) const {
+    QString ver = m_settings->versionAutoJoinServer(versionId);
+    return ver.isEmpty() ? m_settings->autoJoinServer() : ver;
+}
+
+bool ShadowBackend::exportSettingsToFile(const QString& path) {
+    return m_settings->exportSettingsToFile(path);
+}
+bool ShadowBackend::importSettingsFromFile(const QString& path) {
+    return m_settings->importSettingsFromFile(path);
+}
+QString ShadowBackend::exportSettingsPreview() const {
+    return m_settings->exportSettingsPreview();
+}
+
 
 // ── Persistence helpers (delegated to SettingsBackend-style QSettings) ──
 void ShadowBackend::saveJvmArgs() {
@@ -2162,6 +2212,14 @@ void ShadowBackend::proceedLaunch(const QString& versionId, bool online, const Q
     m_launch->setAutoLangMode(m_settings->autoLangMode());
     m_launch->setDetectedRegion(m_geoIp ? m_geoIp->cachedRegion() : QString());
     m_launch->setVersionGameDir(m_settings->getVersionGameDir(versionId));
+    // ── 启动细节（低垂果实批，2026-08-08）：版本级优先 → 全局 ──
+    m_launch->setGcMode(resolvedGcMode(versionId));
+    m_launch->setProcessPriority(m_settings->processPriority());
+    m_launch->setFullscreenEnabled(m_settings->fullscreenEnabled());
+    m_launch->setAutoJoinServer(resolvedAutoJoinServer(versionId));
+    m_launch->setWindowTitleOverride(m_settings->windowTitleOverride());
+    m_launch->setPreLaunchCommand(m_settings->preLaunchCommand());
+    m_launch->setPostExitCommand(m_settings->postExitCommand());
     m_launch->launch(versionId, m_launchUsername, javaPath, maxMemory, jvmArgs, gameArgs, highPerfGpu,
                      m_settings->windowWidth(), m_settings->windowHeight());
 }

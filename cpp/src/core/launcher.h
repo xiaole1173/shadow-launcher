@@ -60,6 +60,22 @@ public:
         m_isOnline = isOnline;
     }
 
+    // ── 启动细节配置（2026-08-08 低垂果实批：对齐 主流启动器/主流启动器）──
+    /// GC 策略模式：0=自动（分代ZGC/G1GC 智能选择） 1=分代ZGC 优先 2=仅 G1GC 3=不指定（跟随自定义参数）
+    void setGcMode(int mode) { m_gcMode = mode; }
+    /// 进程优先级：0=低 1=中 2=高（对齐主流启动器实现 LaunchArgumentPriority）
+    void setProcessPriority(int priority) { m_processPriority = priority; }
+    /// 全屏启动（--fullscreen，对齐主流启动器实现 LaunchArgumentWindowType=0）
+    void setFullscreen(bool v) { m_fullscreen = v; }
+    /// 自动进服地址（host[:port]；新版 --quickPlayMultiplayer，老版 --server/--port，对齐主流启动器实现 QuickPlay）
+    void setAutoJoinServer(const QString& addr) { m_autoJoinServer = addr; }
+    /// 启动后修改游戏窗口标题（尽力而为，对齐主流启动器实现 Watcher SetWindowText）
+    void setWindowTitleOverride(const QString& title) { m_windowTitleOverride = title; }
+    /// 启动前自定义命令（主流启动器 preLaunchCommand；异步执行不阻塞主线程）
+    void setPreLaunchCommand(const QString& cmd) { m_preLaunchCommand = cmd; }
+    /// 退出后自定义命令（主流启动器 postExitCommand；异步执行）
+    void setPostExitCommand(const QString& cmd) { m_postExitCommand = cmd; }
+
     /// 生成启动脚本（.bat 文本，脱机启动/排障用，2026-08-07）——复用 buildArgs 完整参数组装
     QString buildLaunchScript(const QString& versionId, const QString& javaPath,
                               int maxMemoryMB, const QString& jvmArgs, const QString& gameArgs,
@@ -84,6 +100,14 @@ private:
     bool validateLaunch(const QString& versionId, const QString& javaPath, QString& errorMsg) const;
     void forceKill();
     QStringList buildArgs(const QString& versionId, int maxMemoryMB, const QJsonObject& versionJson) const;
+    /// 组装游戏参数追加段（全屏 / 自动进服，主流启动器 QuickPlay 语义）——在 buildArgs 末尾调用
+    void appendGameDetailArgs(QStringList& args, const QJsonObject& versionJson) const;
+    /// 启动前执行自定义命令（异步，不阻塞主线程）
+    void runPreLaunchCommand();
+    /// 游戏退出后执行自定义命令（异步）
+    void runPostExitCommand();
+    /// 尽力而为地修改游戏窗口标题（轮询 FindWindow，主流启动器 Watcher 语义）
+    void applyWindowTitleOverride();
     bool extractNatives(const QString& versionId, const QJsonObject& versionJson);
     void ensureOptionsTxt();
     static bool evaluateRules(const QJsonArray& rules);
@@ -113,6 +137,17 @@ private:
     int m_javaMajorVersion = 0;  // Cache: Java major version of the JVM used for this launch
     int m_resWidth = 854;
     int m_resHeight = 480;
+
+    // ── 启动细节配置（2026-08-08）──
+    int m_gcMode = 0;                 // 0=自动 1=分代ZGC优先 2=仅G1GC 3=不指定
+    int m_processPriority = 1;        // 0=低 1=中 2=高
+    bool m_fullscreen = false;        // --fullscreen
+    QString m_autoJoinServer;         // host[:port]
+    QString m_windowTitleOverride;    // 游戏窗口标题覆盖
+    QString m_preLaunchCommand;       // 启动前命令
+    QString m_postExitCommand;        // 退出后命令
+    bool m_is32BitJvm = false;        // Java 可执行文件是否为 32 位（-Xss 1m 补丁用）
+    qint64 m_totalSystemMemoryMB = 0; // 系统物理内存（JIT 优化组阈值用）
 };
 
 

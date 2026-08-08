@@ -700,6 +700,19 @@ if(SHADOW_BUILD_MODPACK_SELFTEST)
     )
     target_include_directories(JavaScanTest PRIVATE src)
     target_link_libraries(JavaScanTest PRIVATE Qt6::Core Qt6::Network Qt6::Gui Qt6::GuiPrivate)
+
+    # 启动细节工程验证（2026-08-08 低垂果实批）：GC 四档 / 全屏 / 自动进服新旧语法 /
+    # 设置导入导出往返 / launcher_profiles 结构 / 脚本冒烟
+    add_executable(LaunchDetailTest
+        tests/test_launch_detail.cpp
+        src/core/launcher.cpp
+        src/core/mc_language.cpp
+        src/backend/settings_backend.cpp
+        src/core/version_isolation.cpp
+        src/utils/logger.cpp
+    )
+    target_include_directories(LaunchDetailTest PRIVATE src)
+    target_link_libraries(LaunchDetailTest PRIVATE Qt6::Core Qt6::Network Qt6::Gui Qt6::Widgets Qt6::GuiPrivate)
 endif()
 
 # ============================================================

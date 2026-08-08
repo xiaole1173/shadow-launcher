@@ -143,6 +143,15 @@ void SettingsBackend::loadSettings()
     m_windowWidth  = s.value(QStringLiteral("launch/windowWidth"), 854).toInt();
     m_windowHeight = s.value(QStringLiteral("launch/windowHeight"), 480).toInt();
 
+    // ── 启动细节（低垂果实批，2026-08-08）──
+    m_gcMode = s.value(QStringLiteral("launch/gcMode"), 0).toInt();
+    m_processPriority = s.value(QStringLiteral("launch/processPriority"), 1).toInt();
+    m_fullscreenEnabled = s.value(QStringLiteral("launch/fullscreen"), false).toBool();
+    m_autoJoinServer = s.value(QStringLiteral("launch/autoJoinServer"), QString()).toString();
+    m_windowTitleOverride = s.value(QStringLiteral("launch/windowTitle"), QString()).toString();
+    m_preLaunchCommand = s.value(QStringLiteral("launch/preLaunchCommand"), QString()).toString();
+    m_postExitCommand = s.value(QStringLiteral("launch/postExitCommand"), QString()).toString();
+
     // Download settings
     m_fileDownloadSource = s.value(QStringLiteral("download/fileSource"), 1).toInt();
     m_listDownloadSource = s.value(QStringLiteral("download/listSource"), 1).toInt();
@@ -186,6 +195,15 @@ void SettingsBackend::saveSettings()
     // Window resolution
     s.setValue(QStringLiteral("launch/windowWidth"), m_windowWidth);
     s.setValue(QStringLiteral("launch/windowHeight"), m_windowHeight);
+
+    // ── 启动细节（低垂果实批，2026-08-08）──
+    s.setValue(QStringLiteral("launch/gcMode"), m_gcMode);
+    s.setValue(QStringLiteral("launch/processPriority"), m_processPriority);
+    s.setValue(QStringLiteral("launch/fullscreen"), m_fullscreenEnabled);
+    s.setValue(QStringLiteral("launch/autoJoinServer"), m_autoJoinServer);
+    s.setValue(QStringLiteral("launch/windowTitle"), m_windowTitleOverride);
+    s.setValue(QStringLiteral("launch/preLaunchCommand"), m_preLaunchCommand);
+    s.setValue(QStringLiteral("launch/postExitCommand"), m_postExitCommand);
 }
 
 // ============================================================
@@ -632,6 +650,120 @@ void SettingsBackend::setVersionHighPerfGpu(const QString& versionId, bool v)
                 QCoreApplication::applicationName());
     s.setValue(QStringLiteral("versionLaunch/") + versionId + QStringLiteral("/highPerfGpu"), v);
     s.sync();
+}
+
+// ── 启动细节（版本级覆盖，2026-08-08：对齐主流启动器实现 VersionAdvanceGC/VersionServerEnter）──
+
+int SettingsBackend::versionGcMode(const QString& versionId) const
+{
+    QSettings s(QCoreApplication::organizationName(),
+                QCoreApplication::applicationName());
+    return s.value(QStringLiteral("versionLaunch/") + versionId + QStringLiteral("/gcMode"), 0).toInt();
+}
+void SettingsBackend::setVersionGcMode(const QString& versionId, int mode)
+{
+    QSettings s(QCoreApplication::organizationName(),
+                QCoreApplication::applicationName());
+    s.setValue(QStringLiteral("versionLaunch/") + versionId + QStringLiteral("/gcMode"), mode);
+    s.sync();
+}
+QString SettingsBackend::versionAutoJoinServer(const QString& versionId) const
+{
+    QSettings s(QCoreApplication::organizationName(),
+                QCoreApplication::applicationName());
+    return s.value(QStringLiteral("versionLaunch/") + versionId + QStringLiteral("/autoJoinServer"), QString()).toString();
+}
+void SettingsBackend::setVersionAutoJoinServer(const QString& versionId, const QString& addr)
+{
+    QSettings s(QCoreApplication::organizationName(),
+                QCoreApplication::applicationName());
+    s.setValue(QStringLiteral("versionLaunch/") + versionId + QStringLiteral("/autoJoinServer"), addr);
+    s.sync();
+}
+
+// ============================================================
+// 设置导入导出（2026-08-08：主流启动器 CacheExportConfig 对齐）
+// 导出：全部 QSettings 键值 → ini 文件（QSettings 原生格式，跨启动器可读）
+// 导入：读取 ini 合并覆盖（不删现有键，避免部分导入破坏状态）
+// ============================================================
+
+bool SettingsBackend::exportSettingsToFile(const QString& path)
+{
+    if (path.isEmpty()) return false;
+    QSettings src(QCoreApplication::organizationName(),
+                  QCoreApplication::applicationName());
+    // 目标 ini 用 IniFormat 保证跨平台可读；组织/应用名写入便于回读
+    QSettings dst(path, QSettings::IniFormat);
+    dst.clear();
+    const QStringList keys = src.allKeys();
+    for (const QString& key : keys) {
+        // 敏感信息不导出：令牌/密钥（微软 refresh token 等）
+        if (key.contains(QStringLiteral("token"), Qt::CaseInsensitive)
+            || key.contains(QStringLiteral("secret"), Qt::CaseInsensitive)
+            || key.contains(QStringLiteral("password"), Qt::CaseInsensitive)
+            || key.contains(QStringLiteral("key"), Qt::CaseInsensitive)
+            || key.contains(QStringLiteral("beta"), Qt::CaseInsensitive)) {
+            continue;
+        }
+        dst.setValue(key, src.value(key));
+    }
+    dst.sync();
+    qCInfo(logApp) << QStringLiteral("[设置] 导出设置 → %1（%2 项）").arg(path).arg(keys.size());
+    return dst.status() == QSettings::NoError;
+}
+
+bool SettingsBackend::importSettingsFromFile(const QString& path)
+{
+    if (path.isEmpty() || !QFileInfo::exists(path)) return false;
+    QSettings src(path, QSettings::IniFormat);
+    QSettings dst(QCoreApplication::organizationName(),
+                  QCoreApplication::applicationName());
+    const QStringList keys = src.allKeys();
+    if (keys.isEmpty()) return false;
+    for (const QString& key : keys) {
+        // 同样跳过敏感键（防御导入恶意 ini）
+        if (key.contains(QStringLiteral("token"), Qt::CaseInsensitive)
+            || key.contains(QStringLiteral("secret"), Qt::CaseInsensitive)
+            || key.contains(QStringLiteral("password"), Qt::CaseInsensitive)
+            || key.contains(QStringLiteral("key"), Qt::CaseInsensitive)
+            || key.contains(QStringLiteral("beta"), Qt::CaseInsensitive)) {
+            continue;
+        }
+        dst.setValue(key, src.value(key));
+    }
+    dst.sync();
+    qCInfo(logApp) << QStringLiteral("[设置] 导入设置 ← %1（%2 项）").arg(path).arg(keys.size());
+    // 导入后重载内存态（Java 路径等）
+    loadSettings();
+    emit generalSettingsChanged();
+    emit memorySettingsChanged();
+    emit launchDetailChanged();
+    emit downloadSettingsChanged();
+    emit customBgChanged();
+    emit javaPathChanged();
+    return true;
+}
+
+QString SettingsBackend::exportSettingsPreview() const
+{
+    QSettings src(QCoreApplication::organizationName(),
+                  QCoreApplication::applicationName());
+    QStringList lines;
+    const QStringList keys = src.allKeys();
+    int count = 0;
+    for (const QString& key : keys) {
+        if (key.contains(QStringLiteral("token"), Qt::CaseInsensitive)
+            || key.contains(QStringLiteral("secret"), Qt::CaseInsensitive)
+            || key.contains(QStringLiteral("password"), Qt::CaseInsensitive)
+            || key.contains(QStringLiteral("key"), Qt::CaseInsensitive)
+            || key.contains(QStringLiteral("beta"), Qt::CaseInsensitive)) {
+            continue;
+        }
+        lines << QStringLiteral("%1=%2").arg(key, src.value(key).toString());
+        count++;
+        if (count >= 60) { lines << QStringLiteral("... 共 %1 项").arg(keys.size()); break; }
+    }
+    return lines.join(QLatin1Char('\n'));
 }
 
 // ============================================================

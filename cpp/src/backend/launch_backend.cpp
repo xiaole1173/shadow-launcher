@@ -917,10 +917,10 @@ void LaunchBackend::runNextCheck()
         }
 
         // ── 写入 launcher_profiles.json（官方启动器兼容）──
-        // 某些 Mod 会读取此文件来获取玩家身份
-        if (m_authIsOnline && !m_authName.isEmpty()) {
-            writeLauncherProfilesJson();
-        }
+        // 某些 Mod 会读取此文件来获取玩家身份。
+        // 2026-08-08：改为始终预创建（离线也写基础文件——主流启动器 McFolderLauncherProfilesJsonCreate
+        // 语义），在线时附带认证信息。
+        writeLauncherProfilesJson();
 
         qCInfo(logLaunch) << QStringLiteral("[启动] 全部检查通过，准备启动 Minecraft");
         break;
@@ -939,6 +939,14 @@ void LaunchBackend::runNextCheck()
         launcher->setDetectedRegion(m_detectedRegion);
         launcher->setVersionGameDir(m_versionGameDir);
         launcher->setResolution(m_windowWidth, m_windowHeight);
+        // ── 启动细节配置（低垂果实批，2026-08-08）──
+        launcher->setGcMode(m_gcMode);
+        launcher->setProcessPriority(m_processPriority);
+        launcher->setFullscreen(m_fullscreenEnabled);
+        launcher->setAutoJoinServer(m_autoJoinServer);
+        launcher->setWindowTitleOverride(m_windowTitleOverride);
+        launcher->setPreLaunchCommand(m_preLaunchCommand);
+        launcher->setPostExitCommand(m_postExitCommand);
         launcher->setProperty("launchVersion", m_pendingVersionId);
         // Connect signals
         m_activeLauncher = launcher;  // only this launcher's progress feeds the overlay
@@ -1532,32 +1540,52 @@ void LaunchBackend::writeLauncherProfilesJson()
         }
     }
 
-    // 构建认证信息
-    QJsonObject authDb;
-    QJsonObject account;
-    account[QStringLiteral("username")] = m_authName;
-    QJsonObject profile;
-    profile[QStringLiteral("displayName")] = m_authName;
-    QJsonObject profiles;
-    profiles[profileId] = profile;
-    account[QStringLiteral("profiles")] = profiles;
-    authDb[accountId] = account;
+    // ── profiles 段（主流启动器 McFolderLauncherProfilesJsonCreate 基础结构）──
+    // 某些 Mod/服务端工具会读取 profiles/selectedProfile 判断启动器
+    if (!root.contains(QStringLiteral("profiles"))) {
+        QJsonObject profileEntry;
+        profileEntry[QStringLiteral("icon")] = QStringLiteral("Grass");
+        profileEntry[QStringLiteral("name")] = QStringLiteral("Shadow");
+        profileEntry[QStringLiteral("lastVersionId")] = QStringLiteral("latest-release");
+        profileEntry[QStringLiteral("type")] = QStringLiteral("latest-release");
+        QJsonObject profiles;
+        profiles[QStringLiteral("Shadow")] = profileEntry;
+        root[QStringLiteral("profiles")] = profiles;
+        root[QStringLiteral("selectedProfile")] = QStringLiteral("Shadow");
+    }
+    if (!root.contains(QStringLiteral("clientToken"))) {
+        root[QStringLiteral("clientToken")] = clientToken;
+    }
 
-    root[QStringLiteral("authenticationDatabase")] = authDb;
-    root[QStringLiteral("clientToken")] = clientToken;
+    // 在线模式：构建认证信息（离线时保留已有或跳过）
+    if (m_authIsOnline && !m_authName.isEmpty()) {
+        QJsonObject authDb;
+        QJsonObject account;
+        account[QStringLiteral("username")] = m_authName;
+        QJsonObject profile;
+        profile[QStringLiteral("displayName")] = m_authName;
+        QJsonObject profiles;
+        profiles[profileId] = profile;
+        account[QStringLiteral("profiles")] = profiles;
+        authDb[accountId] = account;
 
-    QJsonObject selectedUser;
-    selectedUser[QStringLiteral("account")] = accountId;
-    selectedUser[QStringLiteral("profile")] = profileId;
-    root[QStringLiteral("selectedUser")] = selectedUser;
+        root[QStringLiteral("authenticationDatabase")] = authDb;
+        root[QStringLiteral("clientToken")] = clientToken;
 
-    // 写入文件
+        QJsonObject selectedUser;
+        selectedUser[QStringLiteral("account")] = accountId;
+        selectedUser[QStringLiteral("profile")] = profileId;
+        root[QStringLiteral("selectedUser")] = selectedUser;
+    }
+
+    // 写入文件（UTF-8；主流启动器 用 GB18030 但官方启动器/Mod 读 UTF-8 更稳）
     QFile f(path);
     if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
         QJsonDocument doc(root);
         f.write(doc.toJson(QJsonDocument::Indented));
         f.close();
-        qCInfo(logLaunch) << QStringLiteral("[启动] launcher_profiles.json 已写入 玩家=%1").arg(m_authName);
+        qCInfo(logLaunch) << QStringLiteral("[启动] launcher_profiles.json 已写入 玩家=%1 在线=%2")
+            .arg(m_authName.isEmpty() ? QStringLiteral("(离线)") : m_authName).arg(m_authIsOnline);
     } else {
         qCWarning(logLaunch) << QStringLiteral("[启动] launcher_profiles.json 写入失败 错误=%1").arg(f.errorString());
     }
@@ -1706,6 +1734,12 @@ QString LaunchBackend::exportLaunchScript(const QString& versionId, const QStrin
     launcher.setAutoLangMode(m_autoLangMode);
     launcher.setDetectedRegion(m_detectedRegion);
     launcher.setResolution(m_windowWidth, m_windowHeight);
+    // ── 启动细节配置（低垂果实批，2026-08-08：脚本与图形启动一致）──
+    launcher.setGcMode(m_gcMode);
+    launcher.setFullscreen(m_fullscreenEnabled);
+    launcher.setAutoJoinServer(m_autoJoinServer);
+    launcher.setPreLaunchCommand(m_preLaunchCommand);
+    launcher.setPostExitCommand(m_postExitCommand);
     return launcher.buildLaunchScript(versionId, javaPath, maxMemoryMB,
                                       jvmArgs, gameArgs, highPerfGpu);
 }

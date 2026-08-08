@@ -38,6 +38,14 @@ class SettingsBackend : public QObject {
     Q_PROPERTY(int autoLangMode READ autoLangMode WRITE setAutoLangMode NOTIFY autoLangModeChanged)
     Q_PROPERTY(int windowWidth READ windowWidth WRITE setWindowWidth NOTIFY windowSettingsChanged)
     Q_PROPERTY(int windowHeight READ windowHeight WRITE setWindowHeight NOTIFY windowSettingsChanged)
+    // ── 启动细节（低垂果实批，2026-08-08：对齐 主流启动器/主流启动器）──
+    Q_PROPERTY(int gcMode READ gcMode WRITE setGcMode NOTIFY launchDetailChanged)
+    Q_PROPERTY(int processPriority READ processPriority WRITE setProcessPriority NOTIFY launchDetailChanged)
+    Q_PROPERTY(bool fullscreenEnabled READ fullscreenEnabled WRITE setFullscreenEnabled NOTIFY launchDetailChanged)
+    Q_PROPERTY(QString autoJoinServer READ autoJoinServer WRITE setAutoJoinServer NOTIFY launchDetailChanged)
+    Q_PROPERTY(QString windowTitleOverride READ windowTitleOverride WRITE setWindowTitleOverride NOTIFY launchDetailChanged)
+    Q_PROPERTY(QString preLaunchCommand READ preLaunchCommand WRITE setPreLaunchCommand NOTIFY launchDetailChanged)
+    Q_PROPERTY(QString postExitCommand READ postExitCommand WRITE setPostExitCommand NOTIFY launchDetailChanged)
 
 public:
     explicit SettingsBackend(QObject* parent = nullptr);
@@ -96,6 +104,12 @@ public:
     Q_INVOKABLE bool versionHighPerfGpu(const QString& versionId) const;
     Q_INVOKABLE void setVersionHighPerfGpu(const QString& versionId, bool v);
 
+    // ── 启动细节（版本级覆盖，对齐主流启动器实现 VersionAdvanceGC/VersionServerEnter）──
+    Q_INVOKABLE int versionGcMode(const QString& versionId) const;      // 0=跟随全局 1-3=覆盖
+    Q_INVOKABLE void setVersionGcMode(const QString& versionId, int mode);
+    Q_INVOKABLE QString versionAutoJoinServer(const QString& versionId) const;  // 空=跟随全局
+    Q_INVOKABLE void setVersionAutoJoinServer(const QString& versionId, const QString& addr);
+
     Q_INVOKABLE QVariantList availableJavaList();
     Q_INVOKABLE void selectJavaByIndex(int index);
     Q_INVOKABLE void removeJavaFromList(int index);
@@ -104,6 +118,13 @@ public:
     // maxMajor>0 时限制在 [requiredMajor, maxMajor] 区间（老版本 Mixin 兼容上限）
     Q_INVOKABLE QString openJavaFileDialog();
     Q_INVOKABLE QString browseJava();          // QML alias
+    // ── 设置导入导出（2026-08-08：主流启动器 CacheExportConfig 对齐）──
+    /// 导出全部启动器设置到指定文件（ini 格式），成功返回 true
+    Q_INVOKABLE bool exportSettingsToFile(const QString& path);
+    /// 从文件导入设置（合并，覆盖已有值），成功返回 true
+    Q_INVOKABLE bool importSettingsFromFile(const QString& path);
+    /// 导出的设置内容预览（供 QML 确认弹窗展示）
+    Q_INVOKABLE QString exportSettingsPreview() const;
     void setMinecraftDir(const QString& dir);
     Q_INVOKABLE void setIsolationEnabled(bool enabled);
     Q_INVOKABLE void migrateVersionToIsolated(const QString& versionId);
@@ -117,6 +138,22 @@ public:
     int languageIndex() const { return m_languageIndex; }
     Q_INVOKABLE void setLanguageIndex(int idx);
     bool isLanguageChanged() const { return m_languageIndex != m_launchLanguageIndex; }
+
+    // ── 启动细节 getter/setter（全局）──
+    int gcMode() const { return m_gcMode; }
+    void setGcMode(int v) { m_gcMode = v; saveSettings(); emit launchDetailChanged(); }
+    int processPriority() const { return m_processPriority; }
+    void setProcessPriority(int v) { m_processPriority = v; saveSettings(); emit launchDetailChanged(); }
+    bool fullscreenEnabled() const { return m_fullscreenEnabled; }
+    void setFullscreenEnabled(bool v) { m_fullscreenEnabled = v; saveSettings(); emit launchDetailChanged(); }
+    QString autoJoinServer() const { return m_autoJoinServer; }
+    void setAutoJoinServer(const QString& v) { m_autoJoinServer = v; saveSettings(); emit launchDetailChanged(); }
+    QString windowTitleOverride() const { return m_windowTitleOverride; }
+    void setWindowTitleOverride(const QString& v) { m_windowTitleOverride = v; saveSettings(); emit launchDetailChanged(); }
+    QString preLaunchCommand() const { return m_preLaunchCommand; }
+    void setPreLaunchCommand(const QString& v) { m_preLaunchCommand = v; saveSettings(); emit launchDetailChanged(); }
+    QString postExitCommand() const { return m_postExitCommand; }
+    void setPostExitCommand(const QString& v) { m_postExitCommand = v; saveSettings(); emit launchDetailChanged(); }
 
     // Custom background
     QString customBgPath() const { return m_customBgPath; }
@@ -173,6 +210,8 @@ signals:
     void customBgChanged();
     void downloadSettingsChanged();
     void autoLangModeChanged();
+    /// 启动细节设置变更（GC/优先级/全屏/自动进服/窗口标题/pre-post 命令）
+    void launchDetailChanged();
     void windowSettingsChanged();
     void logMessage(const QString& msg);
 
@@ -233,6 +272,15 @@ private:
     int m_autoLangMode = 1;  // 0=off, 1=system locale, 2=IP region
     int m_windowWidth = 854;
     int m_windowHeight = 480;
+
+    // ── 启动细节（低垂果实批，2026-08-08）──
+    int m_gcMode = 0;                 // 0=自动 1=分代ZGC优先 2=仅G1GC 3=不指定
+    int m_processPriority = 1;        // 0=高 1=中 2=低（主流启动器 LaunchArgumentPriority）
+    bool m_fullscreenEnabled = false; // --fullscreen
+    QString m_autoJoinServer;         // 自动进服 host[:port]
+    QString m_windowTitleOverride;    // 游戏窗口标题覆盖
+    QString m_preLaunchCommand;       // 启动前命令
+    QString m_postExitCommand;        // 退出后命令
 
     // Cache for Java scan results (expensive operation)
     QVector<JavaInfo> m_cachedJavaList;

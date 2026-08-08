@@ -158,6 +158,14 @@ class ShadowBackend : public QObject {
     Q_PROPERTY(QString jvmArgs READ jvmArgs NOTIFY jvmArgsChanged)
     Q_PROPERTY(QString gameArgs READ gameArgs NOTIFY gameArgsChanged)
     Q_PROPERTY(bool highPerfGpu READ highPerfGpu NOTIFY highPerfGpuChanged)
+    // ── 启动细节（低垂果实批，2026-08-08）──
+    Q_PROPERTY(int gcMode READ gcMode WRITE setGcMode NOTIFY launchDetailChanged)
+    Q_PROPERTY(int processPriority READ processPriority WRITE setProcessPriority NOTIFY launchDetailChanged)
+    Q_PROPERTY(bool fullscreenEnabled READ fullscreenEnabled WRITE setFullscreenEnabled NOTIFY launchDetailChanged)
+    Q_PROPERTY(QString autoJoinServer READ autoJoinServer WRITE setAutoJoinServer NOTIFY launchDetailChanged)
+    Q_PROPERTY(QString windowTitleOverride READ windowTitleOverride WRITE setWindowTitleOverride NOTIFY launchDetailChanged)
+    Q_PROPERTY(QString preLaunchCommand READ preLaunchCommand WRITE setPreLaunchCommand NOTIFY launchDetailChanged)
+    Q_PROPERTY(QString postExitCommand READ postExitCommand WRITE setPostExitCommand NOTIFY launchDetailChanged)
 
     // ── Verify ──
     Q_PROPERTY(bool verifyRunning READ verifyRunning NOTIFY verifyRunningChanged)
@@ -279,6 +287,36 @@ public:
     QString gameArgs() const;
     bool highPerfGpu() const;
     QString jvmArgs() const;
+
+    // ── 启动细节（低垂果实批，2026-08-08）──
+    int gcMode() const;
+    void setGcMode(int v);
+    int processPriority() const;
+    void setProcessPriority(int v);
+    bool fullscreenEnabled() const;
+    void setFullscreenEnabled(bool v);
+    QString autoJoinServer() const;
+    void setAutoJoinServer(const QString& v);
+    QString windowTitleOverride() const;
+    void setWindowTitleOverride(const QString& v);
+    QString preLaunchCommand() const;
+    void setPreLaunchCommand(const QString& v);
+    QString postExitCommand() const;
+    void setPostExitCommand(const QString& v);
+    /// 版本级覆盖：GC 模式（0=跟随全局）
+    Q_INVOKABLE int versionGcMode(const QString& versionId) const;
+    Q_INVOKABLE void setVersionGcMode(const QString& versionId, int mode);
+    /// 版本级覆盖：自动进服地址（空=跟随全局）
+    Q_INVOKABLE QString versionAutoJoinServer(const QString& versionId) const;
+    Q_INVOKABLE void setVersionAutoJoinServer(const QString& versionId, const QString& addr);
+    /// 解析后的 GC 模式（版本级优先）
+    Q_INVOKABLE int resolvedGcMode(const QString& versionId) const;
+    /// 解析后的自动进服地址（版本级优先）
+    Q_INVOKABLE QString resolvedAutoJoinServer(const QString& versionId) const;
+    // ── 设置导入导出（转发 SettingsBackend）──
+    Q_INVOKABLE bool exportSettingsToFile(const QString& path);
+    Q_INVOKABLE bool importSettingsFromFile(const QString& path);
+    Q_INVOKABLE QString exportSettingsPreview() const;
 
     // ── Language hot-switch ──
     void setEngine(QQmlEngine* engine) { m_engine = engine; }
@@ -595,6 +633,8 @@ signals:
     void jvmArgsChanged();
     void gameArgsChanged();
     void highPerfGpuChanged();
+    /// 启动细节设置变更（GC/优先级/全屏/自动进服/窗口标题/pre-post 命令）
+    void launchDetailChanged();
     void versionLaunchSettingsChanged(const QString& versionId);
     void launchBlocked(const QString& reason);
     void generalSettingsChanged();
