@@ -680,6 +680,16 @@ if(SHADOW_BUILD_MODPACK_SELFTEST)
     )
     target_include_directories(JavaRulesTest PRIVATE src)
     target_link_libraries(JavaRulesTest PRIVATE Qt6::Core)
+
+    # Java 自动安装取消语义验证（已缓存不误删 / 失败清理残留）
+    add_executable(JavaCancelTest
+        tests/test_java_cancel.cpp
+        src/core/java_runtime_installer.cpp
+        src/core/http_client.cpp
+        src/utils/logger.cpp
+    )
+    target_include_directories(JavaCancelTest PRIVATE src)
+    target_link_libraries(JavaCancelTest PRIVATE Qt6::Core Qt6::Network Qt6::Gui Qt6::GuiPrivate)
 endif()
 
 # ============================================================

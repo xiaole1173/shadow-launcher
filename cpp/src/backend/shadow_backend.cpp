@@ -133,6 +133,10 @@ ShadowBackend::ShadowBackend(QObject* parent)
                std::function<void(bool, const QString&, const QString&)> onDone) {
             m_java->installJavaForLaunch(major, std::move(onProgress), std::move(onDone));
         });
+    m_launch->setJavaCanceler([this]() {
+        // JavaRuntimeInstaller::cancelInstall：下载中 abort+清理，解压/安装中不打断
+        m_java->cancelJavaInstall();
+    });
 
     // ── Java 一键安装完成后：自动刷新两处 Java 状态 ──
     // 1) SettingsBackend 重新扫描系统 Java（设置-Java 列表更新）

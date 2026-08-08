@@ -82,6 +82,10 @@ public:
         int, std::function<void(int, const QString&)>,
         std::function<void(bool, const QString&, const QString&)>)>;
     void setJavaInstaller(JavaInstallFn fn) { m_javaInstallFn = std::move(fn); }
+    /// 注入 Java 安装取消器（指向 JavaRuntimeInstaller::cancelInstall）：
+    /// 下载中取消 → abort + 清理残存；解压/安装中取消 → 不打断（留着装完下次用）
+    using JavaCancelFn = std::function<void()>;
+    void setJavaCanceler(JavaCancelFn fn) { m_javaCancelFn = std::move(fn); }
     /// 请求在启动状态机内自动安装指定版本 Java（由 ShadowBackend 在 Java 匹配失败时设置）
     void setJavaAutoInstallRequest(int major) { m_javaAutoInstallMajor = major; }
 
@@ -174,6 +178,7 @@ private:
 
     // ── 启动自动安装 Java（2026-08-08）：Java 缺失/不满足时纳入启动状态机 ──
     JavaInstallFn m_javaInstallFn;
+    JavaCancelFn m_javaCancelFn;
     int m_javaAutoInstallMajor = 0;      // >0 表示当前在自动安装该版本 Java
     QTimer* m_javaInstallPoll = nullptr; // 下载进度轮询 → launchCheckProgress
     bool m_javaInstallFailed = false;    // 安装失败标志（避免重入）

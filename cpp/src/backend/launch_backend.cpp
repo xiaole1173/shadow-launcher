@@ -135,6 +135,12 @@ void LaunchBackend::cancelLaunch()
     if (m_checkTimer) m_checkTimer->stop();
     if (m_refreshTimeoutTimer) m_refreshTimeoutTimer->stop();
     cleanupJavaInstallPoll();
+    // Java 自动安装中：下载中取消 → abort+清理；解压中 → 不打断（JavaRuntimeInstaller 语义）
+    if (m_javaAutoInstallMajor > 0 && m_javaCancelFn) {
+        qCInfo(logLaunch) << QStringLiteral("[启动] 取消 Java %1 自动安装（下载中终止并清理，安装中不打断）")
+            .arg(m_javaAutoInstallMajor);
+        m_javaCancelFn();
+    }
     m_javaAutoInstallMajor = 0;
 
     // If a game process was already started, kill it
