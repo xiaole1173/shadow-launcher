@@ -661,6 +661,25 @@ if(SHADOW_BUILD_MODPACK_SELFTEST)
     )
     target_include_directories(IsoGdTest PRIVATE src)
     target_link_libraries(IsoGdTest PRIVATE Qt6::Core)
+
+    # 启动自动安装 Java 组件验证（真实网络 Tuna，worker 下载/解压 + 主线程回调）
+    # 用法: JavaAutoInstallTest <major>（默认 8；已缓存直接完成）
+    add_executable(JavaAutoInstallTest
+        tests/test_java_autoinstall.cpp
+        src/core/java_runtime_installer.cpp
+        src/core/http_client.cpp
+        src/utils/logger.cpp
+    )
+    target_include_directories(JavaAutoInstallTest PRIVATE src)
+    target_link_libraries(JavaAutoInstallTest PRIVATE Qt6::Core Qt6::Network Qt6::Gui Qt6::GuiPrivate)
+
+    # Java 需求规则验证（1.16.5-→8 / 1.17→16 / 1.18-1.20.4→17 / 1.20.5-1.21→21 / 22+→25）
+    add_executable(JavaRulesTest
+        tests/test_java_rules.cpp
+        src/utils/logger.cpp
+    )
+    target_include_directories(JavaRulesTest PRIVATE src)
+    target_link_libraries(JavaRulesTest PRIVATE Qt6::Core)
 endif()
 
 # ============================================================

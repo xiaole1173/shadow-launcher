@@ -380,6 +380,13 @@ void JavaBackend::cancelJavaInstall()
     m_runtimeInstaller->cancelInstall();
 }
 
+void JavaBackend::installJavaForLaunch(int majorVersion,
+                                       std::function<void(bool, const QString&, const QString&)> onDone)
+{
+    // 游戏运行只需 JRE（与一键安装一致；Tuna 镜像 8/17/21/25 均有 JRE 构建）
+    m_runtimeInstaller->installJavaAsync(majorVersion, QStringLiteral("jre"), std::move(onDone));
+}
+
 QVariantList JavaBackend::scanSystemJavas()
 {
     return m_runtimeInstaller->scanSystemJavas();

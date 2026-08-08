@@ -107,6 +107,19 @@ Rectangle {
         }
     }
 
+    // Java 自动下载 toast state（2026-08-08：启动时 Java 缺失自动安装）
+    property bool _javaDlActive: false
+    property bool _javaDlDone: false
+    property string _javaDlText: ""
+    property Timer _javaDlDoneTimer: Timer {
+        interval: 2500
+        onTriggered: {
+            _javaDlActive = false
+            _javaDlDone = false
+            _javaDlText = ""
+        }
+    }
+
 
     onCheckFailedChanged: {
         if (checkFailed) {
@@ -135,6 +148,15 @@ Rectangle {
                 checkFailedDetails = ""
                 missingFilesList = []
                 checkWarning = ""
+                // 重置 Java/authlib 下载 toast 状态（新一轮启动）
+                _javaDlActive = false; _javaDlDone = false; _javaDlText = ""
+                _javaDlDoneTimer.stop()
+                _authlibDlActive = false; _authlibDlDone = false; _authlibDlText = ""
+                _authlibDlDoneTimer.stop()
+            } else if (!backend.launching) {
+                // 启动结束（成功或失败）：清下载 toast
+                _javaDlActive = false; _javaDlDone = false; _javaDlText = ""
+                _javaDlDoneTimer.stop()
             }
         }
 
@@ -149,6 +171,13 @@ Rectangle {
                 _authlibDlDone = true
                 _authlibDlText = "authlib-injector.jar 下载完成"
                 _authlibDlDoneTimer.start()
+            }
+            // Java 自动下载完成检测（状态不再含 "Java" 且非错误 → 完成）
+            if (_javaDlActive && !_javaDlDone && !checkFailed
+                    && status.indexOf("Java") < 0 && status.indexOf("正在启动") >= 0) {
+                _javaDlDone = true
+                _javaDlText = "Java 下载完成，正在启动..."
+                _javaDlDoneTimer.start()
             }
         }
 
@@ -171,12 +200,30 @@ Rectangle {
                 _authlibDlDone = false
                 _authlibDlDoneTimer.stop()
             }
+            // Java 自动下载 detection
+            if (warning && warning.indexOf("自动下载 Java") >= 0) {
+                _javaDlActive = true
+                _javaDlText = warning
+                _javaDlDone = false
+                _javaDlDoneTimer.stop()
+            }
         }
 
         function onLaunchCheckProgress(step) {
             // Update authlib-injector download progress in toast
             if (_authlibDlActive && !_authlibDlDone && step && step.indexOf("authlib-injector") >= 0) {
                 _authlibDlText = step
+            }
+            // Update Java download progress in toast
+            if (_javaDlActive && !_javaDlDone && step) {
+                if (step.indexOf("Java") >= 0)
+                    _javaDlText = step
+                else if (step.indexOf("正在启动") >= 0) {
+                    // 安装完成 → 启动中：保持 toast 显示"完成"
+                    _javaDlDone = true
+                    _javaDlText = "Java 下载完成，正在启动..."
+                    _javaDlDoneTimer.start()
+                }
             }
         }
     }
@@ -515,6 +562,57 @@ Rectangle {
         // Elastic slide from right — entry and exit matched
         transform: Translate {
             x: _authlibDlActive ? 0 : parent.width
+            Behavior on x { NumberAnimation { duration: 350; easing.type: Easing.OutBack } }
+        }
+    }
+
+    // Java 自动下载 notification — InlineToast style（2026-08-08，对齐 authlib 卡片）
+    Item {
+        id: javaToast
+        clip: true
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: authlibToast.top
+        anchors.bottomMargin: 10
+        anchors.leftMargin: parent.width * 0.2
+        anchors.rightMargin: parent.width * 0.2
+        height: javaToastLabel.implicitHeight + 20
+
+        readonly property var _curStyle: (_javaDlDone || !_javaDlActive) ? toastSuccessStyle : toastWarningStyle
+
+        opacity: _javaDlActive ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: 150 } }
+
+        Rectangle {
+            anchors.fill: parent
+            radius: StyleTokens.radiusSm
+            color: javaToast._curStyle.bgColor
+
+            Rectangle {
+                anchors.left: parent.left
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                width: 3
+                color: javaToast._curStyle.leftAccentColor
+                radius: StyleTokens.radiusXs
+            }
+
+            Text {
+                id: javaToastLabel
+                anchors.left: parent.left; anchors.leftMargin: 10
+                anchors.right: parent.right; anchors.rightMargin: 8
+                anchors.verticalCenter: parent.verticalCenter
+                text: _javaDlText
+                color: javaToast._curStyle.textColor
+                font.pixelSize: StyleTokens.fontSizeSm
+                elide: Text.ElideRight
+                maximumLineCount: 2
+                wrapMode: Text.WordWrap
+            }
+        }
+
+        transform: Translate {
+            x: _javaDlActive ? 0 : parent.width
             Behavior on x { NumberAnimation { duration: 350; easing.type: Easing.OutBack } }
         }
     }
