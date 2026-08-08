@@ -444,6 +444,11 @@ QVariantList JavaRuntimeInstaller::scanSystemJavas()
                 QStringLiteral("C:/Program Files (x86)/Adoptium"),
                 QStringLiteral("C:/Program Files (x86)/Zulu"),
                 QStringLiteral("%USERPROFILE%/.jdks"),
+                // MC 官方 runtime（自建 .minecraft 与官方启动器都会装；jre-legacy/jre-x64 等）
+                QStringLiteral("%APPDATA%/.minecraft/runtime"),
+                QStringLiteral("%USERPROFILE%/AppData/Roaming/.minecraft/runtime"),
+                QStringLiteral("C:/Program Files (x86)/Minecraft Launcher/runtime"),
+                QStringLiteral("C:/Program Files (x86)/Minecraft/runtime"),
             };
             for (const QString& raw : commonRoots) {
                 QString root = raw;

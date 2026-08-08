@@ -690,6 +690,16 @@ if(SHADOW_BUILD_MODPACK_SELFTEST)
     )
     target_include_directories(JavaCancelTest PRIVATE src)
     target_link_libraries(JavaCancelTest PRIVATE Qt6::Core Qt6::Network Qt6::Gui Qt6::GuiPrivate)
+
+    # Java 列表扫描验证（MC 官方 runtime 路径可达性）
+    add_executable(JavaScanTest
+        tests/test_java_scan.cpp
+        src/core/java_runtime_installer.cpp
+        src/core/http_client.cpp
+        src/utils/logger.cpp
+    )
+    target_include_directories(JavaScanTest PRIVATE src)
+    target_link_libraries(JavaScanTest PRIVATE Qt6::Core Qt6::Network Qt6::Gui Qt6::GuiPrivate)
 endif()
 
 # ============================================================
