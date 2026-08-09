@@ -5,23 +5,19 @@
 // ── Microsoft OAuth2 Authorization Code Flow for Minecraft ──
 // Uses Microsoft Identity Platform v2 endpoint (consumers tenant)
 //
-// Mode A (default): localhost callback — system browser → localhost → code extraction
-// Mode B: embedded browser — QWebEngineView → URL interception → code extraction
-// Mode C: embedded browser — Edge WebView2 (system Chromium, no Qt WebEngine)
-//         selected via SHADOW_AUTH_WEBVIEW2=1 env (trial); becomes default after validation
+// Mode A: localhost callback — system browser → localhost → code extraction
+// Mode B: embedded login — standalone wv2login.exe (Edge WebView2 in a
+//         separate process; never runs WebView2 inside this process, so
+//         closing the login window can never crash the launcher)
 
 #include <QObject>
 #include <QString>
-#include <QWidget>
 #include <QPointer>
 
 class QTcpServer;
-class QWebEngineView;
 class QProcess;
 
 namespace ShadowLauncher {
-
-class WebView2Window;
 
 class MicrosoftAuth : public QObject {
     Q_OBJECT
@@ -54,16 +50,11 @@ private:
     QString m_msMcToken;
     int m_msTokenExpiresIn = 86400;
     QTcpServer* m_localServer = nullptr;
-    QPointer<QWidget> m_embeddedWindow;
-    QPointer<QWebEngineView> m_webView;
-    QPointer<WebView2Window> m_webView2;
     QProcess* m_wv2Process = nullptr;
     bool m_embeddedMode = false;
     bool m_codeCaptured = false;
 
-    void startWebView2Login(const QString& clientId);
     void startWv2LoginProcess(const QString& clientId);
-
     Q_INVOKABLE void exchangeCode(const QString& code, const QString& redirectUri);
     void authenticateXbl(const QString& accessToken);
     void authenticateXsts(const QString& xblToken);

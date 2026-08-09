@@ -163,6 +163,16 @@ if (Test-Path "$ProjectRoot\build\Release\bin") {
     Write-Host "       bin/ : $binFiles files, $binSizeMB MB" -ForegroundColor Gray
 }
 
+# 4f. wv2login.exe (WebView2 embedded-login helper, separate process)
+$wv2 = "$ProjectRoot\thirdparty\wv2login\bin\x64\Release\wv2login.exe"
+if (Test-Path $wv2) {
+    Copy-Item $wv2 "$DistDir\wv2login.exe" -Force
+    Copy-Item "$ProjectRoot\thirdparty\wv2login\bin\x64\Release\WebView2Loader.dll" "$DistDir\WebView2Loader.dll" -Force
+    Write-Host "       wv2login.exe + WebView2Loader.dll" -ForegroundColor Gray
+} else {
+    Write-Host "       WARN: wv2login.exe not built - embedded login will fail!" -ForegroundColor Yellow
+}
+
 # 4e. compat.json
 Write-Host "[4e] Generating compat.json..." -ForegroundColor Yellow
 $exePath = "$DistDir\ShadowLauncher.exe"

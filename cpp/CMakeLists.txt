@@ -22,8 +22,6 @@ find_package(Qt6 6.8 REQUIRED COMPONENTS
     Concurrent
     Network
     Widgets
-    WebEngineQuick
-    WebEngineWidgets
     LinguistTools
 )
 
@@ -66,7 +64,6 @@ set(SOURCES
     src/core/mod_manager.cpp
     src/core/icon_cache.cpp
     src/core/microsoft_auth.cpp
-    src/core/webview2_window.cpp
     src/core/yggdrasil_auth.cpp
     src/core/version_isolation.cpp
     src/core/mod_loader_installer.cpp
@@ -137,7 +134,6 @@ set(HEADERS
     src/core/update_manager.h
     src/core/version_isolation.h
     src/core/yggdrasil_auth.h
-    src/core/webview2_window.h
     src/core/crash_detector.h
     src/core/screenshot_server.h
     src/backend/app_backend.h
@@ -489,16 +485,10 @@ target_link_libraries(ShadowLauncher PRIVATE
     Qt6::Network
     Qt6::Widgets
     bcrypt
-    Qt6::WebEngineQuick
-    Qt6::WebEngineWidgets
     nlohmann_json
     libwebp
     bcrypt
     crypt32
-    # Edge WebView2 (system Chromium) — static loader, no extra DLL shipped
-    ${CMAKE_SOURCE_DIR}/thirdparty/webview2/lib/x64/WebView2LoaderStatic.lib
-    ole32
-    shell32
 )
 
 # cpr::cpr 鈥?added when libcurl is installed
@@ -507,9 +497,6 @@ target_link_libraries(ShadowLauncher PRIVATE
 if(WIN32)
     set_target_properties(ShadowLauncher PROPERTIES
         WIN32_EXECUTABLE TRUE
-    )
-    target_include_directories(ShadowLauncher PRIVATE
-        ${CMAKE_SOURCE_DIR}/thirdparty/webview2/include
     )
     # Auto-deploy Qt DLLs after each build
     add_custom_command(TARGET ShadowLauncher POST_BUILD
@@ -546,48 +533,6 @@ endif()
 #   cmake -S . -B build-test -DSHADOW_BUILD_MODPACK_SELFTEST=ON
 # ============================================================
 option(SHADOW_BUILD_MODPACK_SELFTEST "Build modpack self-test executable" OFF)
-
-option(SHADOW_BUILD_WEBVIEW2_SMOKE "Build WebView2 smoke test executable" OFF)
-add_executable(Wv2Win32Smoke tests/wv2_win32_smoke.cpp)
-target_include_directories(Wv2Win32Smoke PRIVATE
-    C:/Users/蔡朝彬/AppData/Local/Temp/wv2samples/SampleApps/packages/Microsoft.Web.WebView2.1.0.4181-prerelease/build/native/include
-)
-set(WV2SDK_4181 "C:/Users/蔡朝彬/AppData/Local/Temp/wv2samples/SampleApps/packages/Microsoft.Web.WebView2.1.0.4181-prerelease")
-target_compile_options(Wv2Win32Smoke PRIVATE /utf-8)
-set_target_properties(Wv2Win32Smoke PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreaded")
-target_link_libraries(Wv2Win32Smoke PRIVATE
-    ${WV2SDK_4181}/build/native/x64/WebView2Loader.dll.lib
-    ole32 shell32 user32
-)
-add_custom_command(TARGET Wv2Win32Smoke POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${WV2SDK_4181}/build/native/x64/WebView2Loader.dll"
-        "$<TARGET_FILE_DIR:Wv2Win32Smoke>/WebView2Loader.dll"
-)
-if(WIN32)
-    set_target_properties(Wv2Win32Smoke PROPERTIES WIN32_EXECUTABLE TRUE)
-endif()
-
-if(SHADOW_BUILD_WEBVIEW2_SMOKE)
-    add_executable(WebView2SmokeTest
-        tests/webview2_smoke.cpp
-        src/core/webview2_window.cpp
-        src/utils/logger.cpp
-    )
-    target_include_directories(WebView2SmokeTest PRIVATE
-        ${CMAKE_SOURCE_DIR}
-        ${CMAKE_SOURCE_DIR}/thirdparty/webview2/include
-    )
-    target_compile_options(WebView2SmokeTest PRIVATE /utf-8)
-    target_link_libraries(WebView2SmokeTest PRIVATE
-        Qt6::Core Qt6::Gui Qt6::Widgets
-        ${CMAKE_SOURCE_DIR}/thirdparty/webview2/lib/x64/WebView2LoaderStatic.lib
-        ole32 shell32
-    )
-    if(WIN32)
-        set_target_properties(WebView2SmokeTest PROPERTIES WIN32_EXECUTABLE FALSE)
-    endif()
-endif()
 
 if(SHADOW_BUILD_MODPACK_SELFTEST)
     add_executable(ModpackSelfTest

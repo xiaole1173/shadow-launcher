@@ -2,7 +2,6 @@
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 #include "microsoft_auth.h"
 #include "http_client.h"
-#include "webview2_window.h"
 #include "../utils/logger.h"
 
 #include <QCoreApplication>
@@ -21,7 +20,6 @@
 #include <QTcpServer>
 #include <QUrl>
 #include <QUrlQuery>
-#include <QWebEngineView>
 #include <QTimer>
 #include <QWindow>
 #include <QWidget>
@@ -58,8 +56,6 @@ MicrosoftAuth::~MicrosoftAuth() { cancelLogin(); }
 void MicrosoftAuth::cancelLogin() {
     qCInfo(logAccount) << QStringLiteral("取消登录");
     if (m_localServer) { m_localServer->close(); m_localServer->deleteLater(); m_localServer = nullptr; }
-    if (m_embeddedWindow) { m_embeddedWindow->close(); m_embeddedWindow->deleteLater(); }
-    if (m_webView2) { m_webView2->close(); m_webView2->deleteLater(); }
     if (m_wv2Process) {
         m_wv2Process->kill();
         m_wv2Process->deleteLater();
@@ -134,93 +130,14 @@ void MicrosoftAuth::startLogin(const QString& clientId) {
 }
 
 // ═══════════════════════════════════════════════════
-// Embedded login (Mode B — QWebEngineView)
+// Embedded login (wv2login.exe — Edge WebView2, separate process)
+// The WebView2 browser never runs inside this process, so closing the
+// login window can never crash the launcher. The helper writes the OAuth
+// code to a result file we delete right after reading.
 // ═══════════════════════════════════════════════════
 
 void MicrosoftAuth::startEmbeddedLogin(const QString& clientId) {
-    if (m_busy) { emit loginFailed(tr("登录已在进行中")); return; }
-
-    // Default: Mode C — standalone wv2login.exe (Edge WebView2, separate
-    // process). WebView2 never runs inside this process, so closing the login
-    // window can never crash the launcher (async COM callbacks live in the
-    // child process). Set SHADOW_AUTH_WEBENGINE=1 to temporarily fall back
-    // to Mode B (Qt WebEngine) while validating the new path.
-    if (qEnvironmentVariableIntValue("SHADOW_AUTH_WEBENGINE") != 1) {
-        startWv2LoginProcess(clientId);
-        return;
-    }
-
-    m_busy = true;
-    m_embeddedMode = true;
-    m_clientId = clientId.isEmpty() ? kClientId : clientId;
-    qCInfo(logAccount) << QStringLiteral("开始内嵌登录 clientId=%1").arg(m_clientId);
-    QString redirect = u"https://login.microsoftonline.com/common/oauth2/nativeclient"_s;
-
-    qCInfo(logApp) << QStringLiteral("[WebEngine] 创建内嵌登录窗口");
-
-    // Create browser window
-    auto* window = new QWidget(nullptr, Qt::WindowStaysOnTopHint | Qt::Dialog);
-    window->setWindowTitle(tr("Microsoft 登录"));
-    window->resize(480, 650);
-    window->setAttribute(Qt::WA_DeleteOnClose);
-
-    auto* webView = new QWebEngineView(window);
-    webView->setGeometry(0, 0, 480, 650);
-    webView->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-
-    m_embeddedWindow = window;
-    m_webView = webView;
-
-    // URL interception
-    connect(webView, &QWebEngineView::urlChanged, this, [this, redirect](const QUrl& url) {
-        QString urlStr = url.toString();
-        if (urlStr.startsWith(redirect)) {
-            // Extract code
-            QUrlQuery query(url);
-            QString code = query.queryItemValue("code");
-            if (!code.isEmpty()) {
-                qCInfo(logApp) << QStringLiteral("[WebEngine] 已捕获授权码 code=%1...").arg(code.left(15));
-                m_codeCaptured = true;
-                if (m_embeddedWindow) m_embeddedWindow->close();
-                exchangeCode(code, redirect);
-                return;
-            }
-        }
-    });
-
-    // Close event
-    connect(window, &QWidget::destroyed, this, [this]() {
-        if (m_embeddedMode && m_busy && !m_codeCaptured) {
-            qCInfo(logApp) << QStringLiteral("[WebEngine] 用户关闭了登录窗口");
-            m_embeddedMode = false;
-            m_busy = false;
-            emit loginFailed(tr("登录被用户手动取消"));
-        }
-    });
-
-    QString state = createState();
-    QUrl url(kAuthUrl);
-    QUrlQuery q;
-    q.addQueryItem("client_id", m_clientId);
-    q.addQueryItem("response_type", "code");
-    q.addQueryItem("redirect_uri", redirect);
-    q.addQueryItem("scope", "XboxLive.signin offline_access");
-    q.addQueryItem("prompt", "select_account");
-    q.addQueryItem("state", state);
-    url.setQuery(q);
-
-    emit loginProgress(tr("正在加载登录页面"), QString());
-
-    qCInfo(logApp) << QStringLiteral("[WebEngine] 加载授权URL url=%1...").arg(url.toString().left(100));
-    webView->load(url);
-    window->show();
-    webView->show();
-
-    // Notify QML: waiting for user to complete login in browser window
-    QTimer::singleShot(500, this, [this]() {
-        if (m_busy && m_embeddedMode)
-            emit loginProgress(tr("请在浏览器窗口中登录"), QString());
-    });
+    startWv2LoginProcess(clientId);
 }
 
 // ═══════════════════════════════════════════════════
@@ -298,81 +215,6 @@ void MicrosoftAuth::startWv2LoginProcess(const QString& clientId) {
         QStringLiteral("--client-id=") + m_clientId,
         QStringLiteral("--output-file=") + outFile,
         QStringLiteral("--user-data-folder=") + profileDir,
-    });
-}
-
-// ═══════════════════════════════════════════════════
-// Embedded login (Mode C — Edge WebView2)
-// Drop-in for Mode B; uses the system WebView2 Runtime instead of
-// Qt WebEngine. Activated via SHADOW_AUTH_WEBVIEW2=1.
-// ═══════════════════════════════════════════════════
-
-void MicrosoftAuth::startWebView2Login(const QString& clientId) {
-    m_busy = true;
-    m_embeddedMode = true;
-    m_clientId = clientId.isEmpty() ? kClientId : clientId;
-    const QString redirect = u"https://login.microsoftonline.com/common/oauth2/nativeclient"_s;
-    qCInfo(logApp) << QStringLiteral("[WebView2] 创建内嵌登录窗口");
-
-    auto* window = new WebView2Window();
-    window->setWindowTitle(tr("Microsoft 登录"));
-    m_embeddedWindow = window;
-    m_webView2 = window;
-
-    // URL interception — capture OAuth code from the nativeclient redirect
-    window->setNavigationInterceptor([this, redirect](const QString& urlStr) -> bool {
-        if (urlStr.startsWith(redirect)) {
-            const QString code = QUrlQuery(QUrl(urlStr)).queryItemValue("code");
-            if (!code.isEmpty()) {
-                qCInfo(logApp) << QStringLiteral("[WebView2] 已捕获授权码 code=%1...").arg(code.left(15));
-                m_codeCaptured = true;
-                if (m_embeddedWindow) m_embeddedWindow->close();
-                exchangeCode(code, redirect);
-                return true; // cancel navigation — token flow already started
-            }
-        }
-        return false;
-    });
-
-    // Close event — user cancelled
-    connect(window, &QWidget::destroyed, this, [this]() {
-        if (m_embeddedMode && m_busy && !m_codeCaptured) {
-            qCInfo(logApp) << QStringLiteral("[WebView2] 用户关闭了登录窗口");
-            m_embeddedMode = false;
-            m_busy = false;
-            emit loginFailed(tr("登录被用户手动取消"));
-        }
-    });
-
-    // Runtime missing → surface a clear error instead of a silent blank window
-    connect(window, &WebView2Window::environmentError, this, [this](const QString& message) {
-        qCWarning(logApp) << QStringLiteral("[WebView2] 环境错误: %1").arg(message);
-        if (m_embeddedMode && m_busy && !m_codeCaptured) {
-            m_embeddedMode = false;
-            m_busy = false;
-            emit loginFailed(tr("内嵌浏览器初始化失败（缺少 WebView2 Runtime）: %1").arg(message));
-        }
-    });
-
-    QString state = createState();
-    QUrl url(kAuthUrl);
-    QUrlQuery q;
-    q.addQueryItem("client_id", m_clientId);
-    q.addQueryItem("response_type", "code");
-    q.addQueryItem("redirect_uri", redirect);
-    q.addQueryItem("scope", "XboxLive.signin offline_access");
-    q.addQueryItem("prompt", "select_account");
-    q.addQueryItem("state", state);
-    url.setQuery(q);
-
-    emit loginProgress(tr("正在加载登录页面"), QString());
-    qCInfo(logApp) << QStringLiteral("[WebView2] 加载授权URL url=%1...").arg(url.toString().left(100));
-    window->loadUrl(url);
-    window->show();
-
-    QTimer::singleShot(500, this, [this]() {
-        if (m_busy && m_embeddedMode)
-            emit loginProgress(tr("请在浏览器窗口中登录"), QString());
     });
 }
 
