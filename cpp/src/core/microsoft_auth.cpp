@@ -2,16 +2,22 @@
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 #include "microsoft_auth.h"
 #include "http_client.h"
+#include "webview2_window.h"
 #include "../utils/logger.h"
 
 #include <QCoreApplication>
 #include <QDesktopServices>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QProcess>
 #include <QRandomGenerator>
+#include <QStandardPaths>
 #include <QTcpServer>
 #include <QUrl>
 #include <QUrlQuery>
@@ -53,6 +59,12 @@ void MicrosoftAuth::cancelLogin() {
     qCInfo(logAccount) << QStringLiteral("取消登录");
     if (m_localServer) { m_localServer->close(); m_localServer->deleteLater(); m_localServer = nullptr; }
     if (m_embeddedWindow) { m_embeddedWindow->close(); m_embeddedWindow->deleteLater(); }
+    if (m_webView2) { m_webView2->close(); m_webView2->deleteLater(); }
+    if (m_wv2Process) {
+        m_wv2Process->kill();
+        m_wv2Process->deleteLater();
+        m_wv2Process = nullptr;
+    }
     m_embeddedMode = false;
     m_busy = false;
     m_codeCaptured = false;
@@ -127,6 +139,17 @@ void MicrosoftAuth::startLogin(const QString& clientId) {
 
 void MicrosoftAuth::startEmbeddedLogin(const QString& clientId) {
     if (m_busy) { emit loginFailed(tr("登录已在进行中")); return; }
+
+    // Default: Mode C — standalone wv2login.exe (Edge WebView2, separate
+    // process). WebView2 never runs inside this process, so closing the login
+    // window can never crash the launcher (async COM callbacks live in the
+    // child process). Set SHADOW_AUTH_WEBENGINE=1 to temporarily fall back
+    // to Mode B (Qt WebEngine) while validating the new path.
+    if (qEnvironmentVariableIntValue("SHADOW_AUTH_WEBENGINE") != 1) {
+        startWv2LoginProcess(clientId);
+        return;
+    }
+
     m_busy = true;
     m_embeddedMode = true;
     m_clientId = clientId.isEmpty() ? kClientId : clientId;
@@ -194,6 +217,159 @@ void MicrosoftAuth::startEmbeddedLogin(const QString& clientId) {
     webView->show();
 
     // Notify QML: waiting for user to complete login in browser window
+    QTimer::singleShot(500, this, [this]() {
+        if (m_busy && m_embeddedMode)
+            emit loginProgress(tr("请在浏览器窗口中登录"), QString());
+    });
+}
+
+// ═══════════════════════════════════════════════════
+// Embedded login (Mode C — standalone wv2login.exe)
+// The WebView2 browser runs in a separate process; the launcher only
+// reads the result file, so closing the login window can never crash us.
+// ═══════════════════════════════════════════════════
+
+void MicrosoftAuth::startWv2LoginProcess(const QString& clientId) {
+    m_busy = true;
+    m_embeddedMode = true;
+    m_clientId = clientId.isEmpty() ? kClientId : clientId;
+    const QString redirect = u"https://login.microsoftonline.com/common/oauth2/nativeclient"_s;
+    qCInfo(logApp) << QStringLiteral("[wv2login] 启动独立登录进程 clientId=%1").arg(m_clientId);
+
+    const QString exePath = QCoreApplication::applicationDirPath() + QStringLiteral("/wv2login.exe");
+    if (!QFileInfo::exists(exePath)) {
+        qCWarning(logApp) << QStringLiteral("[wv2login] 未找到 %1").arg(exePath);
+        m_busy = false;
+        m_embeddedMode = false;
+        emit loginFailed(tr("登录组件缺失：未找到 wv2login.exe"));
+        return;
+    }
+
+    // Result file + WebView2 profile live in the launcher's private data
+    // directory (NOT C:\Users\Public — that is world-readable and would leak
+    // the authorization code / login cookies). The code file is deleted right
+    // after reading; the profile holds login cookies and stays private.
+    const QString dataDir =
+        QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    QDir().mkpath(dataDir);
+    const QString outFile = dataDir + QStringLiteral("/wv2login_result_%1.txt")
+                                        .arg(QCoreApplication::applicationPid());
+    const QString profileDir = dataDir + QStringLiteral("/wv2login-profile");
+    QDir().mkpath(profileDir);
+    QFile::remove(outFile);
+
+    // Kill any stale helper from a previous run before starting a new one.
+    if (m_wv2Process) {
+        m_wv2Process->kill();
+        m_wv2Process->deleteLater();
+    }
+    m_wv2Process = new QProcess(this);
+    connect(m_wv2Process, &QProcess::finished, this,
+            [this, outFile, redirect](int exitCode, QProcess::ExitStatus) {
+        qCInfo(logApp) << QStringLiteral("[wv2login] 进程退出 exitCode=%1").arg(exitCode);
+        // Read the result file the helper wrote (UTF-8: "code=..." or "cancel").
+        QString content;
+        {
+            QFile f(outFile);
+            if (f.open(QIODevice::ReadOnly)) {
+                content = QString::fromUtf8(f.readAll());
+            }
+        }
+        QFile::remove(outFile);
+
+        m_embeddedMode = false;
+        m_busy = false;
+        if (content.startsWith(u"code="_s) && content.size() > 5) {
+            const QString code = content.mid(5);
+            qCInfo(logApp) << QStringLiteral("[wv2login] 已获取授权码 code=%1...").arg(code.left(15));
+            emit loginProgress(tr("获取授权码"), code.left(15) + u"..."_s);
+            exchangeCode(code, redirect);
+        } else {
+            qCInfo(logApp) << QStringLiteral("[wv2login] 未完成登录（窗口关闭/失败），按取消处理");
+            emit loginFailed(tr("登录被用户手动取消"));
+        }
+    });
+    connect(m_wv2Process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError err) {
+        qCWarning(logApp) << QStringLiteral("[wv2login] 启动失败 error=%1").arg(static_cast<int>(err));
+    });
+
+    emit loginProgress(tr("正在加载登录页面"), QString());
+    m_wv2Process->start(exePath, {
+        QStringLiteral("--client-id=") + m_clientId,
+        QStringLiteral("--output-file=") + outFile,
+        QStringLiteral("--user-data-folder=") + profileDir,
+    });
+}
+
+// ═══════════════════════════════════════════════════
+// Embedded login (Mode C — Edge WebView2)
+// Drop-in for Mode B; uses the system WebView2 Runtime instead of
+// Qt WebEngine. Activated via SHADOW_AUTH_WEBVIEW2=1.
+// ═══════════════════════════════════════════════════
+
+void MicrosoftAuth::startWebView2Login(const QString& clientId) {
+    m_busy = true;
+    m_embeddedMode = true;
+    m_clientId = clientId.isEmpty() ? kClientId : clientId;
+    const QString redirect = u"https://login.microsoftonline.com/common/oauth2/nativeclient"_s;
+    qCInfo(logApp) << QStringLiteral("[WebView2] 创建内嵌登录窗口");
+
+    auto* window = new WebView2Window();
+    window->setWindowTitle(tr("Microsoft 登录"));
+    m_embeddedWindow = window;
+    m_webView2 = window;
+
+    // URL interception — capture OAuth code from the nativeclient redirect
+    window->setNavigationInterceptor([this, redirect](const QString& urlStr) -> bool {
+        if (urlStr.startsWith(redirect)) {
+            const QString code = QUrlQuery(QUrl(urlStr)).queryItemValue("code");
+            if (!code.isEmpty()) {
+                qCInfo(logApp) << QStringLiteral("[WebView2] 已捕获授权码 code=%1...").arg(code.left(15));
+                m_codeCaptured = true;
+                if (m_embeddedWindow) m_embeddedWindow->close();
+                exchangeCode(code, redirect);
+                return true; // cancel navigation — token flow already started
+            }
+        }
+        return false;
+    });
+
+    // Close event — user cancelled
+    connect(window, &QWidget::destroyed, this, [this]() {
+        if (m_embeddedMode && m_busy && !m_codeCaptured) {
+            qCInfo(logApp) << QStringLiteral("[WebView2] 用户关闭了登录窗口");
+            m_embeddedMode = false;
+            m_busy = false;
+            emit loginFailed(tr("登录被用户手动取消"));
+        }
+    });
+
+    // Runtime missing → surface a clear error instead of a silent blank window
+    connect(window, &WebView2Window::environmentError, this, [this](const QString& message) {
+        qCWarning(logApp) << QStringLiteral("[WebView2] 环境错误: %1").arg(message);
+        if (m_embeddedMode && m_busy && !m_codeCaptured) {
+            m_embeddedMode = false;
+            m_busy = false;
+            emit loginFailed(tr("内嵌浏览器初始化失败（缺少 WebView2 Runtime）: %1").arg(message));
+        }
+    });
+
+    QString state = createState();
+    QUrl url(kAuthUrl);
+    QUrlQuery q;
+    q.addQueryItem("client_id", m_clientId);
+    q.addQueryItem("response_type", "code");
+    q.addQueryItem("redirect_uri", redirect);
+    q.addQueryItem("scope", "XboxLive.signin offline_access");
+    q.addQueryItem("prompt", "select_account");
+    q.addQueryItem("state", state);
+    url.setQuery(q);
+
+    emit loginProgress(tr("正在加载登录页面"), QString());
+    qCInfo(logApp) << QStringLiteral("[WebView2] 加载授权URL url=%1...").arg(url.toString().left(100));
+    window->loadUrl(url);
+    window->show();
+
     QTimer::singleShot(500, this, [this]() {
         if (m_busy && m_embeddedMode)
             emit loginProgress(tr("请在浏览器窗口中登录"), QString());

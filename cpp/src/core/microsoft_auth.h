@@ -7,6 +7,8 @@
 //
 // Mode A (default): localhost callback — system browser → localhost → code extraction
 // Mode B: embedded browser — QWebEngineView → URL interception → code extraction
+// Mode C: embedded browser — Edge WebView2 (system Chromium, no Qt WebEngine)
+//         selected via SHADOW_AUTH_WEBVIEW2=1 env (trial); becomes default after validation
 
 #include <QObject>
 #include <QString>
@@ -15,8 +17,11 @@
 
 class QTcpServer;
 class QWebEngineView;
+class QProcess;
 
 namespace ShadowLauncher {
+
+class WebView2Window;
 
 class MicrosoftAuth : public QObject {
     Q_OBJECT
@@ -51,8 +56,13 @@ private:
     QTcpServer* m_localServer = nullptr;
     QPointer<QWidget> m_embeddedWindow;
     QPointer<QWebEngineView> m_webView;
+    QPointer<WebView2Window> m_webView2;
+    QProcess* m_wv2Process = nullptr;
     bool m_embeddedMode = false;
     bool m_codeCaptured = false;
+
+    void startWebView2Login(const QString& clientId);
+    void startWv2LoginProcess(const QString& clientId);
 
     Q_INVOKABLE void exchangeCode(const QString& code, const QString& redirectUri);
     void authenticateXbl(const QString& accessToken);

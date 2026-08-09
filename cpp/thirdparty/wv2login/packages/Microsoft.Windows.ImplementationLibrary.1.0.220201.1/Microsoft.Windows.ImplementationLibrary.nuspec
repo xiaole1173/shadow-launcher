@@ -1,0 +1,16 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd">
+  <metadata>
+    <id>Microsoft.Windows.ImplementationLibrary</id>
+    <version>1.0.220201.1</version>
+    <title>Windows Implementation Library</title>
+    <authors>Microsoft</authors>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <license type="file">LICENSE</license>
+    <licenseUrl>https://aka.ms/deprecateLicenseUrl</licenseUrl>
+    <projectUrl>https://github.com/Microsoft/wil</projectUrl>
+    <description>The Windows Implementation Libraries (wil) were created to improve productivity and solve problems commonly seen by Windows developers.</description>
+    <copyright>© Microsoft Corporation. All rights reserved.</copyright>
+    <tags>windows utility wil native</tags>
+  </metadata>
+</package>
