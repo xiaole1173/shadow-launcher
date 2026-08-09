@@ -173,6 +173,23 @@ if (Test-Path $wv2) {
     Write-Host "       WARN: wv2login.exe not built - embedded login will fail!" -ForegroundColor Yellow
 }
 
+# 4g. QuickControls2 只留 Basic 风格（其余 5 套 + FluentWinUI3 冗余）
+$keepQuickDlls = @("Qt6QuickControls2.dll", "Qt6QuickControls2Impl.dll", "Qt6QuickControls2Basic.dll", "Qt6QuickControls2BasicStyleImpl.dll")
+Get-ChildItem "$DistDir\Qt6QuickControls2*.dll" -File -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -notin $keepQuickDlls } | Remove-Item -Force -ErrorAction SilentlyContinue
+$qmlControlsDir = "$DistDir\qml\QtQuick\Controls"
+if (Test-Path $qmlControlsDir) {
+    Get-ChildItem $qmlControlsDir -Directory -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -notin @("Basic", "impl") } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+}
+Write-Host "       QuickControls2: 只留 Basic 风格 (-12MB)" -ForegroundColor Gray
+
+# 4h. qmltooling 调试插件（发布不需要）
+if (Test-Path "$DistDir\qmltooling") {
+    Remove-Item "$DistDir\qmltooling" -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Host "       qmltooling: 调试插件已删 (-1MB)" -ForegroundColor Gray
+}
+
 # 4e. compat.json
 Write-Host "[4e] Generating compat.json..." -ForegroundColor Yellow
 $exePath = "$DistDir\ShadowLauncher.exe"
