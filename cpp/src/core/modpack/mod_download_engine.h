@@ -143,7 +143,7 @@ private:
     // 慢速看门狗阈值：每 500ms tick 增量 <64KB（≈128KB/s）且连续 2000ms → 换源
     static constexpr qint64 kSlowBytesPerTick = 64 * 1024;
     static constexpr qint64 kSlowTriggerMs = 2000;
-    static constexpr double kGlobalSlowGateMbps = 0.25;   // 256KB/s（2026-08-10 慢速换源全局门控）
+    static constexpr double kGlobalSlowGateMbps = 1.0;   // 1MB/s（2026-08-10 二修：0.25→1.0）
     static constexpr int kMaxSlowSwitches = 6;   // 每文件看门狗换源上限（全源慢时停止，宁可慢爬不误判失败）
     QElapsedTimer m_speedClock;
     qint64 m_lastSpeedBytes = 0;

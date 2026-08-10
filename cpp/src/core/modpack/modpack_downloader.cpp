@@ -422,21 +422,20 @@ void ModpackDownloader::processResolvedBatch(int startIndex, const QMap<int, QJs
         m_items[i].savePath = m_targetDir + QLatin1Char('/') + safeRel;
         m_items[i].fileName = rf.fileName;
 
-        // ── 下载源链：镜像 CDN 分片优先，官方签名直链兜底 ──
-        // 镜像: https://mod.mcimirror.top/files/{fid/1000}/{fid%1000}/{fileName}
+        // ── 下载源链（2026-08-10 用户要求）：官方 edge 签名直链优先，镜像 CDN 分片兜底 ──
+        // 官方: downloadUrl（精卫带 x-api-key 认证）；镜像: /files/{fid/1000}/{fid%1000}/{fileName}
         // ⚠ officialOnly（官方补查救回）：镜像未同步该文件 → 镜像分片 URL 必 404，
         // 不拼接（否则精卫先试镜像白等超时才切官方，严重拖慢整体下载）。
         const QString officialUrl = o.value(QStringLiteral("downloadUrl")).toString();
-        const bool isOfficialOnly = officialOnly.contains(rf.fileId);
-        if (!isOfficialOnly) {
+        if (!officialUrl.isEmpty())
+            m_items[i].urls.append(officialUrl);
+        if (!officialOnly.contains(rf.fileId)) {
             const QString encName = QString::fromUtf8(
                 QUrl::toPercentEncoding(rf.fileName, "/", " "));
             m_items[i].urls.append(QStringLiteral("%1/%2/%3/%4")
                 .arg(QLatin1String(kCfMirrorFileCdn))
                 .arg(rf.fileId / 1000).arg(rf.fileId % 1000).arg(encName));
         }
-        if (!officialUrl.isEmpty())
-            m_items[i].urls.append(officialUrl);
 
         if (officialUrl.isEmpty()) {
             // 官方直链缺失：走 download-url 接口补解析（officialOnly 直接官方接口），稍后统一处理
@@ -518,7 +517,7 @@ void ModpackDownloader::startDownloadUrlResolve(int idx)
                     const QJsonObject data = (perr.error == QJsonParseError::NoError)
                         ? doc.object().value(QStringLiteral("data")).toObject() : QJsonObject();
                     const QString realUrl = data.value(QStringLiteral("downloadUrl")).toString();
-                    if (!realUrl.isEmpty()) { m_items[idx].urls.append(realUrl); ok = true; }
+                    if (!realUrl.isEmpty()) { m_items[idx].urls.prepend(realUrl); ok = true; }
                 }
                 if (!ok && attempt == 0) { (*send)(1); return; }
                 finishDownloadUrlResolve(idx, ok, st);
@@ -545,7 +544,7 @@ void ModpackDownloader::startDownloadUrlResolve(int idx)
                 ? doc.object().value(QStringLiteral("data")).toObject() : QJsonObject();
             const QString realUrl = data.value(QStringLiteral("downloadUrl")).toString();
             if (!realUrl.isEmpty()) {
-                m_items[idx].urls.append(realUrl);  // 镜像 CDN 分片已在前，官方直链追加兜底
+                m_items[idx].urls.prepend(realUrl);  // 镜像 CDN 分片已在前，官方直链追加兜底
                 ok = true;
             }
         }

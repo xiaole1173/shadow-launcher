@@ -603,6 +603,9 @@ void ModDownloadEngine::watchTick()
         //    （实测 283 模组永不开始/快慢诡异交替，聚合 500KB/s 仍被误判）。
         //    门控：全局 EMA 正常（>= kGlobalSlowGateMbps）→ 单任务慢是带宽分摊，
         //    换源无意义（换了也白换）→ 不换源；全局也低 → 网络整体慢 → 才允许换源。
+        //    2026-08-10 二修：阈值 0.25→1.0——mirror 限流时（单任务 30KB/s×12≈360KB/s）
+        //    聚合仍 >0.25 → 门控锁死换源 → 大文件慢爬小文件排队（实测第三次导入
+        //    4 分钟 1 个）。1MB/s 下限流场景可换源逃逸到 edge。
         if (m_emaMbps >= kGlobalSlowGateMbps) {
             it->slowSinceMs = 0;
             continue;
