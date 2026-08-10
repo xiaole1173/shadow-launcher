@@ -181,13 +181,13 @@ void ModpackDownloader::start(bool includeOptional)
         m_items[i].fileName = rf.fileName;
         if (rf.source == QLatin1String("modrinth")) {
             m_items[i].savePath = m_targetDir + QLatin1Char('/') + rf.relPath;
-            // Modrinth 下载源链：镜像数据路由优先，官方 CDN 兜底，其余 downloads 依次追加
+            // Modrinth 下载源链（2026-08-10 用户要求）：官方 CDN 优先，镜像数据路由兜底
             QString pid, vid, fname;
             if (!rf.downloadUrl.isEmpty()
                 && parseMrCdnUrl(rf.downloadUrl, &pid, &vid, &fname)) {
+                m_items[i].urls.append(rf.downloadUrl);
                 m_items[i].urls.append(QLatin1String(kMrMirrorData) + QLatin1Char('/')
                                        + pid + QStringLiteral("/versions/") + vid + QLatin1Char('/') + fname);
-                m_items[i].urls.append(rf.downloadUrl);
             } else if (!rf.downloadUrl.isEmpty()) {
                 m_items[i].urls.append(rf.downloadUrl);
             }

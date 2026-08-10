@@ -31,13 +31,45 @@ namespace ShadowLauncher {
 
 // Primary: MCIM mirror (faster for China mainland users)
 //   API:  api.modrinth.com  → mod.mcimirror.top/modrinth
-//   CDN:  cdn.modrinth.com  → mod.mcimirror.top
+//   CDN:  cdn.modrinth.com  → mod.mcimirror.top（2026-08-10 起下载默认官方直链，镜像仅作 API 镜像）
 //   Note: mcim-files.pysio.online is DEAD, use mod.mcimirror.top for CDN
 static const QString MODRINTH_API = QStringLiteral("https://mod.mcimirror.top/modrinth/v2");
 static const QString MODRINTH_API_FALLBACK = QStringLiteral("https://api.modrinth.com/v2");
 
-// MCIM CDN mirror (for file/image downloads)
-static const QString MCIM_CDN = QStringLiteral("https://mod.mcimirror.top");
+// ── 2026-08-10：Modrinth 下载官方优先 + 镜像自动降级 ──
+// 官方 cdn.modrinth.com 直链失败 → 重写 host 到 mod.mcimirror.top 重试一次
+static QString modrinthMirrorUrl(const QString& officialUrl)
+{
+    QString m = officialUrl;
+    m.replace(QStringLiteral("cdn.modrinth.com"), QStringLiteral("mod.mcimirror.top"));
+    m.replace(QStringLiteral("cdn-alt.modrinth.com"), QStringLiteral("mod.mcimirror.top"));
+    return (m != officialUrl) ? m : QString();
+}
+
+static void downloadWithModrinthFallback(
+    const QString& officialUrl, const QString& savePath,
+    std::function<void(qint64, qint64)> progress,
+    std::function<void(bool, const QString&)> done)
+{
+    const QString mirrorUrl = modrinthMirrorUrl(officialUrl);
+    bool* mirrorTried = new bool(false);
+    HttpClient::instance().downloadWithFallback(
+        officialUrl, savePath, progress,
+        [officialUrl, mirrorUrl, savePath, progress, done, mirrorTried](bool ok, const QString& error) {
+            if (!ok && !*mirrorTried && !mirrorUrl.isEmpty()) {
+                *mirrorTried = true;
+                HttpClient::instance().downloadWithFallback(
+                    mirrorUrl, savePath, progress,
+                    [done, mirrorTried](bool ok2, const QString& err2) {
+                        delete mirrorTried;
+                        done(ok2, err2);
+                    });
+                return;
+            }
+            delete mirrorTried;
+            done(ok, error);
+        });
+}
 
 // ============================================================
 // Constructor
@@ -305,7 +337,7 @@ void ModManager::onVersionsForDownload(const QString& slug, const QJsonArray& fi
         emit logMessage(tr("开始下载: %1").arg(dlUrl));
 
     // Use HttpClient::download() for the actual transfer (镜像优先 + 自动降级已内置).
-    HttpClient::instance().downloadWithFallback(
+    downloadWithModrinthFallback(
         dlUrl, destPath,
         [this, slug](qint64 received, qint64 total) {
             emit downloadProgress(slug, received, total);
@@ -617,9 +649,7 @@ void ModManager::downloadResourcepack(
             QString filename = bestFile[QStringLiteral("filename")].toString();
             if (filename.isEmpty()) filename = slug + QStringLiteral(".zip");
 
-            // Rewrite cdn.modrinth.com → MCIM CDN mirror
-            dlUrl.replace(QStringLiteral("cdn.modrinth.com"), MCIM_CDN);
-            dlUrl.replace(QStringLiteral("cdn-alt.modrinth.com"), MCIM_CDN);
+            // 2026-08-10 用户要求：Modrinth 默认源改官方（cdn.modrinth.com 直链，不再重写镜像）
 
             QString destDir = minecraftDir + QStringLiteral("/resourcepacks");
             QDir().mkpath(destDir);
@@ -628,7 +658,7 @@ void ModManager::downloadResourcepack(
             if (!ShadowLauncher::suppressUrlLog())
                 emit logMessage(tr("[MODRINTH] 资源包文件: %1 → %2").arg(filename, dlUrl));
 
-            HttpClient::instance().downloadWithFallback(
+            downloadWithModrinthFallback(
                 dlUrl, destPath,
                 [this, slug](qint64 received, qint64 total) {
                     emit downloadProgress(slug, received, total);
@@ -704,9 +734,7 @@ void ModManager::downloadShader(
             QString filename = bestFile[QStringLiteral("filename")].toString();
             if (filename.isEmpty()) filename = slug + QStringLiteral(".zip");
 
-            // Rewrite cdn.modrinth.com → MCIM CDN mirror
-            dlUrl.replace(QStringLiteral("cdn.modrinth.com"), MCIM_CDN);
-            dlUrl.replace(QStringLiteral("cdn-alt.modrinth.com"), MCIM_CDN);
+            // 2026-08-10 用户要求：Modrinth 默认源改官方（cdn.modrinth.com 直链，不再重写镜像）
 
             QString destDir = minecraftDir + QStringLiteral("/shaderpacks");
             QDir().mkpath(destDir);
@@ -715,7 +743,7 @@ void ModManager::downloadShader(
             if (!ShadowLauncher::suppressUrlLog())
                 emit logMessage(tr("[MODRINTH] 光影文件: %1 → %2").arg(filename, dlUrl));
 
-            HttpClient::instance().downloadWithFallback(
+            downloadWithModrinthFallback(
                 dlUrl, destPath,
                 [this, slug](qint64 received, qint64 total) {
                     emit downloadProgress(slug, received, total);
