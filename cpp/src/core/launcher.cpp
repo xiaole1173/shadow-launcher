@@ -1678,7 +1678,8 @@ QString Launcher::buildLaunchScript(const QString& versionId, const QString& jav
     m_highPerfGpu = highPerfGpu;
     m_currentVersionId = versionId;
 
-    // Java 主版本探测（buildArgs 的 --add-opens 需要）
+    // Java 主版本 + 32 位判定（buildArgs 的 --add-opens / -Xss1m 需要，2026-08-10 与 start() 对齐）
+    m_is32BitJvm = false;
     {
         QProcess javap;
         javap.start(javaPath, {QStringLiteral("-version")});
@@ -1698,6 +1699,20 @@ QString Launcher::buildLaunchScript(const QString& versionId, const QString& jav
                 m_javaMajorVersion = v;
             }
         }
+        // 32 位 JVM：Java 输出 "32-Bit"（对齐 start() 的判定）
+        if (output.contains(QStringLiteral("32-Bit"))) {
+            m_is32BitJvm = true;
+        }
+        // 系统物理内存（JIT 优化组阈值：>4GB 才启用）
+#ifdef Q_OS_WIN
+        MEMORYSTATUSEX ms;
+        ms.dwLength = sizeof(ms);
+        if (GlobalMemoryStatusEx(&ms)) {
+            m_totalSystemMemoryMB = static_cast<qint64>(ms.ullTotalPhys / (1024 * 1024));
+        }
+#endif
+        qCInfo(logLaunch) << QStringLiteral("[启动] 导出脚本 Java 主版本=%1 32位=%2 系统内存=%3MB")
+            .arg(m_javaMajorVersion).arg(m_is32BitJvm).arg(m_totalSystemMemoryMB);
     }
 
     // 读版本 JSON
@@ -1723,19 +1738,89 @@ QString Launcher::buildLaunchScript(const QString& versionId, const QString& jav
     const QStringList args = buildArgs(versionId, maxMemoryMB, versionJson);
     if (args.isEmpty()) return QString();
 
-    // 组装 .bat（UTF-8 输出 + 完整命令行 + 错误暂停）
     const QString workDir = QDir::toNativeSeparators(
         m_versionGameDir.isEmpty() ? m_gameDir : m_versionGameDir);
+    const QString javaNative = QDir::toNativeSeparators(javaPath);
+
+    // ── GPU 高性能（对齐 start()：SHIM_MCCOMPAT 环境变量 + UserGpuPreferences 注册表）──
+    QString gpuBlock;
+    if (m_highPerfGpu) {
+        gpuBlock += QStringLiteral("set SHIM_MCCOMPAT=0x800000001\r\n");
+        gpuBlock += QStringLiteral("reg add \"HKCU\\Software\\Microsoft\\DirectX\\UserGpuPreferences\" /v \"%1\" /d \"GpuPreference=2;\" /f >nul 2>&1\r\n")
+                        .arg(javaNative);
+    }
+
+    // ── pre/post 启动命令（对齐主流启动器实现 SaveBatch：原样插入；pre 在 java 前同步执行，post 在游戏退出后）──
+    QString preBlock, postBlock;
+    if (!m_preLaunchCommand.trimmed().isEmpty())
+        preBlock = QStringLiteral("rem 启动前命令\r\n%1\r\n").arg(m_preLaunchCommand);
+    if (!m_postExitCommand.trimmed().isEmpty())
+        postBlock = QStringLiteral("rem 退出后命令\r\n%1\r\n").arg(m_postExitCommand);
+
+    // ── 进程优先级 / 窗口标题覆盖 → PowerShell 包装启动 ──
+    // bat 的 java 行会同步阻塞到游戏退出，期间无法改优先级/标题；
+    // 用 Start-Process 启动 + PriorityClass 设置 + MainWindowHandle 轮询改标题（对齐启动器行为）。
+    // 命令经 UTF-16LE → Base64 用 -EncodedCommand 传入，规避 bat 引号/特殊字符全部问题。
+    QString psPriority;
+    if (m_processPriority == 0) psPriority = QStringLiteral(" -PriorityClass AboveNormal");
+    else if (m_processPriority == 2) psPriority = QStringLiteral(" -PriorityClass BelowNormal");
+    const bool needPsWrap = !psPriority.isEmpty() || !m_windowTitleOverride.trimmed().isEmpty();
+
+    QString javaExecLine;
+    if (needPsWrap) {
+        // PowerShell 单引号字符串（' → ''）
+        auto psStr = [](const QString& s) {
+            return QStringLiteral("'%1'").arg(QString(s).replace(QLatin1Char('\''), QStringLiteral("''")));
+        };
+        QStringList argList;
+        for (const QString& a : args) argList << psStr(a);
+        QString ps = QStringLiteral("$p=Start-Process -FilePath %1 -ArgumentList @(%2) -WorkingDirectory %3%4 -PassThru;")
+                         .arg(psStr(javaNative), argList.join(QLatin1Char(',')), psStr(workDir), psPriority);
+        if (!m_windowTitleOverride.trimmed().isEmpty()) {
+            ps += QStringLiteral(" Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class WU{[DllImport(\"user32.dll\")]public static extern bool SetWindowText(System.IntPtr h,string t);}';");
+            ps += QStringLiteral(" for($i=0;$i -lt 240;$i++){ $p.Refresh(); if($p.MainWindowHandle -ne [System.IntPtr]::Zero){ [WU]::SetWindowText($p.MainWindowHandle,%1); break }; Start-Sleep -Milliseconds 500 };")
+                      .arg(psStr(m_windowTitleOverride.trimmed()));
+        }
+        ps += QStringLiteral(" $p.WaitForExit()");
+        // UTF-16LE → Base64（-EncodedCommand 要求 UTF-16LE/UTF-8 编码的 Base64）
+        QByteArray utf16;
+        const QString& psRef = ps;
+        for (QChar c : psRef) {
+            utf16.append(char(c.unicode() & 0xFF));
+            utf16.append(char((c.unicode() >> 8) & 0xFF));
+        }
+        javaExecLine = QStringLiteral("powershell -NoProfile -EncodedCommand %1")
+                           .arg(QString::fromLatin1(utf16.toBase64()));
+    } else {
+        javaExecLine = QStringLiteral("\"%1\" %2").arg(javaNative, args.join(QLatin1Char(' ')));
+    }
+
+    // 组装 .bat（UTF-8 输出 + 主流启动器 式结构 + 完整命令行 + 错误暂停）
     QString script;
     script += QStringLiteral("@echo off\r\n");
     script += QStringLiteral("chcp 65001 >nul\r\n");
     script += QStringLiteral("rem Shadow Launcher start script - version %1\r\n").arg(versionId);
     script += QStringLiteral("rem Generated: %1\r\n").arg(QDateTime::currentDateTime().toString(Qt::ISODate));
+    script += QStringLiteral("title 启动 - %1\r\n").arg(versionId);
+    script += QStringLiteral("echo 游戏正在启动，请稍候。\r\n");
     script += QStringLiteral("cd /d \"%1\"\r\n").arg(workDir);
-    script += QStringLiteral("\"%1\" %2\r\n").arg(QDir::toNativeSeparators(javaPath), args.join(QLatin1Char(' ')));
+    script += gpuBlock;
+    script += preBlock;
+    script += javaExecLine + QStringLiteral("\r\n");
+    script += postBlock;
+    script += QStringLiteral("echo 游戏已退出。\r\n");
     script += QStringLiteral("pause\r\n");
+
+    // ── 脱敏：access token 替换为 0（对齐主流启动器实现 FilterAccessToken，防脚本外泄登录凭据）──
+    if (!m_authToken.isEmpty() && m_authToken != QLatin1String("0"))
+        script.replace(m_authToken, QLatin1String("0"));
+
+    // ── bat 转义：% → %%（对齐主流启动器实现 SaveBatch .Replace("%","%%")，防 cmd 变量误展开）──
+    script.replace(QLatin1Char('%'), QStringLiteral("%%"));
+
     return script;
 }
+
 
 // ============================================================
 // Private Helpers — Natives Extraction

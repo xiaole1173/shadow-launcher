@@ -1738,6 +1738,8 @@ QString LaunchBackend::exportLaunchScript(const QString& versionId, const QStrin
     launcher.setGcMode(m_gcMode);
     launcher.setFullscreen(m_fullscreenEnabled);
     launcher.setAutoJoinServer(m_autoJoinServer);
+    launcher.setProcessPriority(m_processPriority);
+    launcher.setWindowTitleOverride(m_windowTitleOverride);
     launcher.setPreLaunchCommand(m_preLaunchCommand);
     launcher.setPostExitCommand(m_postExitCommand);
     return launcher.buildLaunchScript(versionId, javaPath, maxMemoryMB,

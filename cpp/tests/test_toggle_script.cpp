@@ -141,6 +141,93 @@ int main(int argc, char** argv)
         QDir(gameDir).removeRecursively();
     }
 
+    // ── 2b. buildLaunchScript 全启动选项（2026-08-10）：pre/post 命令、GPU、优先级、窗口标题、token 脱敏 ──
+    {
+        const QString gameDir = QStringLiteral("t_script2");
+        QDir().mkpath(gameDir + QStringLiteral("/versions/1.20.4"));
+        QJsonObject vj;
+        vj[QStringLiteral("id")] = QStringLiteral("1.20.4");
+        vj[QStringLiteral("mainClass")] = QStringLiteral("net.minecraft.client.main.Main");
+        vj[QStringLiteral("libraries")] = QJsonArray();
+        QJsonObject argsObj;
+        QJsonArray gameArr;
+        gameArr.append(QStringLiteral("--username"));
+        gameArr.append(QStringLiteral("${auth_player_name}"));
+        gameArr.append(QStringLiteral("--accessToken"));
+        gameArr.append(QStringLiteral("${auth_access_token}"));
+        argsObj[QStringLiteral("game")] = gameArr;
+        vj[QStringLiteral("arguments")] = argsObj;
+        QFile jf(gameDir + QStringLiteral("/versions/1.20.4/1.20.4.json"));
+        jf.open(QIODevice::WriteOnly); jf.write(QJsonDocument(vj).toJson()); jf.close();
+
+        Launcher launcher;
+        launcher.setGameDir(gameDir);
+        launcher.setVersionGameDir(gameDir);
+        launcher.setAuthInfo(QStringLiteral("Alex"), QStringLiteral("00000000-0000-0000-0000-000000000002"),
+                             QStringLiteral("SECRET_TOKEN_XYZ"), false);
+        launcher.setAutoLangMode(0);
+        launcher.setPreLaunchCommand(QStringLiteral("echo PRE_CMD"));
+        launcher.setPostExitCommand(QStringLiteral("echo POST_CMD"));
+        launcher.setProcessPriority(0);   // 高 → PS 包装 + AboveNormal
+        launcher.setWindowTitleOverride(QStringLiteral("My Game Title"));
+        const QString script = launcher.buildLaunchScript(
+            QStringLiteral("1.20.4"), QStringLiteral("C:/java/bin/java.exe"),
+            2048, QString(), QString(), true /* highPerfGpu */);
+
+        // pre/post 命令
+        const bool hasPre = script.contains(QStringLiteral("echo PRE_CMD"));
+        const bool hasPost = script.contains(QStringLiteral("echo POST_CMD"));
+        // GPU 块
+        const bool hasGpuEnv = script.contains(QStringLiteral("SHIM_MCCOMPAT"));
+        const bool hasGpuReg = script.contains(QStringLiteral("UserGpuPreferences"));
+        // PS 包装 + 优先级 + 标题（解码 EncodedCommand）
+        const QString psMarker = QStringLiteral("powershell -NoProfile -EncodedCommand ");
+        const bool hasPs = script.contains(psMarker);
+        bool psPrio = false, psTitle = false;
+        int psIdx = script.indexOf(psMarker);
+        if (psIdx >= 0) {
+            QString b64 = script.mid(psIdx + psMarker.length());
+            int nl = b64.indexOf(QLatin1Char('\r'));
+            if (nl >= 0) b64 = b64.left(nl);
+            QByteArray enc = QByteArray::fromBase64(b64.toLatin1());
+            QString psText;
+            for (int i = 0; i + 1 < enc.size(); i += 2)
+                psText += QChar(uchar(enc[i]) | (uchar(enc[i + 1]) << 8));
+            psPrio = psText.contains(QStringLiteral("-PriorityClass AboveNormal"));
+            psTitle = psText.contains(QStringLiteral("SetWindowText"))
+                   && psText.contains(QStringLiteral("My Game Title"));
+        }
+        // token 脱敏（主流启动器 FilterAccessToken 对齐）
+        const bool tokenGone = !script.contains(QStringLiteral("SECRET_TOKEN_XYZ"));
+        // 低优先级路径（2=低 → BelowNormal 包装）
+        Launcher launcherLow;
+        launcherLow.setGameDir(gameDir);
+        launcherLow.setVersionGameDir(gameDir);
+        launcherLow.setAuthInfo(QStringLiteral("Alex"), QString(), QString(), false);
+        launcherLow.setAutoLangMode(0);
+        launcherLow.setProcessPriority(2);
+        const QString scriptLow = launcherLow.buildLaunchScript(
+            QStringLiteral("1.20.4"), QStringLiteral("C:/java/bin/java.exe"),
+            2048, QString(), QString(), false);
+        bool psLow = false;
+        int psLowIdx = scriptLow.indexOf(psMarker);
+        if (psLowIdx >= 0) {
+            QString b64 = scriptLow.mid(psLowIdx + psMarker.length());
+            int nl = b64.indexOf(QLatin1Char('\r'));
+            if (nl >= 0) b64 = b64.left(nl);
+            QByteArray enc = QByteArray::fromBase64(b64.toLatin1());
+            QString psText;
+            for (int i = 0; i + 1 < enc.size(); i += 2)
+                psText += QChar(uchar(enc[i]) | (uchar(enc[i + 1]) << 8));
+            psLow = psText.contains(QStringLiteral("-PriorityClass BelowNormal"));
+        }
+        fprintf(stderr, "[2b] full options: pre=%d post=%d gpuEnv=%d gpuReg=%d ps=%d psPrio=%d psTitle=%d tokenGone=%d psLow=%d\n",
+                hasPre ? 1 : 0, hasPost ? 1 : 0, hasGpuEnv ? 1 : 0, hasGpuReg ? 1 : 0,
+                hasPs ? 1 : 0, psPrio ? 1 : 0, psTitle ? 1 : 0, tokenGone ? 1 : 0, psLow ? 1 : 0);
+        if (!(hasPre && hasPost && hasGpuEnv && hasGpuReg && hasPs && psPrio && psTitle && tokenGone && psLow)) fail++;
+        QDir(gameDir).removeRecursively();
+    }
+
     fprintf(stderr, "=== %s\n", fail ? "FAIL" : "PASS");
     return fail ? 1 : 0;
 }

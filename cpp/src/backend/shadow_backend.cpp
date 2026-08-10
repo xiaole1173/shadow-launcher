@@ -838,6 +838,8 @@ qreal ShadowBackend::sidebarOpacity() const { return m_settings->sidebarOpacity(
 void ShadowBackend::setSidebarOpacity(qreal v) { m_settings->setSidebarOpacity(v); }
 qreal ShadowBackend::contentOpacity() const { return m_settings->contentOpacity(); }
 void ShadowBackend::setContentOpacity(qreal v) { m_settings->setContentOpacity(v); }
+void ShadowBackend::setBackgroundBlur(qreal v) { m_settings->setBackgroundBlur(v); }
+qreal ShadowBackend::backgroundBlur() const { return m_settings->backgroundBlur(); }
 
 qreal ShadowBackend::cropX() const { return m_settings->cropX(); }
 void ShadowBackend::setCropX(qreal v) { m_settings->setCropX(v); }
@@ -1854,6 +1856,17 @@ QString ShadowBackend::exportLaunchScript(const QString& versionId, const QStrin
     }
     if (m_settings)
         m_launch->setVersionGameDir(m_settings->getVersionGameDir(versionId));
+    // 对齐启动流程（proceedLaunch）：启动细节全部走 resolved*（版本级优先）解析后再注入
+    // ——否则导出脚本用的是上次启动的残留值/默认值，版本级覆盖完全不生效（2026-08-10 修）
+    if (m_settings && m_launch) {
+        m_launch->setGcMode(resolvedGcMode(versionId));
+        m_launch->setProcessPriority(m_settings->processPriority());
+        m_launch->setFullscreenEnabled(resolvedFullscreen(versionId));
+        m_launch->setAutoJoinServer(resolvedAutoJoinServer(versionId));
+        m_launch->setWindowTitleOverride(resolvedWindowTitle(versionId));
+        m_launch->setPreLaunchCommand(resolvedPreLaunchCommand(versionId));
+        m_launch->setPostExitCommand(resolvedPostExitCommand(versionId));
+    }
     return m_launch->exportLaunchScript(versionId, resolvedJava, maxMemoryMB,
                                         jvmArgs, gameArgs, highPerfGpu);
 }
