@@ -2645,7 +2645,12 @@ void VersionBackend::finishInstall(const QString& installName)
 
 
 
-    updateStep(installName, 7, QStringLiteral("completed"), 100);
+    // Fabric API 步骤收尾（2026-08-10）：恒为最后一步；失败时保持 error 显示不覆盖
+    if (ds && ds->steps.size() > 1) {
+        auto* apiNode = ds->pipeline() ? ds->pipeline()->stepNode(ds->steps.size() - 1) : nullptr;
+        if (!apiNode || apiNode->status() != StepStatus::Failed)
+            updateStep(installName, ds->steps.size() - 1, QStringLiteral("completed"), 100);
+    }
 
     // Clear merged flag so the card can retire after installComplete signal
 
@@ -5078,7 +5083,10 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
         if (!fabricApiUrl.isEmpty()) {
             stepNames.append(tr("下载 Fabric API"));
             weights.append(0.05);
-            shows.append(false);
+            // 2026-08-10 修：原 shows=false（hidden）→ weightedProgress 跳过 hidden 步骤 →
+            // Fabric API 下载不计入总进度 → 26.2+Fabric 完成瞬间可见步骤全完成=1.0 → 卡片变绿
+            // （API 下载中 99.7%，完成后才真正 100%）。改为显示 + 参与加权。
+            shows.append(true);
         }
         rebuildSteps(installName, stepNames, weights, shows);
     } else {
@@ -5106,95 +5114,104 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
     // ── Record ctx under mcVersion for onVersionDownloadFinished routing ──
     // (m_activeIds already checked inside installVersion)
 
+    // ── 先启动 Fabric API 并行下载（2026-08-10 修）──
+    // 原实现放在 installFabric() 之后：installFabric 同步阻塞（内部等 finished 信号）→
+    // finished handler 执行时 fabricApiPending 还是 false → 步骤 7 被提前标 completed →
+    // 加权 1.0 → 卡片变绿一瞬间（实测 17:40:49.023 completed → 49.392 才恢复）；
+    // 且 API 下载白白晚启动（未与 Fabric 并行）。提前启动 → 真并行 + 时序正确。
+    if (loaderType == QStringLiteral("fabric") && !fabricApiUrl.isEmpty()) {
+        auto* ds2 = ensureSession(installName);
+        ds2->fabricApiPending = true;
+        ds2->fabricApiFinalPath = fabricApiSavePath;
+        QString tempDir = QDir::tempPath() + QStringLiteral("/shadow-fabric-api");
+        QDir().mkpath(tempDir);
+        QString tempApiPath = tempDir + QStringLiteral("/") + QFileInfo(fabricApiSavePath).fileName();
+        ds2->fabricApiSavePath = tempApiPath;
+
+        const int apiStepIdx = ds2->steps.size() - 1;   // Fabric API 恒为最后一步
+        showStep(installName, apiStepIdx);
+        updateStep(installName, apiStepIdx, QStringLiteral("active"), 0);
+
+        auto* apiNam = new QNetworkAccessManager(this);
+        QUrl apiUrlObj(fabricApiUrl);
+        QNetworkRequest apiReq(apiUrlObj);
+        QNetworkReply* apiReply = apiNam->get(apiReq);
+        if (auto* actx = m_mergedContexts.value(installName, nullptr))
+            actx->fabricApiReply = apiReply;   // 供取消时 abort（回调 capture 裸指针）
+
+        connect(apiReply, &QNetworkReply::downloadProgress, this,
+                [this, installName](qint64 recv, qint64 total) {
+            int pct = total > 0 ? (int)(recv * 100 / total) : 0;
+            auto* dsP = dlSession(installName);
+            const int idxP = dsP ? dsP->steps.size() - 1 : 7;
+            updateStep(installName, idxP, QStringLiteral("active"), pct);
+            if (dsP) {
+                qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+                qint64 delta = recv - dsP->fabSpeedLastBytes;
+                qint64 timeDelta = nowMs - dsP->fabSpeedLastMs;
+                if (delta > 0 && timeDelta >= 200) {
+                    dsP->fabSpeed = delta * 1000 / timeDelta;
+                    dsP->fabSpeedLastBytes = recv;
+                    dsP->fabSpeedLastMs = nowMs;
+                }
+            }
+        });
+
+        connect(apiReply, &QNetworkReply::finished, this, [this, apiReply, apiNam, installName, tempApiPath]() {
+            apiReply->deleteLater();
+            apiNam->deleteLater();
+            if (auto* actx = m_mergedContexts.value(installName, nullptr))
+                actx->fabricApiReply = nullptr;
+            ensureSession(installName);
+            auto* ds = dlSession(installName);
+            ds->fabricApiPending = false;
+            const int apiIdx = ds->steps.size() - 1;
+            if (apiReply->error() != QNetworkReply::NoError) {
+                if (auto* actx = mergedContext(installName); actx && actx->failed) {
+                    // 取消中：清理临时文件，不再收尾（取消分支已处理卡片与通知）
+                    QFile::remove(tempApiPath);
+                    return;
+                }
+                qWarning() << "[install] Fabric API download failed:" << apiReply->errorString();
+                updateStep(installName, apiIdx, QStringLiteral("error"), 0);
+                setInstallPhase(tr("Fabric API 下载失败"));
+                // API 失败也收尾（不带 API），避免封装完成等 API 死等
+                auto* mcCtx = mergedContext(installName);
+                if (mcCtx && mcCtx->mcDownloadDone && mcCtx->bootstrapperDone) {
+                    qCInfo(logVersion) << QStringLiteral("[TRACE-f] API 下载失败，封装已就绪，收尾（不带 API）");
+                    finishInstall(installName);
+                }
+            } else {
+                QByteArray data = apiReply->readAll();
+                QFile f(tempApiPath);
+                if (f.open(QIODevice::WriteOnly)) { f.write(data); f.close(); }
+                qDebug() << "[install] Fabric API downloaded to temp:" << tempApiPath << data.size() << "bytes";
+                updateStep(installName, apiIdx, QStringLiteral("completed"), 100);
+                // 收尾条件：封装完成（bootstrapperDone，installer finished 已跑 copy）才 finishInstall；
+                // 封装未完成 → 等 installer finished 路径收尾（那里已检查 fabricApiPending）
+                auto* mcCtx = mergedContext(installName);
+                qCInfo(logVersion) << QStringLiteral("[TRACE-f] API 完成回调: ctx=%1 mcDone=%2 bootstrapperDone=%3")
+                    .arg(mcCtx ? QStringLiteral("yes") : QStringLiteral("NULL"))
+                    .arg(mcCtx ? (mcCtx->mcDownloadDone ? 1 : 0) : -1)
+                    .arg(mcCtx ? (mcCtx->bootstrapperDone ? 1 : 0) : -1);
+                if (mcCtx && mcCtx->mcDownloadDone && mcCtx->bootstrapperDone) {
+                    qCInfo(logVersion) << QStringLiteral("[TRACE-f] Fabric API 完成，封装已就绪，收尾");
+                    finishInstall(installName);
+                } else {
+                    qCInfo(logVersion) << QStringLiteral("[TRACE-f] Fabric API 完成，封装未就绪，等待 installer finished 收尾");
+                }
+            }
+        });
+    }
+
     // ── Start loader in parallel ──
     if (loaderType == QStringLiteral("fabric")) {
         ctx->installer->setGameDir(ctx->tempDir);
         ctx->installer->setParallelMode(true);
         ctx->installer->installFabric(mcVersion, loaderVersion, installName);
-
-        if (!fabricApiUrl.isEmpty()) {
-            auto* ds2 = ensureSession(installName);
-            ds2->fabricApiPending = true;
-            ds2->fabricApiFinalPath = fabricApiSavePath;
-            QString tempDir = QDir::tempPath() + QStringLiteral("/shadow-fabric-api");
-            QDir().mkpath(tempDir);
-            QString tempApiPath = tempDir + QStringLiteral("/") + QFileInfo(fabricApiSavePath).fileName();
-            ds2->fabricApiSavePath = tempApiPath;
-
-            showStep(installName, 7);
-            updateStep(installName, 7, QStringLiteral("active"), 0);
-
-            auto* apiNam = new QNetworkAccessManager(this);
-            QUrl apiUrlObj(fabricApiUrl);
-            QNetworkRequest apiReq(apiUrlObj);
-            QNetworkReply* apiReply = apiNam->get(apiReq);
-            if (auto* actx = m_mergedContexts.value(installName, nullptr))
-                actx->fabricApiReply = apiReply;   // 供取消时 abort（回调 capture 裸指针）
-
-            connect(apiReply, &QNetworkReply::downloadProgress, this,
-                    [this, installName](qint64 recv, qint64 total) {
-                int pct = total > 0 ? (int)(recv * 100 / total) : 0;
-                updateStep(installName, 7, QStringLiteral("active"), pct);
-                auto* ds = dlSession(installName);
-                if (ds) {
-                    qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
-                    qint64 delta = recv - ds->fabSpeedLastBytes;
-                    qint64 timeDelta = nowMs - ds->fabSpeedLastMs;
-                    if (delta > 0 && timeDelta >= 200) {
-                        ds->fabSpeed = delta * 1000 / timeDelta;
-                        ds->fabSpeedLastBytes = recv;
-                        ds->fabSpeedLastMs = nowMs;
-                    }
-                }
-            });
-
-            connect(apiReply, &QNetworkReply::finished, this, [this, apiReply, apiNam, installName, tempApiPath]() {
-                apiReply->deleteLater();
-                apiNam->deleteLater();
-                if (auto* actx = m_mergedContexts.value(installName, nullptr))
-                    actx->fabricApiReply = nullptr;
-                ensureSession(installName);
-                auto* ds = dlSession(installName);
-                ds->fabricApiPending = false;
-                if (apiReply->error() != QNetworkReply::NoError) {
-                    if (auto* actx = mergedContext(installName); actx && actx->failed) {
-                        // 取消中：清理临时文件，不再收尾（取消分支已处理卡片与通知）
-                        QFile::remove(tempApiPath);
-                        return;
-                    }
-                    qWarning() << "[install] Fabric API download failed:" << apiReply->errorString();
-                    updateStep(installName, 7, QStringLiteral("error"), 0);
-                    setInstallPhase(tr("Fabric API 下载失败"));
-                    // API 失败也收尾（不带 API），避免封装完成等 API 死等
-                    auto* mcCtx = mergedContext(installName);
-                    if (mcCtx && mcCtx->mcDownloadDone && mcCtx->bootstrapperDone) {
-                        qCInfo(logVersion) << QStringLiteral("[TRACE-f] API 下载失败，封装已就绪，收尾（不带 API）");
-                        finishInstall(installName);
-                    }
-                } else {
-                    QByteArray data = apiReply->readAll();
-                    QFile f(tempApiPath);
-                    if (f.open(QIODevice::WriteOnly)) { f.write(data); f.close(); }
-                    qDebug() << "[install] Fabric API downloaded to temp:" << tempApiPath << data.size() << "bytes";
-                    updateStep(installName, 7, QStringLiteral("completed"), 100);
-                    // 收尾条件：封装完成（bootstrapperDone，installer finished 已跑 copy）才 finishInstall；
-                    // 封装未完成 → 等 installer finished 路径收尾（那里已检查 fabricApiPending）
-                    auto* mcCtx = mergedContext(installName);
-                    qCInfo(logVersion) << QStringLiteral("[TRACE-f] API 完成回调: ctx=%1 mcDone=%2 bootstrapperDone=%3")
-                        .arg(mcCtx ? QStringLiteral("yes") : QStringLiteral("NULL"))
-                        .arg(mcCtx ? (mcCtx->mcDownloadDone ? 1 : 0) : -1)
-                        .arg(mcCtx ? (mcCtx->bootstrapperDone ? 1 : 0) : -1);
-                    if (mcCtx && mcCtx->mcDownloadDone && mcCtx->bootstrapperDone) {
-                        qCInfo(logVersion) << QStringLiteral("[TRACE-f] Fabric API 完成，封装已就绪，收尾");
-                        finishInstall(installName);
-                    } else {
-                        qCInfo(logVersion) << QStringLiteral("[TRACE-f] Fabric API 完成，封装未就绪，等待 installer finished 收尾");
-                    }
-                }
-            });
-        }
         return;
     }
+
 
     // ── Forge/NeoForge: download installer JAR（按下载源策略选主源，失败走下方 fallback 列表）──
     QString verArg = mcVersion + "-" + loaderVersion;
@@ -5836,7 +5853,8 @@ ModLoaderInstaller* VersionBackend::createLoaderInstaller(const QString& install
 
         if (success) {
             for (int i = 0; i < ds->steps.size(); i++) {
-                if (i == 7 && ds->fabricApiPending) continue;
+                // Fabric API 恒为最后一步；pending 时保持 active（否则提前 completed → 卡绿）
+                if (i == ds->steps.size() - 1 && ds->fabricApiPending) continue;
                 updateStep(installId, i, QStringLiteral("completed"), 100);
             }
             ds->m_rawTotalProgress = 1.0;
