@@ -31,13 +31,17 @@ namespace ShadowLauncher {
 
 // Primary: MCIM mirror (faster for China mainland users)
 //   API:  api.modrinth.com  → mod.mcimirror.top/modrinth
-//   CDN:  cdn.modrinth.com  → mod.mcimirror.top（2026-08-10 起下载默认官方直链，镜像仅作 API 镜像）
+//   CDN:  cdn.modrinth.com  → mod.mcimirror.top（2026-08-10 用户要求：下载默认镜像优先，官方兜底）
 //   Note: mcim-files.pysio.online is DEAD, use mod.mcimirror.top for CDN
 static const QString MODRINTH_API = QStringLiteral("https://mod.mcimirror.top/modrinth/v2");
 static const QString MODRINTH_API_FALLBACK = QStringLiteral("https://api.modrinth.com/v2");
 
-// ── 2026-08-10：Modrinth 下载官方优先 + 镜像自动降级 ──
-// 官方 cdn.modrinth.com 直链失败 → 重写 host 到 mod.mcimirror.top 重试一次
+// ── 2026-08-10：Modrinth 下载镜像优先 + 龟速看门狗 + 官方兜底 ──
+// 镜像（mod.mcimirror.top）下载中若龟速（<128KB/s 持续 5s）→ abort 切官方直链；
+// 镜像失败（任何原因）→ 官方兜底一次；官方失败 → 失败。
+static constexpr qint64 kMrSlowBps   = 128 * 1024;   // 龟速阈值（对齐精卫单任务）
+static constexpr int    kMrSlowTicks = 5;            // 连续 5s 龟速 → 换源
+
 static QString modrinthMirrorUrl(const QString& officialUrl)
 {
     QString m = officialUrl;
@@ -46,30 +50,69 @@ static QString modrinthMirrorUrl(const QString& officialUrl)
     return (m != officialUrl) ? m : QString();
 }
 
-static void downloadWithModrinthFallback(
+static void downloadWithModrinthMirrorFirst(
     const QString& officialUrl, const QString& savePath,
     std::function<void(qint64, qint64)> progress,
     std::function<void(bool, const QString&)> done)
 {
     const QString mirrorUrl = modrinthMirrorUrl(officialUrl);
-    bool* mirrorTried = new bool(false);
-    HttpClient::instance().downloadWithFallback(
-        officialUrl, savePath, progress,
-        [officialUrl, mirrorUrl, savePath, progress, done, mirrorTried](bool ok, const QString& error) {
-            if (!ok && !*mirrorTried && !mirrorUrl.isEmpty()) {
-                *mirrorTried = true;
-                HttpClient::instance().downloadWithFallback(
-                    mirrorUrl, savePath, progress,
-                    [done, mirrorTried](bool ok2, const QString& err2) {
-                        delete mirrorTried;
-                        done(ok2, err2);
-                    });
+    if (mirrorUrl.isEmpty()) {
+        // 非 Modrinth URL：直接官方单源下载
+        HttpClient::instance().downloadWithReply(officialUrl, savePath,
+                                                 progress, done);
+        return;
+    }
+
+    // 共享状态（回调生命周期跨异步阶段，堆分配）
+    struct SlowState {
+        qint64 lastBytes = 0;
+        qint64 lastMs = 0;
+        int slowTicks = 0;
+        bool slowAborted = false;
+        bool officialTried = false;
+        HttpClient::DownloadHandle* handle = nullptr;
+    };
+    auto state = std::make_shared<SlowState>();
+
+    // 官方兜底（镜像龟速/失败后）
+    auto runOfficial = [officialUrl, savePath, progress, done]() {
+        HttpClient::instance().downloadWithReply(officialUrl, savePath,
+                                                 progress, done);
+    };
+
+    // 镜像优先 + 龟速看门狗（progress 回调内 1s 采样）
+    auto* handle = HttpClient::instance().downloadWithReply(
+        mirrorUrl, savePath,
+        [state, progress](qint64 recv, qint64 total) {
+            progress(recv, total);
+            const qint64 now = QDateTime::currentMSecsSinceEpoch();
+            if (now - state->lastMs >= 1000) {
+                const qint64 delta = recv - state->lastBytes;
+                state->lastBytes = recv;
+                state->lastMs = now;
+                if (delta < kMrSlowBps) state->slowTicks++;
+                else state->slowTicks = 0;
+                if (state->slowTicks >= kMrSlowTicks && !state->slowAborted) {
+                    state->slowAborted = true;
+                    if (state->handle) state->handle->abort();   // → done(false) → 切官方
+                }
+            }
+        },
+        [state, runOfficial, done](bool ok, const QString& error) {
+            if (ok) { done(true, QString()); return; }
+            if (!state->officialTried) {
+                state->officialTried = true;
+                runOfficial();
                 return;
             }
-            delete mirrorTried;
-            done(ok, error);
+            done(false, error);
         });
+    state->handle = handle;
 }
+
+// ============================================================
+// Constructor
+// ============================================================
 
 // ============================================================
 // Constructor
@@ -337,7 +380,7 @@ void ModManager::onVersionsForDownload(const QString& slug, const QJsonArray& fi
         emit logMessage(tr("开始下载: %1").arg(dlUrl));
 
     // Use HttpClient::download() for the actual transfer (镜像优先 + 自动降级已内置).
-    downloadWithModrinthFallback(
+    downloadWithModrinthMirrorFirst(
         dlUrl, destPath,
         [this, slug](qint64 received, qint64 total) {
             emit downloadProgress(slug, received, total);
@@ -658,7 +701,7 @@ void ModManager::downloadResourcepack(
             if (!ShadowLauncher::suppressUrlLog())
                 emit logMessage(tr("[MODRINTH] 资源包文件: %1 → %2").arg(filename, dlUrl));
 
-            downloadWithModrinthFallback(
+            downloadWithModrinthMirrorFirst(
                 dlUrl, destPath,
                 [this, slug](qint64 received, qint64 total) {
                     emit downloadProgress(slug, received, total);
@@ -743,7 +786,7 @@ void ModManager::downloadShader(
             if (!ShadowLauncher::suppressUrlLog())
                 emit logMessage(tr("[MODRINTH] 光影文件: %1 → %2").arg(filename, dlUrl));
 
-            downloadWithModrinthFallback(
+            downloadWithModrinthMirrorFirst(
                 dlUrl, destPath,
                 [this, slug](qint64 received, qint64 total) {
                     emit downloadProgress(slug, received, total);
