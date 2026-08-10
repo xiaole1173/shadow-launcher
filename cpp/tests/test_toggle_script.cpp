@@ -155,7 +155,13 @@ int main(int argc, char** argv)
         gameArr.append(QStringLiteral("${auth_player_name}"));
         gameArr.append(QStringLiteral("--accessToken"));
         gameArr.append(QStringLiteral("${auth_access_token}"));
+        gameArr.append(QStringLiteral("--clientId"));
+        gameArr.append(QStringLiteral("${clientid}"));
         argsObj[QStringLiteral("game")] = gameArr;
+        // Fabric 26.x 风格 jvm 参数（等号后带空格，2026-08-10 实锤导出脚本启动失败根因）
+        QJsonArray jvmArr;
+        jvmArr.append(QStringLiteral("-DFabricMcEmu= net.minecraft.client.main.Main "));
+        argsObj[QStringLiteral("jvm")] = jvmArr;
         vj[QStringLiteral("arguments")] = argsObj;
         QFile jf(gameDir + QStringLiteral("/versions/1.20.4/1.20.4.json"));
         jf.open(QIODevice::WriteOnly); jf.write(QJsonDocument(vj).toJson()); jf.close();
@@ -183,7 +189,7 @@ int main(int argc, char** argv)
         // PS 包装 + 优先级 + 标题（解码 EncodedCommand）
         const QString psMarker = QStringLiteral("powershell -NoProfile -EncodedCommand ");
         const bool hasPs = script.contains(psMarker);
-        bool psPrio = false, psTitle = false;
+        bool psPrio = false, psTitle = false, psMcEmu = false, psEmptyArg = false;
         int psIdx = script.indexOf(psMarker);
         if (psIdx >= 0) {
             QString b64 = script.mid(psIdx + psMarker.length());
@@ -196,6 +202,12 @@ int main(int argc, char** argv)
             psPrio = psText.contains(QStringLiteral("-PriorityClass AboveNormal"));
             psTitle = psText.contains(QStringLiteral("SetWindowText"))
                    && psText.contains(QStringLiteral("My Game Title"));
+            // FabricMcEmu 空格合并：-DFabricMcEmu=net.minecraft...（不带 "McEmu= " 拆分）
+            psMcEmu = psText.contains(QStringLiteral("-DFabricMcEmu=net.minecraft.client.main.Main"))
+                   && !psText.contains(QStringLiteral("-DFabricMcEmu= net.minecraft"));
+            // 空参数保留：--clientId 后跟 ""（否则后续参数错位）
+            psEmptyArg = psText.contains(QStringLiteral("--clientId"))
+                      && psText.contains(QStringLiteral("'\"\"'"));
         }
         // token 脱敏（主流启动器 FilterAccessToken 对齐）
         const bool tokenGone = !script.contains(QStringLiteral("SECRET_TOKEN_XYZ"));
@@ -221,10 +233,25 @@ int main(int argc, char** argv)
                 psText += QChar(uchar(enc[i]) | (uchar(enc[i + 1]) << 8));
             psLow = psText.contains(QStringLiteral("-PriorityClass BelowNormal"));
         }
-        fprintf(stderr, "[2b] full options: pre=%d post=%d gpuEnv=%d gpuReg=%d ps=%d psPrio=%d psTitle=%d tokenGone=%d psLow=%d\n",
+        // 默认路径（优先级中 + 无标题 → 直接 java 行）：FabricMcEmu 合并 + 空参数 "" 保留
+        Launcher launcherMid;
+        launcherMid.setGameDir(gameDir);
+        launcherMid.setVersionGameDir(gameDir);
+        launcherMid.setAuthInfo(QStringLiteral("Alex"), QString(), QString(), false);
+        launcherMid.setAutoLangMode(0);
+        const QString scriptMid = launcherMid.buildLaunchScript(
+            QStringLiteral("1.20.4"), QStringLiteral("C:/java/bin/java.exe"),
+            2048, QString(), QString(), false);
+        const bool midNoPs = !scriptMid.contains(psMarker);
+        const bool midMcEmu = scriptMid.contains(QStringLiteral("-DFabricMcEmu=net.minecraft.client.main.Main"))
+                           && !scriptMid.contains(QStringLiteral("-DFabricMcEmu= net.minecraft"));
+        const bool midEmptyArg = scriptMid.contains(QStringLiteral("--clientId \"\""));
+        fprintf(stderr, "[2b] full options: pre=%d post=%d gpuEnv=%d gpuReg=%d ps=%d psPrio=%d psTitle=%d tokenGone=%d psLow=%d psMcEmu=%d psEmptyArg=%d midNoPs=%d midMcEmu=%d midEmptyArg=%d\n",
                 hasPre ? 1 : 0, hasPost ? 1 : 0, hasGpuEnv ? 1 : 0, hasGpuReg ? 1 : 0,
-                hasPs ? 1 : 0, psPrio ? 1 : 0, psTitle ? 1 : 0, tokenGone ? 1 : 0, psLow ? 1 : 0);
-        if (!(hasPre && hasPost && hasGpuEnv && hasGpuReg && hasPs && psPrio && psTitle && tokenGone && psLow)) fail++;
+                hasPs ? 1 : 0, psPrio ? 1 : 0, psTitle ? 1 : 0, tokenGone ? 1 : 0, psLow ? 1 : 0,
+                psMcEmu ? 1 : 0, psEmptyArg ? 1 : 0, midNoPs ? 1 : 0, midMcEmu ? 1 : 0, midEmptyArg ? 1 : 0);
+        if (!(hasPre && hasPost && hasGpuEnv && hasGpuReg && hasPs && psPrio && psTitle && tokenGone
+              && psLow && psMcEmu && psEmptyArg && midNoPs && midMcEmu && midEmptyArg)) fail++;
         QDir(gameDir).removeRecursively();
     }
 

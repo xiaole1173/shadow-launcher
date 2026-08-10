@@ -79,6 +79,34 @@ static QString toShortPath(const QString& path)
 static QString toShortPath(const QString& path) { return path; }
 #endif
 
+// ── bat 命令行参数引用（2026-08-10）──
+// QProcess 数组传参会自动给含空格参数加引号；bat 字符串拼接不会 → 含空格参数
+// （如 Fabric 26.x 的 "-DFabricMcEmu= net.minecraft.client.main.Main "）会被 cmd 拆成
+// 两个参数 → JVM 把 mainClass 当主类、-cp 失效 → ClassNotFoundException。
+// 空参数（--clientId 后的空值）也必须保留为 ""，否则后续参数错位。
+// 规则：空 → ""；含 空格/tab/&|<>^" → 双引号包裹（内部 " → \"，对齐 CRT 解析）；否则原样。
+static QString quoteBatArg(const QString& arg)
+{
+    if (arg.isEmpty()) return QStringLiteral("\"\"");
+    bool needQuote = false;
+    for (QChar c : arg) {
+        if (c == QLatin1Char(' ') || c == QLatin1Char('\t') || c == QLatin1Char('"')
+            || c == QLatin1Char('&') || c == QLatin1Char('|') || c == QLatin1Char('<')
+            || c == QLatin1Char('>') || c == QLatin1Char('^')) {
+            needQuote = true;
+            break;
+        }
+    }
+    if (!needQuote) return arg;
+    QString q = QStringLiteral("\"");
+    for (QChar c : arg) {
+        if (c == QLatin1Char('"')) q += QStringLiteral("\\\"");
+        else q += c;
+    }
+    q += QLatin1Char('"');
+    return q;
+}
+
 // ── 智能 GC 策略选择 ──
 // Java 21+ → 分代 ZGC, Java 15-20 → ZGC, Java 14- → G1GC
 // 策略: Java 21+ → 分代 ZGC (性能最优), Java 15-20 → ZGC, Java 14- → G1GC
@@ -1001,6 +1029,12 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
         arg.replace(QStringLiteral("${classpath_separator}"), classpathSep);
         arg.replace(QStringLiteral("${version_name}"), versionId);
         arg.replace(QStringLiteral("${natives_directory}"), nativesDir);
+        // Fabric 26.x：jvm 参数 "-DFabricMcEmu= net.minecraft.client.main.Main " 等号后带空格，
+        // 透传到命令行会被拆成两个参数（-DFabricMcEmu= 空值 + mainClass 提前 → JVM 把
+        // mainClass 当主类、-cp 失效 → ClassNotFoundException）。对齐主流启动器实现 ModLaunch
+        // .Replace("McEmu= ", "McEmu=")：去掉等号后的空格，属性值 = 游戏主类
+        // （KnotClient 从 -cp 加载游戏类，2026-08-10 实锤 26.1-fabric 导出脚本启动失败）
+        arg.replace(QStringLiteral("-DFabricMcEmu= "), QStringLiteral("-DFabricMcEmu="));
         // Java 8 doesn't support --add-exports / --add-opens → filter them out
         if (m_javaMajorVersion < 9 && (arg.startsWith(QStringLiteral("--add-exports")) ||
                                         arg.startsWith(QStringLiteral("--add-opens")))) {
@@ -1457,7 +1491,9 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
             arg.replace(QStringLiteral("${profile_name}"), versionId);
             arg.replace(QStringLiteral("${quickPlayPath}"), QString());  // not used
 
-            if (!arg.isEmpty()) args << arg;
+            // 2026-08-10：不再过滤空参数——${clientid}/${auth_xuid} 等替换为空后必须保留
+            // （--clientId 后跟空值参数），否则参数错位；bat 导出侧 quoteBatArg 已保留为 ""
+            args << arg;
         }
     }
 
@@ -1768,9 +1804,12 @@ QString Launcher::buildLaunchScript(const QString& versionId, const QString& jav
 
     QString javaExecLine;
     if (needPsWrap) {
-        // PowerShell 单引号字符串（' → ''）
+        // PowerShell 数组元素：空/含空格参数用双引号字符串（join 后 CreateProcess 正确分组）
         auto psStr = [](const QString& s) {
-            return QStringLiteral("'%1'").arg(QString(s).replace(QLatin1Char('\''), QStringLiteral("''")));
+            QString escaped = QString(s).replace(QLatin1Char('\''), QStringLiteral("''"));
+            if (s.isEmpty() || s.contains(QLatin1Char(' ')) || s.contains(QLatin1Char('\t')))
+                return QStringLiteral("'\"%1\"'").arg(escaped.replace(QLatin1Char('"'), QStringLiteral("\\\"")));
+            return QStringLiteral("'%1'").arg(escaped);
         };
         QStringList argList;
         for (const QString& a : args) argList << psStr(a);
@@ -1792,7 +1831,9 @@ QString Launcher::buildLaunchScript(const QString& versionId, const QString& jav
         javaExecLine = QStringLiteral("powershell -NoProfile -EncodedCommand %1")
                            .arg(QString::fromLatin1(utf16.toBase64()));
     } else {
-        javaExecLine = QStringLiteral("\"%1\" %2").arg(javaNative, args.join(QLatin1Char(' ')));
+        QStringList argStr;
+        for (const QString& a : args) argStr << quoteBatArg(a);
+        javaExecLine = QStringLiteral("\"%1\" %2").arg(javaNative, argStr.join(QLatin1Char(' ')));
     }
 
     // 组装 .bat（UTF-8 输出 + 主流启动器 式结构 + 完整命令行 + 错误暂停）
