@@ -84,6 +84,7 @@ private:
         bool fallbackPassDone = false; // SourcesOnce 式"全部源单线程兜底"已完成
         qint64 received = 0;
         qint64 total = 0;
+        bool enoughBytes = false;    // 已收字节达到 manifest 预期大小（服务器 CL 异常时主动收尾，2026-08-10）
         QString tmpPath;
         QString error;
         QPointer<QNetworkReply> reply;

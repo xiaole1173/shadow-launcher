@@ -224,6 +224,7 @@ void ModDownloadEngine::launchRequest(std::shared_ptr<Item> it)
     }
     it->outFile = f;
     it->received = 0;
+    it->enoughBytes = false;   // 新请求重置（2026-08-10）
     it->firstByteMs = 0;
 
     QNetworkRequest req{QUrl(url)};
@@ -299,6 +300,15 @@ void ModDownloadEngine::onReadyRead(std::shared_ptr<Item> it)
     if (!data.isEmpty()) {
         it->outFile->write(data);
     }
+    // 2026-08-10：服务器 Content-Length 异常（> 实际数据，连接挂起不关闭）时
+    // reply 永不 finished → 空闲超时被数据活动重置 → 无限下载（实测整合包最后
+    // 2 个模组"速度在跳永不完成"，18:19:35 后无任何完成/失败/超时日志）。
+    // 已收字节达到 manifest 预期大小即主动收尾：abort → finished → 校验路径
+    // （大小/SHA1 定真伪，不符则换源重试，不再无限下载）。
+    if (it->fileSize > 0 && it->received >= it->fileSize && !it->enoughBytes) {
+        it->enoughBytes = true;
+        if (it->reply) it->reply->abort();
+    }
 }
 
 void ModDownloadEngine::onReplyFinished(std::shared_ptr<Item> it)
@@ -323,12 +333,16 @@ void ModDownloadEngine::onReplyFinished(std::shared_ptr<Item> it)
     const bool httpOk = err == QNetworkReply::NoError;
     if (!httpOk) {
         reply->deleteLater();
-        // 看门狗换源的 abort：用准确文案（避免 “Operation canceled” 误导最终失败原因）
-        QString why = reply->errorString();
-        if (err == QNetworkReply::OperationCanceledError && it->slowSwitchCount > 0)
-            why = QStringLiteral("慢速源已切换");
-        sourceFailed(it, why);
-        return;
+        // 2026-08-10：主动收尾（已收字节达到预期大小，服务器 CL 异常）→ 走校验路径
+        // （大小/SHA1 定真伪；而不是当作失败换源，更不是无限等 finished）
+        if (!it->enoughBytes) {
+            // 看门狗换源的 abort：用准确文案（避免 “Operation canceled” 误导最终失败原因）
+            QString why = reply->errorString();
+            if (err == QNetworkReply::OperationCanceledError && it->slowSwitchCount > 0)
+                why = QStringLiteral("慢速源已切换");
+            sourceFailed(it, why);
+            return;
+        }
     }
 
     // 关闭输出文件
