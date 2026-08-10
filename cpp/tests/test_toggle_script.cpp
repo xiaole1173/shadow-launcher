@@ -209,8 +209,6 @@ int main(int argc, char** argv)
             psEmptyArg = psText.contains(QStringLiteral("--clientId"))
                       && psText.contains(QStringLiteral("'\"\"'"));
         }
-        // token 脱敏（主流启动器 FilterAccessToken 对齐）
-        const bool tokenGone = !script.contains(QStringLiteral("SECRET_TOKEN_XYZ"));
         // 低优先级路径（2=低 → BelowNormal 包装）
         Launcher launcherLow;
         launcherLow.setGameDir(gameDir);
@@ -237,7 +235,8 @@ int main(int argc, char** argv)
         Launcher launcherMid;
         launcherMid.setGameDir(gameDir);
         launcherMid.setVersionGameDir(gameDir);
-        launcherMid.setAuthInfo(QStringLiteral("Alex"), QString(), QString(), false);
+        launcherMid.setAuthInfo(QStringLiteral("Alex"), QStringLiteral("00000000-0000-0000-0000-000000000002"),
+                                QStringLiteral("SECRET_TOKEN_XYZ"), true);
         launcherMid.setAutoLangMode(0);
         const QString scriptMid = launcherMid.buildLaunchScript(
             QStringLiteral("1.20.4"), QStringLiteral("C:/java/bin/java.exe"),
@@ -246,12 +245,28 @@ int main(int argc, char** argv)
         const bool midMcEmu = scriptMid.contains(QStringLiteral("-DFabricMcEmu=net.minecraft.client.main.Main"))
                            && !scriptMid.contains(QStringLiteral("-DFabricMcEmu= net.minecraft"));
         const bool midEmptyArg = scriptMid.contains(QStringLiteral("--clientId \"\""));
-        fprintf(stderr, "[2b] full options: pre=%d post=%d gpuEnv=%d gpuReg=%d ps=%d psPrio=%d psTitle=%d tokenGone=%d psLow=%d psMcEmu=%d psEmptyArg=%d midNoPs=%d midMcEmu=%d midEmptyArg=%d\n",
+        // token 保留策略（2026-08-10）：有效 token 进脚本（正版会话/Realms 可用）+ 凭据提示
+        // （时效验证/刷新在 ShadowBackend::exportLaunchScript，buildLaunchScript 不再脱敏）
+        const bool midTokenKept = scriptMid.contains(QStringLiteral("SECRET_TOKEN_XYZ"));
+        const bool midHint = scriptMid.contains(QStringLiteral("请勿分享"));
+        // 离线路径（token 空）：buildArgs 以 0 占位（直接行 + 空 token）
+        Launcher launcherOff;
+        launcherOff.setGameDir(gameDir);
+        launcherOff.setVersionGameDir(gameDir);
+        launcherOff.setAuthInfo(QStringLiteral("Alex"), QString(), QString(), false);
+        launcherOff.setAutoLangMode(0);
+        const QString scriptOff = launcherOff.buildLaunchScript(
+            QStringLiteral("1.20.4"), QStringLiteral("C:/java/bin/java.exe"),
+            2048, QString(), QString(), false);
+        const bool midOfflineToken = scriptOff.contains(QStringLiteral("--accessToken 0"));
+        fprintf(stderr, "[2b] full options: pre=%d post=%d gpuEnv=%d gpuReg=%d ps=%d psPrio=%d psTitle=%d psLow=%d psMcEmu=%d psEmptyArg=%d midNoPs=%d midMcEmu=%d midEmptyArg=%d midTokenKept=%d midHint=%d midOfflineToken=%d\n",
                 hasPre ? 1 : 0, hasPost ? 1 : 0, hasGpuEnv ? 1 : 0, hasGpuReg ? 1 : 0,
-                hasPs ? 1 : 0, psPrio ? 1 : 0, psTitle ? 1 : 0, tokenGone ? 1 : 0, psLow ? 1 : 0,
-                psMcEmu ? 1 : 0, psEmptyArg ? 1 : 0, midNoPs ? 1 : 0, midMcEmu ? 1 : 0, midEmptyArg ? 1 : 0);
-        if (!(hasPre && hasPost && hasGpuEnv && hasGpuReg && hasPs && psPrio && psTitle && tokenGone
-              && psLow && psMcEmu && psEmptyArg && midNoPs && midMcEmu && midEmptyArg)) fail++;
+                hasPs ? 1 : 0, psPrio ? 1 : 0, psTitle ? 1 : 0, psLow ? 1 : 0,
+                psMcEmu ? 1 : 0, psEmptyArg ? 1 : 0, midNoPs ? 1 : 0, midMcEmu ? 1 : 0, midEmptyArg ? 1 : 0,
+                midTokenKept ? 1 : 0, midHint ? 1 : 0, midOfflineToken ? 1 : 0);
+        if (!(hasPre && hasPost && hasGpuEnv && hasGpuReg && hasPs && psPrio && psTitle
+              && psLow && psMcEmu && psEmptyArg && midNoPs && midMcEmu && midEmptyArg
+              && midTokenKept && midHint && midOfflineToken)) fail++;
         QDir(gameDir).removeRecursively();
     }
 

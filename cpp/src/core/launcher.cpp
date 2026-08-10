@@ -1852,9 +1852,14 @@ QString Launcher::buildLaunchScript(const QString& versionId, const QString& jav
     script += QStringLiteral("echo 游戏已退出。\r\n");
     script += QStringLiteral("pause\r\n");
 
-    // ── 脱敏：access token 替换为 0（对齐主流启动器实现 FilterAccessToken，防脚本外泄登录凭据）──
-    if (!m_authToken.isEmpty() && m_authToken != QLatin1String("0"))
-        script.replace(m_authToken, QLatin1String("0"));
+    // ── 登录凭据策略（2026-08-10）：保留有效 token ──
+    // 正版/外置导出脚本需带有效 token 才能建立正版会话（否则游戏内 Realms 直接失效）；
+    // 时效验证/刷新由 ShadowBackend::exportLaunchScript 负责，这里只负责：
+    // 有 token → 脚本头部加凭据提示；token 为空 → buildArgs 已用 0 占位（离线）。
+    if (!m_authToken.isEmpty() && m_authToken != QLatin1String("0")) {
+        script.replace(QStringLiteral("rem Shadow Launcher start script"),
+                       QStringLiteral("rem 注意：本脚本包含正版登录凭据（accessToken），请勿分享给他人！\r\nrem Shadow Launcher start script"));
+    }
 
     // ── bat 转义：% → %%（对齐主流启动器实现 SaveBatch .Replace("%","%%")，防 cmd 变量误展开）──
     script.replace(QLatin1Char('%'), QStringLiteral("%%"));

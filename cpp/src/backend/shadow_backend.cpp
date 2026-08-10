@@ -1846,13 +1846,62 @@ QString ShadowBackend::exportLaunchScript(const QString& versionId, const QStrin
         }
     }
     if (resolvedJava.isEmpty()) return QString();
-    // 对齐启动流程：注入账号信息 + 版本隔离目录
-    if (m_account) {
-        // 离线用 offlineUsername，在线用 username（对齐 launch() 内 auth 注入）
-        const bool online = m_account->isOnline();
-        const QString name = online ? m_account->username() : m_account->offlineUsername();
-        const QString uuid = online ? m_account->accountUuid() : m_account->offlineUuid();
-        m_launch->setAuthInfo(name, uuid, online ? m_account->mcToken() : QString(), online);
+    // 对齐启动流程：按登录方式注入账号信息（0=正版 1=离线 2=外置）
+    // 2026-08-10 修：原实现只看 m_account->isOnline()，外置登录时导出的是无关的
+    // 微软/离线账号信息，且外置 token/authlib-injector 完全不进脚本。
+    auto *ygg = static_cast<YggdrasilBackend*>(m_yggdrasil);
+    if (m_lastLoginMode == 2 && ygg && ygg->loggedIn()) {
+        // 外置登录：ygg 账号信息 + ygg 模式（authlib-injector agent 由 launch_backend 注入）
+        m_launch->setAuthInfo(ygg->username(), ygg->uuid(), ygg->accessToken(), true);
+        m_launch->setYggdrasilMode(ygg->apiRoot(), ygg->accessToken());
+    } else if (m_lastLoginMode == 1) {
+        // 离线登录：离线名/uuid，无 token（buildArgs 会以 0 占位）
+        const QString name = m_account ? m_account->offlineUsername() : QString();
+        const QString uuid = m_account ? m_account->offlineUuid() : QString();
+        m_launch->setAuthInfo(name, uuid, QString(), false);
+        m_launch->clearYggdrasilMode();
+    } else {
+        // 正版登录（微软）：校验令牌时效，过期先同步刷新，刷新失败降级离线
+        // （2026-08-10 修：原实现不验证时效，过期令牌进脚本 → 游戏内 Realms 直接失效）
+        m_launch->clearYggdrasilMode();
+        QString token;
+        bool online = false;
+        if (m_account && m_account->isOnline()) {
+            token = m_account->mcToken();
+            online = true;
+            if (!m_account->msTokenValid()) {
+                qCInfo(logApp) << QStringLiteral("[导出脚本] 正版令牌已过期，尝试刷新...");
+                QEventLoop loop;
+                QTimer timeout;
+                timeout.setSingleShot(true);
+                QObject::connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
+                QMetaObject::Connection c1 = connect(m_account, &AccountBackend::tokenRefreshed,
+                    &loop, [&loop](bool ok) { if (ok) loop.quit(); });
+                QMetaObject::Connection c2 = connect(m_account, &AccountBackend::tokenRefreshFailed,
+                    &loop, [&loop](bool, const QString&) { loop.quit(); });
+                timeout.start(15000);
+                m_account->refreshMicrosoftToken();
+                loop.exec();
+                timeout.stop();
+                disconnect(c1);
+                disconnect(c2);
+                if (m_account->msTokenValid()) {
+                    token = m_account->mcToken();
+                    qCInfo(logApp) << QStringLiteral("[导出脚本] 正版令牌刷新成功");
+                } else {
+                    token = QString();
+                    online = false;
+                    emit logMessage(tr("正版令牌已过期且刷新失败，导出脚本将以离线方式启动（Realms 不可用）"));
+                }
+            }
+        } else if (m_account) {
+            // 当前未正版登录（微软账号未激活）——回退离线信息
+            token = QString();
+            online = false;
+        }
+        const QString name = online ? m_account->username() : (m_account ? m_account->offlineUsername() : QString());
+        const QString uuid = online ? m_account->accountUuid() : (m_account ? m_account->offlineUuid() : QString());
+        m_launch->setAuthInfo(name, uuid, token, online);
     }
     if (m_settings)
         m_launch->setVersionGameDir(m_settings->getVersionGameDir(versionId));

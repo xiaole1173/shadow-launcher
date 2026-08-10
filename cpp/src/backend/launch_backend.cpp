@@ -1742,8 +1742,20 @@ QString LaunchBackend::exportLaunchScript(const QString& versionId, const QStrin
     launcher.setWindowTitleOverride(m_windowTitleOverride);
     launcher.setPreLaunchCommand(m_preLaunchCommand);
     launcher.setPostExitCommand(m_postExitCommand);
+    // 外置登录：注入 authlib-injector agent（对齐启动流程 Step 4）——
+    // 否则脚本启动后不带 ygg 认证，外置服务器直接拒连（2026-08-10）
+    QString effectiveJvmArgs = jvmArgs;
+    if (m_yggdrasilMode && !m_yggApiRoot.isEmpty()) {
+        const QString jarPath = QDir::toNativeSeparators(
+            m_gameDir + QStringLiteral("/authlib-injector.jar"));
+        QString agentArg = QStringLiteral("-javaagent:") + jarPath
+                         + QStringLiteral("=") + m_yggApiRoot;
+        effectiveJvmArgs = agentArg + QStringLiteral(" -Dauthlibinjector.side=client");
+        if (!jvmArgs.isEmpty()) effectiveJvmArgs += QStringLiteral(" ") + jvmArgs;
+        qCInfo(logLaunch) << QStringLiteral("[导出脚本] 已注入 authlib-injector 参数: %1").arg(agentArg);
+    }
     return launcher.buildLaunchScript(versionId, javaPath, maxMemoryMB,
-                                      jvmArgs, gameArgs, highPerfGpu);
+                                      effectiveJvmArgs, gameArgs, highPerfGpu);
 }
 
 } // namespace ShadowLauncher
