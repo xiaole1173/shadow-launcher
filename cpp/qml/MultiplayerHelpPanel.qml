@@ -84,14 +84,14 @@ Rectangle {
 
             Section { title: "房主操作" }
             Text {
-                text: "1. 点击「创建房间」按钮\n2. 系统会要求提权（管理员权限）—— 这是 EasyTier 虚拟组网所需的管理员权限\n3. 提权后等待网络就绪（状态提示「等待MC服务器启动...」）\n4. 将自动生成的「房间码」复制并分享给好友\n5. 在本机启动 MC 服务器（本地存档或服务端均可，创建房间后请尽快启动），启动器会自动扫描并将 MC 服务器暴露到联机网络"
+                text: "1. 点击「创建房间」按钮\n2. 系统会要求提权（管理员权限）—— 这是 EasyTier 虚拟组网所需的管理员权限\n3. 打开游戏进入单人世界，在游戏内点击「对局域网开放」\n4. 启动器会自动识别房间并生成「房间码」\n5. 将「房间码」复制并分享给好友"
                 wrapMode: Text.WordWrap; Layout.fillWidth: true
                 color: StyleTokens.textTertiary; font.pixelSize: StyleTokens.fontSizeMd; lineHeight: 1.6
             }
 
             Section { title: "访客操作" }
             Text {
-                text: "1. 点击「加入房间」\n2. 粘贴房主分享的房间码（格式: U/XXXX-XXXX-XXXX-XXXX）\n3. 系统会要求提权\n4. 自动发现房主 → 连接 → 获取 MC 服务器地址\n5. 启动器会自动在本地创建端口转发\n6. 打开 MC，在多人游戏 -> 局域网列表中就会看到「联机 MC服务器」，点击即可加入"
+                text: "1. 点击「加入房间」\n2. 粘贴房主分享的房间码（格式: U/XXXX-XXXX-XXXX-XXXX）\n3. 系统会要求提权\n4. 自动发现房主 → 连接 → 获取 MC 服务器地址\n5. 打开 MC，在多人游戏 -> 局域网列表中就会看到「联机 MC服务器」，点击即可加入"
                 wrapMode: Text.WordWrap; Layout.fillWidth: true
                 color: StyleTokens.textTertiary; font.pixelSize: StyleTokens.fontSizeMd; lineHeight: 1.6
             }
