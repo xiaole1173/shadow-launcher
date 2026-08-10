@@ -519,6 +519,7 @@ void HttpClient::runChunked(const QString& finalUrl, qint64 total,
         QFile* file = nullptr;
         QVector<bool> doneFlags;          // 片成功落盘标记
         QVector<int> retries;             // 片重试计数（主线程串行，无竞争）
+        QVector<int> slowRetries;         // 片龟速换连接计数（预算 kShardSlowRetries，2026-08-10）
         qint64 recvBytes = 0;             // 网络已收字节（进度）
         int inflight = 0;                 // 在途片数（含重试）
         bool failed = false;              // 任一片耗尽重试 → 整体收尾
@@ -529,6 +530,7 @@ void HttpClient::runChunked(const QString& finalUrl, qint64 total,
     ctx->total = total;
     ctx->doneFlags.fill(false, shards);
     ctx->retries.fill(0, shards);
+    ctx->slowRetries.fill(0, shards);
 
     auto* file = new QFile(tmpPath);
     if (!file->open(QIODevice::WriteOnly)) {
@@ -638,19 +640,34 @@ void HttpClient::runChunked(const QString& finalUrl, qint64 total,
         auto shardRecv = std::make_shared<qint64>(0);
         auto stallCount = std::make_shared<int>(0);
         auto lastRecv = std::make_shared<qint64>(-1);
+        auto slowTicks = std::make_shared<int>(0);   // 龟速连续计数（2026-08-10）
+        auto slowAborted = std::make_shared<int>(0); // 本次 abort 是否龟速触发（重试不消耗失败预算）
         // 裸指针 + deleteLater（shared_ptr<QTimer> + deleteLater 会 double free → 堆损坏）
         auto* stallTimer = new QTimer;
         stallTimer->setInterval(kStallIntervalMs);
         QObject::connect(stallTimer, &QTimer::timeout,
-            [reply, shardRecv, lastRecv, stallCount]() {
+            [reply, shardRecv, lastRecv, stallCount, slowTicks, slowAborted, i, ctx]() {
                 if (reply->error() != QNetworkReply::NoError) return;
                 if (*shardRecv <= 0) return;   // 首包未到：交给 transferTimeout，停滞检测不介入
-                if (*shardRecv == *lastRecv) {
+                const qint64 delta = *shardRecv - *lastRecv;
+                if (delta == 0) {
+                    // 完全无进展：原逻辑（abort → 重试走失败预算）
                     if (++(*stallCount) >= kStallTicks)
                         reply->abort();
+                } else if (delta < kShardSlowBytesPerTick) {
+                    // 龟速（有数据但 <128KB/s）：看门狗预算内 abort 换连接（2026-08-10）
+                    if (ctx->slowRetries[i] < kShardSlowRetries) {
+                        if (++(*slowTicks) >= kShardSlowTicks) {
+                            ctx->slowRetries[i]++;
+                            *slowAborted = 1;
+                            reply->abort();
+                        }
+                    }
+                    // 预算用完：停止看门狗，让慢片爬完（不失败）
                 } else {
                     *lastRecv = *shardRecv;
                     *stallCount = 0;
+                    *slowTicks = 0;
                 }
             });
         stallTimer->start();
@@ -674,7 +691,7 @@ void HttpClient::runChunked(const QString& finalUrl, qint64 total,
 
         QObject::connect(reply, &QNetworkReply::finished, this,
             [this, ctx, reply, i, start, shardData, shards, total, finalUrl, chunk,
-             finishChunk, startShard, stallTimer, handle]() {
+             finishChunk, startShard, stallTimer, handle, slowAborted]() {
                 stallTimer->stop();
                 stallTimer->deleteLater();
                 if (handle) handle->onReplyFinished(reply);
@@ -687,6 +704,15 @@ void HttpClient::runChunked(const QString& finalUrl, qint64 total,
                 ctx->inflight--;
 
                 if (ctx->failed || ctx->finished) return;
+
+                if (!ok && *slowAborted) {
+                    // 慢片看门狗 abort：换连接重试（不消耗失败预算，2026-08-10）
+                    *slowAborted = 0;
+                    qCInfo(logDownload).noquote()
+                        << QStringLiteral("[驿道] 分片%1/%2 龟速换连接重试").arg(i + 1).arg(shards);
+                    QTimer::singleShot(500, this, [startShard, i]() { (*startShard)(i); });
+                    return;
+                }
 
                 if (!ok) {
                     const int retried = ctx->retries[i];

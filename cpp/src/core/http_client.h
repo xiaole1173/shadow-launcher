@@ -57,6 +57,11 @@ static constexpr int    kShardIdleTimeoutMs    = 30000;          // 片无数据
 static constexpr int    kShardMaxRetries       = 3;              // 单片最大重试次数
 static constexpr int    kStallIntervalMs       = 2000;           // 停滞检测间隔
 static constexpr int    kStallTicks            = 3;              // 连续 N 次无进展 → abort（6s）
+// 2026-08-10：慢片看门狗（对齐夸父 kMaxWatchdogAborts）——分片龟速（有数据但慢）也 abort 换连接，
+// 防“前段快后段龟速”：快片完成后慢片拖尾（实测 Modrinth 整合包 28.8MB 4 片后段几十 KB/s）
+static constexpr qint64 kShardSlowBytesPerTick = 256 * 1024;    // 2s 内增量 < 256KB（=128KB/s）判龟速
+static constexpr int    kShardSlowTicks        = 3;              // 连续 3 次龟速（6s）→ abort 换连接
+static constexpr int    kShardSlowRetries      = 2;              // 每片龟速换连接预算（用完让慢片爬完，不失败）
 
 // ============================================================
 // HttpClient — singleton network layer
