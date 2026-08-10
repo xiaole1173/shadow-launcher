@@ -85,6 +85,8 @@ private:
         qint64 received = 0;
         qint64 total = 0;
         bool enoughBytes = false;    // 已收字节达到 manifest 预期大小（服务器 CL 异常时主动收尾，2026-08-10）
+        qint64 resumeFrom = 0;       // 断点续传起点（慢速换源保留的已下字节，2026-08-10）
+        bool rangeChecked = false;   // 续传请求是否已确认服务器返回 206
         QString tmpPath;
         QString error;
         QPointer<QNetworkReply> reply;
@@ -141,6 +143,7 @@ private:
     // 慢速看门狗阈值：每 500ms tick 增量 <64KB（≈128KB/s）且连续 2000ms → 换源
     static constexpr qint64 kSlowBytesPerTick = 64 * 1024;
     static constexpr qint64 kSlowTriggerMs = 2000;
+    static constexpr double kGlobalSlowGateMbps = 0.25;   // 256KB/s（2026-08-10 慢速换源全局门控）
     static constexpr int kMaxSlowSwitches = 6;   // 每文件看门狗换源上限（全源慢时停止，宁可慢爬不误判失败）
     QElapsedTimer m_speedClock;
     qint64 m_lastSpeedBytes = 0;

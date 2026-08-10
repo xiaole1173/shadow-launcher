@@ -213,18 +213,30 @@ void ModDownloadEngine::launchRequest(std::shared_ptr<Item> it)
     }
 
     // 临时文件（成功后原子改名到最终路径；失败/取消清理）
-    it->tmpPath = it->localPath + QStringLiteral(".tmp-")
-        + QUuid::createUuid().toString(QUuid::WithoutBraces).left(8);
+    // 2026-08-10：断点续传时保留旧 tmpPath（含已下字节），仅首次/失败换源新建
+    if (it->tmpPath.isEmpty()) {
+        it->tmpPath = it->localPath + QStringLiteral(".tmp-")
+            + QUuid::createUuid().toString(QUuid::WithoutBraces).left(8);
+    }
     QDir().mkpath(QFileInfo(it->localPath).absolutePath());
     auto* f = new QFile(it->tmpPath, this);
-    if (!f->open(QIODevice::WriteOnly)) {
+    if (it->resumeFrom > 0) {
+        // 断点续传：ReadWrite + seek 到已下字节末尾（保留旧数据 append）
+        if (!f->open(QIODevice::ReadWrite)) {
+            delete f;
+            finishItem(it, false, QStringLiteral("无法写入: %1").arg(it->tmpPath));
+            return;
+        }
+        f->seek(it->resumeFrom);
+    } else if (!f->open(QIODevice::WriteOnly)) {
         delete f;
         finishItem(it, false, QStringLiteral("无法写入: %1").arg(it->tmpPath));
         return;
     }
     it->outFile = f;
-    it->received = 0;
+    it->received = it->resumeFrom;   // 续传起点（新连接 recv 从 0 起，绝对进度 = resumeFrom + recv）
     it->enoughBytes = false;   // 新请求重置（2026-08-10）
+    it->rangeChecked = false;
     it->firstByteMs = 0;
 
     QNetworkRequest req{QUrl(url)};
@@ -232,6 +244,12 @@ void ModDownloadEngine::launchRequest(std::shared_ptr<Item> it)
     // 官方 edge CDN 自 2026-07-16 起强制要求 API key（x-api-key header），否则 401
     if (!m_cfApiKey.isEmpty() && url.contains(QLatin1String("edge.forgecdn.net")))
         req.setRawHeader("x-api-key", m_cfApiKey.toUtf8());
+    // 断点续传（2026-08-10）：慢速换源保留的已下字节 → Range 续传；
+    // 服务器不支持（200 全量）时 onReadyRead 里截断从头
+    if (it->resumeFrom > 0) {
+        req.setRawHeader("Range",
+                         QByteArray("bytes=") + QByteArray::number(it->resumeFrom) + "-");
+    }
     // 禁用 HTTP/2（镜像 H2 连接不稳定）+ identity 编码（防 gzip 致 SHA1 不符）
     req.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
     req.setRawHeader("Accept-Encoding", "identity");
@@ -268,10 +286,12 @@ void ModDownloadEngine::launchRequest(std::shared_ptr<Item> it)
 void ModDownloadEngine::onReplyProgress(std::shared_ptr<Item> it, qint64 recv, qint64 total)
 {
     if (m_cancelled || it->state != 1) return;
-    if (total > 0) it->total = total;
-    const qint64 delta = recv - it->received;
+    // 206 续传：新连接 recv 从 0 起，绝对进度 = resumeFrom + recv；total 为剩余部分
+    const qint64 absRecv = it->resumeFrom + recv;
+    if (total > 0) it->total = it->resumeFrom + total;
+    const qint64 delta = absRecv - it->received;
     if (delta > 0) {
-        it->received = recv;
+        it->received = absRecv;
         m_downloadedBytes += delta;
     }
     // 150ms 节流，避免高频跨对象信号
@@ -296,6 +316,17 @@ void ModDownloadEngine::onReadyRead(std::shared_ptr<Item> it)
     }
     // 空闲超时重置：收到数据即视为活跃
     if (it->idleTimer) it->idleTimer->start();
+    // 2026-08-10：续传请求首包时确认服务器是否支持 Range（206）；
+    // 返回 200 全量（忽略 Range）→ 截断旧数据从头重下，避免新旧数据拼接损坏
+    if (it->resumeFrom > 0 && !it->rangeChecked) {
+        it->rangeChecked = true;
+        const int code = it->reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        if (code != 206) {
+            it->resumeFrom = 0;
+            it->received = 0;
+            if (it->outFile) { it->outFile->resize(0); it->outFile->seek(0); }
+        }
+    }
     const QByteArray data = it->reply->readAll();
     if (!data.isEmpty()) {
         it->outFile->write(data);
@@ -383,9 +414,20 @@ void ModDownloadEngine::sourceFailed(std::shared_ptr<Item> it, const QString& wh
 {
     it->failCount++;
     it->sourceIdx++;
-    it->received = 0;
+    // 2026-08-10：慢速换源（watchdog abort，slowSinceMs==-1 标记）保留已下字节断点续传——
+    // 原实现一律删除 tmpPath + received=0 从头重下 → 慢速源上的大文件每次只下 ~200KB
+    // 就被换走重来 → 永远下不完（实测 283 个模组 2.5 分钟零完成）。
+    // 失败换源（超时/校验失败/无首包）才重置从头下载。
+    const bool resume = (it->slowSinceMs == -1);
     if (it->outFile) { it->outFile->close(); it->outFile->deleteLater(); it->outFile = nullptr; }
-    if (!it->tmpPath.isEmpty()) { QFile::remove(it->tmpPath); it->tmpPath.clear(); }
+    if (resume) {
+        it->resumeFrom = it->received;   // 保留 tmpPath 与已下字节，launchRequest 以 Range 续传
+    } else {
+        it->received = 0;
+        it->resumeFrom = 0;
+        if (!it->tmpPath.isEmpty()) { QFile::remove(it->tmpPath); it->tmpPath.clear(); }
+    }
+    it->slowSinceMs = 0;
     it->error = why;
 
     bool exhausted = false;
@@ -448,7 +490,7 @@ void ModDownloadEngine::tryStartNextRound()
 
     int failedCount = 0;
     for (auto& it : m_items) {
-        if (it->state == 3) { failedCount++; it->state = 0; it->sourceIdx = 0; it->failCount = 0; it->fallbackPassDone = false; it->received = 0; it->error.clear(); m_pending.append(it); }
+        if (it->state == 3) { failedCount++; it->state = 0; it->sourceIdx = 0; it->failCount = 0; it->fallbackPassDone = false; it->received = 0; it->resumeFrom = 0; it->rangeChecked = false; it->error.clear(); m_pending.append(it); }
     }
     if (failedCount == 0) { finishAll(); return; }
 
@@ -546,6 +588,16 @@ void ModDownloadEngine::watchTick()
         }
         if (now - it->slowSinceMs < kSlowTriggerMs)
             continue;
+
+        // ── 2026-08-10 用户反馈：慢速看门狗按单任务算速度，多并发分摊带宽时
+        //    每任务只分到聚合/并发，全员 <128KB/s 被判慢速 → 全员换源循环
+        //    （实测 283 模组永不开始/快慢诡异交替，聚合 500KB/s 仍被误判）。
+        //    门控：全局 EMA 正常（>= kGlobalSlowGateMbps）→ 单任务慢是带宽分摊，
+        //    换源无意义（换了也白换）→ 不换源；全局也低 → 网络整体慢 → 才允许换源。
+        if (m_emaMbps >= kGlobalSlowGateMbps) {
+            it->slowSinceMs = 0;
+            continue;
+        }
 
         // 连续低速 ≥2s：换源（有限次）
         // 单源无意义（重下同源大概率还是慢），直接放弃看门狗
