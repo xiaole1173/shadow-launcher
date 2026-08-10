@@ -6,6 +6,7 @@
 
 #include <QNetworkRequest>
 #include <QNetworkReply>
+#include <QHttp1Configuration>
 #include <QDir>
 #include <QFileInfo>
 #include <QCryptographicHash>
@@ -249,6 +250,14 @@ void ModDownloadEngine::launchRequest(std::shared_ptr<Item> it)
     if (it->resumeFrom > 0) {
         req.setRawHeader("Range",
                          QByteArray("bytes=") + QByteArray::number(it->resumeFrom) + "-");
+    }
+    // 2026-08-10：HTTP/1.1 每 host 连接数放开到 128（对齐山海经）——
+    // Qt 默认每 host 仅 6 连接：12 并发时 6 个慢速连接（大文件 ~96KB/s）占满池，
+    // 其余 6 个排队 15s 无数据 → idleTimer 超时失败 → 批量挂掉（实测 283 模组全灭）。
+    {
+        QHttp1Configuration h1cfg;
+        h1cfg.setNumberOfConnectionsPerHost(128);
+        req.setHttp1Configuration(h1cfg);
     }
     // 禁用 HTTP/2（镜像 H2 连接不稳定）+ identity 编码（防 gzip 致 SHA1 不符）
     req.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
