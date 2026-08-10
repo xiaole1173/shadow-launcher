@@ -207,6 +207,7 @@ add_dependencies(ShadowLauncher SLUpdater)
 qt6_add_resources(ShadowLauncher "qml_resources"
     PREFIX "/qt/qml/ShadowLauncher"
     FILES
+        qml/shaders/blur.frag.qsb
         qml/AgreementOverlay.qml
         qml/AnimationTokens.qml
         qml/BackgroundCropOverlay.qml
@@ -649,6 +650,15 @@ if(SHADOW_BUILD_MODPACK_SELFTEST)
     )
     target_include_directories(ToggleScriptTest PRIVATE src)
     target_link_libraries(ToggleScriptTest PRIVATE Qt6::Core Qt6::Network Qt6::Concurrent Qt6::Gui Qt6::GuiPrivate)
+
+    # 山海经 in-flight 挂起看门狗验证（2026-08-10）：挂起源 30s 无数据 → abort 换源 → 成功
+    add_executable(AssetWatchdogTest
+        tests/test_asset_watchdog.cpp
+        src/core/asset_downloader.cpp
+        src/utils/logger.cpp
+    )
+    target_include_directories(AssetWatchdogTest PRIVATE src)
+    target_link_libraries(AssetWatchdogTest PRIVATE Qt6::Core Qt6::Network Qt6::Concurrent)
 
     # 版本隔离 game 目录布局感知验证（散文件→版本根 / game非空→game）
     add_executable(IsoGdTest

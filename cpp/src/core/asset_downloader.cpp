@@ -58,6 +58,15 @@ AssetDownloader::AssetDownloader(QObject* parent)
     m_accelTimer->setInterval(kAccelIntervalMs);
     connect(m_accelTimer, &QTimer::timeout, this, &AssetDownloader::accelTick);
 
+    // Hang watchdog — 1s independent of accelTick (2026-08-10)
+    // accelTick stops when the queue is empty; a stalled in-flight request
+    // (transferTimeout never fires when the server trickles data) would then
+    // hang completion forever at 99%. Watchdog aborts stalled requests.
+    m_watchdogTimer = new QTimer(this);
+    m_watchdogTimer->setSingleShot(false);
+    m_watchdogTimer->setInterval(kWatchdogIntervalMs);
+    connect(m_watchdogTimer, &QTimer::timeout, this, &AssetDownloader::watchdogTick);
+
     // I/O thread pool: 4 workers for SHA1 + disk writes
     m_ioPool.setMaxThreadCount(kMaxIOWorkers);
 
@@ -76,6 +85,7 @@ AssetDownloader::~AssetDownloader()
 void AssetDownloader::setupNam()
 {
     m_accelTimer->stop();
+    m_watchdogTimer->stop();
     m_burstSent = 0;
     m_targetInflight = 0;
     m_phase = PhaseInit;
@@ -153,6 +163,7 @@ void AssetDownloader::startDownload(const QVector<AssetTask>& tasks, int maxConc
     m_lastProgressEmit.start();
     m_downloadTimer.start();
     m_speedLogTimer.start();
+    m_watchdogTimer->start();
 
     // Log the first few task's mirror sources to verify which source is being used
     if (!tasks.isEmpty()) {
@@ -324,6 +335,7 @@ void AssetDownloader::cancel()
     if (m_state != Running) return;
     m_state = Cancelled;
     m_accelTimer->stop();
+    m_watchdogTimer->stop();
 
     QList<QNetworkReply*> toAbort;
     for (auto it = m_inFlight.cbegin(); it != m_inFlight.cend(); ++it)
@@ -484,6 +496,7 @@ void AssetDownloader::fireNext()
         if (delta > 0) {
             m_downloadedBytes.fetchAndAddRelaxed(delta);
             it->progressBytes = received;
+            it->lastProgressMs = QDateTime::currentMSecsSinceEpoch();
         }
     });
 
@@ -526,7 +539,9 @@ void AssetDownloader::onReplyFinished(QNetworkReply* reply)
 
     if (reply->error() != QNetworkReply::NoError) {
         QString host = extractHost(ift.task.mirrors.value(ift.mirrorIndex));
-        recordHostResult(host, false, elapsed);
+        // 挂起看门狗 abort 是本地超时，不代表源故障——不计 host 失败（防误伤官方源）
+        if (!ift.watchdogAborted)
+            recordHostResult(host, false, elapsed);
 
         int nextIdx = ift.mirrorIndex + 1;
         if (nextIdx < task.mirrors.size()) {
@@ -594,6 +609,41 @@ void AssetDownloader::onReplyFinished(QNetworkReply* reply)
 // Speed-adaptive scheduler (replaces the old rampTick)
 // ═════════════════════════════════════════════════════════════════════════════
 
+// ═════════════════════════════════════════════════════════════════════════════
+// In-flight hang watchdog（2026-08-10）
+// ═════════════════════════════════════════════════════════════════════════════
+// 背景：transferTimeout 是"无活动"超时——服务器限流挂起/持续小包时永不触发，
+// 请求永远 pending → checkAllFinished 永不满足 → 安装进度永久卡 99%（实测
+// 26.2-forge 下载 assets 阶段 17:06:51 后静默无任何完成/超时/失败日志）。
+// 独立于 accelTick：队列派发完时 accelTick 会 stop，挂起恰恰发生在那之后。
+// 策略：in-flight 请求连续 kInFlightStallMs（30s）无字节进展 → abort →
+// onReplyFinished 走 error 分支换下一个镜像；镜像耗尽 → 失败收尾（不卡死）。
+// abort 不计 host 失败（本地超时不代表源故障，防误伤官方源；镜像有限，
+// 每个镜像最多再挂 30s 即失败收尾，不会无限循环）。
+void AssetDownloader::watchdogTick()
+{
+    if (m_state != Running) {
+        m_watchdogTimer->stop();
+        return;
+    }
+    const qint64 nowW = QDateTime::currentMSecsSinceEpoch();
+    QList<QNetworkReply*> toAbort;
+    for (auto wit = m_inFlight.begin(); wit != m_inFlight.end(); ++wit) {
+        InFlight& w = wit.value();
+        if (w.lastProgressMs <= 0) w.lastProgressMs = w.startMs;
+        if (w.watchdogAborted) continue;   // 已 abort，等 finished 到达
+        if (nowW - w.lastProgressMs >= kInFlightStallMs) {
+            w.watchdogAborted = true;
+            toAbort.append(wit.key());
+            qCWarning(logAsset) << QStringLiteral("  [山海经] 挂起看门狗: %1 无进展 %2s，中止换源（镜像[%3]）")
+                .arg(w.task.sha1).arg((nowW - w.lastProgressMs) / 1000).arg(w.mirrorIndex + 1);
+        }
+    }
+    for (auto* reply : toAbort) {
+        reply->abort();
+    }
+}
+
 void AssetDownloader::accelTick()
 {
     if (m_state != Running) {
@@ -643,7 +693,9 @@ void AssetDownloader::accelTick()
         }
         return;
     }
-    m_allBlockedSinceMs = 0;   // 冷却结束重试（若再次全拒由 fireNext 重新计时）
+    m_allBlockedSinceMs = 0;   // 成功派发（fireNext 找到可用源）后由 fireNext 清零；这里保留累计
+    // 2026-08-10 修：原实现冷却结束即清零 → 持续全拒时每 5s 重新计时 →
+    // kAllBlockedFailMs（120s）失败收尾永不触发 → 永久卡死（配合换镜像被拒场景实锤）
 
     // Sample speed every tick
     sampleSpeed();
@@ -898,6 +950,7 @@ void AssetDownloader::checkAllFinished()
 
     m_accelTimer->stop();
     m_state = (m_state == Cancelled) ? Cancelled : Done;
+    m_watchdogTimer->stop();
 
     emit progressChanged(m_completedFiles.loadRelaxed(),
                          m_totalFiles.loadRelaxed(),

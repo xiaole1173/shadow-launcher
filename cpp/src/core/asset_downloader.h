@@ -99,6 +99,7 @@ private:
 
     // ── Speed-adaptive scheduler (replaces old rampTick) ──
     void accelTick();                      // called by m_accelTimer
+    void watchdogTick();                   // called by m_watchdogTimer（2026-08-10）
     void schedulePhase();
     int  currentInflight() const;
     bool shouldThrottleSpeed() const;
@@ -189,7 +190,10 @@ private:
     enum Phase { PhaseInit, PhaseBurst, PhaseAccelerate, PhaseSteady, PhaseCooldown };
     Phase m_phase = PhaseInit;
     QTimer* m_accelTimer = nullptr;        // fires every 50ms during accel
+    QTimer* m_watchdogTimer = nullptr;     // 挂起看门狗 1s（独立于 accelTick：队列空时 accelTick 会停）
     static constexpr int kAccelIntervalMs = 50;
+    static constexpr int kWatchdogIntervalMs = 1000;
+    static constexpr qint64 kInFlightStallMs = 30000;  // in-flight 无字节进展 30s → abort 换源
 
     // ── Concurrency ──
     int  m_maxConcurrent = 16;
@@ -212,6 +216,8 @@ private:
         int  namIndex = 0;                 // which QNAM handled it
         qint64 startMs = 0;                // for timing
         qint64 progressBytes = 0;          // bytes tracked via downloadProgress (增量)
+        qint64 lastProgressMs = 0;         // 最近一次字节进展时刻（挂起看门狗用，2026-08-10）
+        bool  watchdogAborted = false;     // 看门狗已 abort（跳过 host 失败记录，防误伤源）
     };
     QMap<QNetworkReply*, InFlight> m_inFlight;
     int  m_failedCount = 0;
