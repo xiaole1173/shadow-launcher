@@ -344,7 +344,7 @@ Rectangle {
         }  // close sidebar Rectangle
         Rectangle {
             Layout.fillWidth: true; Layout.fillHeight: true
-            color: StyleTokens.bgSecondary; radius: StyleTokens.radiusLg; border.color: StyleTokens.bgInput
+            color: hasBg ? "#9911141C" : StyleTokens.bgSecondary; radius: StyleTokens.radiusLg; border.color: StyleTokens.bgInput
 
             // Section 0: 概览 ===
             ColumnLayout {
@@ -490,6 +490,15 @@ Rectangle {
                             launchScriptDialog.open()
                         }
                     }
+                }
+
+                // ── 风险提示（2026-08-10）：脚本含登录凭据 ──
+                Text {
+                    Layout.fillWidth: true
+                    text: qsTr("导出启动脚本会包含当前登录凭据（正版/外置），请勿分享给他人")
+                    font.pixelSize: StyleTokens.fontSizeXs
+                    color: "#8a6d3b"
+                    wrapMode: Text.WordWrap
                 }
 
                 Item { Layout.fillHeight: true }
