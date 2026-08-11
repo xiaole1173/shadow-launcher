@@ -203,7 +203,7 @@ if (Test-Path $exePath) {
     $sha256 = (Get-FileHash -Path $exePath -Algorithm SHA256).Hash.ToLower()
     $compat = @{
         version           = $VersionTag
-        update_mode       = "force_full"   # 全量更新：启动器删除除 .minecraft/logs/java_cache 外所有内容后覆盖
+        update_mode       = "force_full"   # 全量更新：启动器删除除 .minecraft/logs/java_cache/agreement_consent.txt 外所有内容后覆盖
         force_reason      = ""
         qt_version        = "6.8.3"
         resource_epoch    = 1

@@ -88,7 +88,7 @@ public:
 
 // Global for screenshot mode
 static QWindow* screenshotWindow = nullptr;
-// ── 全量更新安装（2026-08-11）：删除除 .minecraft/logs/_update 外所有内容后覆盖更新 ──
+// ── 全量更新安装（2026-08-11）：删除除 .minecraft/logs/java_cache/agreement_consent.txt/_update 外所有内容后覆盖更新 ──
 // zip 解压到 _update/extracted → 清理旧目录（保留 .minecraft/logs/_update）→ 复制新文件
 // （ShadowLauncher.exe 跳过，由 SLUpdater 等旧进程退出后替换）。成功返回 true 并设置
 // outNewExeW（新 exe 路径）；失败返回 false（跳过更新，继续用当前版本）。
@@ -129,9 +129,12 @@ static bool applyFullUpdate(const std::wstring& appDirW,
     const QDir ad(appDir);
     const QStringList stale = ad.entryList(QDir::AllEntries | QDir::NoDotAndDotDot);
     for (const QString& e : stale) {
-        // 保留：.minecraft（游戏数据）/ logs（日志）/ java_cache（Java 运行时，删了会导致 Java 缺失）/ _update（更新临时）
+        // 保留：.minecraft（游戏数据）/ logs（日志）/ java_cache（Java 运行时，删了会导致 Java 缺失）/
+        //       agreement_consent.txt（协议同意记录，删了要重新同意）/ _update（更新临时）
+        // 其余个性化数据均不在 appDir：设置/自定义背景=QSettings 注册表+图片原路径，beta 密钥/账号=AppData
         if (e == QStringLiteral(".minecraft") || e == QStringLiteral("logs")
-            || e == QStringLiteral("java_cache") || e == QStringLiteral("_update"))
+            || e == QStringLiteral("java_cache") || e == QStringLiteral("_update")
+            || e == QStringLiteral("agreement_consent.txt"))
             continue;
         const QString p2 = appDir + QLatin1Char('/') + e;
         if (QFileInfo(p2).isDir())
