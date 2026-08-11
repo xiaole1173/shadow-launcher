@@ -176,6 +176,13 @@ static bool applyFullUpdate(const std::wstring& appDirW,
 
 int main(int argc, char *argv[])
 {
+    // 2026-08-11：强制 QtQuick.Controls 使用 Basic 风格。
+    // Qt 6.7+ 在 Windows 上默认按 native 风格解析（QtQuick.Controls.Windows，且内部依赖
+    // Fusion 等模块）——发布包 4g 只保留 Basic 风格，若不显式指定会报
+    // "module QtQuick.Controls.Windows/Fusion is not installed" 界面无法出现。
+    // 项目全部组件显式 import QtQuick.Controls.Basic，强制 Basic 无功能损失。
+    qputenv("QT_QUICK_CONTROLS_STYLE", "Basic");
+
     QElapsedTimer startupTimer;
     startupTimer.start();
     // ── Pending update from previous session? ──

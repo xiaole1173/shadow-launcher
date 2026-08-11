@@ -174,6 +174,8 @@ if (Test-Path $wv2) {
 }
 
 # 4g. QuickControls2 只留 Basic 风格（其余 5 套 + FluentWinUI3 冗余）
+# 2026-08-11：只留 Basic 风格安全——main_release.cpp 已强制 QT_QUICK_CONTROLS_STYLE=Basic
+# （Qt 6.7+ 默认解析 native Windows 风格且依赖 Fusion 等，不指定会报 module is not installed）
 $keepQuickDlls = @("Qt6QuickControls2.dll", "Qt6QuickControls2Impl.dll", "Qt6QuickControls2Basic.dll", "Qt6QuickControls2BasicStyleImpl.dll")
 Get-ChildItem "$DistDir\Qt6QuickControls2*.dll" -File -ErrorAction SilentlyContinue |
     Where-Object { $_.Name -notin $keepQuickDlls } | Remove-Item -Force -ErrorAction SilentlyContinue
