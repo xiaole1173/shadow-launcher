@@ -560,7 +560,7 @@ Rectangle {
                     }
 
                     Text {
-                        text: backend && backend.versionIds.length > 1 ? backend.versionIds[1] || "" : ""
+                        text: backend && backend.releaseVersions.length > 0 ? backend.releaseVersions[0] : ""
                         color: "#d0d4e0"
                         font.pixelSize: StyleTokens.fontSize2xl
                         font.bold: true
@@ -589,7 +589,7 @@ Rectangle {
 
                     Text {
                         Layout.alignment: Qt.AlignRight
-                        text: backend ? backend.versionIds[0] || "" : ""
+                        text: backend && backend.snapshotVersions.length > 0 ? backend.snapshotVersions[0] : ""
                         color: StyleTokens.textTertiary
                         font.pixelSize: StyleTokens.fontSizeLg
                         font.bold: true
