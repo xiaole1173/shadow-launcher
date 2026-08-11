@@ -692,8 +692,12 @@ double ModpackDownloader::currentSpeedMBps() const
 }
 
 int ModpackDownloader::findIndexBySavePath(const QString& path) const{
+    // 2026-08-12：去掉 !finished 过滤——精卫补位重试成功后会对同一文件再次发
+    // fileFinished，旧实现 findIndex 直接 -1 → 重试结果对任务层不可见：文件实际已下好
+    // 仍计失败 → 批量失败误报、甚至 failed==total 误判整包导入失败。每个 savePath
+    // 在 m_items 中唯一，去掉终态过滤后重试事件也能正确回映。
     for (int i = 0; i < m_items.size(); ++i) {
-        if (m_items[i].savePath == path && !m_items[i].finished) return i;
+        if (m_items[i].savePath == path) return i;
     }
     return -1;
 }
@@ -731,29 +735,33 @@ void ModpackDownloader::onEngineFileFinished(const QString& localPath, bool succ
     const int idx = findIndexBySavePath(localPath);
     if (idx < 0 || idx >= m_files->size()) return;
     DlItem& it = m_items[idx];
-    if (it.finished) return;
-    it.finished = true;
+    // 2026-08-12：精卫补位重试会再次发 fileFinished（先失败→重入队→成功/再失败）。
+    // 旧实现 first-only：重试结果被静默丢弃 → 文件实际下好仍计失败 → 批量失败误报、
+    // failed==total 误判导入失败（“一旦失败就成片失败，只能取消重导”的直接机制）。
+    // 改为每次事件都更新终态；仅首次失败刷屏日志（重试轮次安静更新状态）。
+    const bool first = !it.finished;
+    if (first) it.finished = true;
     it.ok = success;
 
     ModpackRemoteFile& rf = m_files->operator[](idx);
     if (success) {
         rf.status = QStringLiteral("done");
         rf.error.clear();
-        // 新建文件登记回滚（覆盖场景已在 addFile 前备份，不重复登记）
+        // 新建文件登记回滚（覆盖场景已在 addFile 前备份，不重复登记；
+        // registerCreatedFile 幂等，重试成功重复调用安全）
         if (!m_preExisting.contains(localPath) && m_createdHook)
             m_createdHook(localPath);
         emit fileFinished(idx, true, {});
     } else {
         rf.status = QStringLiteral("fail");
-        // 失败详情透传：优先用引擎最近一条失败/校验日志（如「SHA1校验失败: xx」
-        // 「请求失败 URL=... 错误=超时」），无缓存才用笼统文案
         it.error = m_lastEngineError.isEmpty()
             ? tr("下载失败（详见日志）") : m_lastEngineError;
         m_lastEngineError.clear();
         rf.error = it.error;
         QFile::remove(localPath);   // 清理引擎残留的半截文件（isNoSplit 直接写最终路径）
         emit fileFinished(idx, false, it.error);
-        emit logLine(tr("⚠ %1 下载失败: %2").arg(it.fileName, it.error));
+        if (first)
+            emit logLine(tr("⚠ %1 下载失败: %2").arg(it.fileName, it.error));
     }
     emit queueProgress(m_skippedCount + (m_fd ? m_fd->completedFiles() : 0), m_total,
                        m_failed + (m_fd ? m_fd->failedFiles() : 0));

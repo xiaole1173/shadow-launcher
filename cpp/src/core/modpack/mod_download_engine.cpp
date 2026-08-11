@@ -92,6 +92,8 @@ void ModDownloadEngine::start()
         it->slowSinceMs = 0;
         it->lastWatchBytes = 0;
         it->slowSwitchCount = 0;
+        it->retried = 0;
+        it->failedAtMs = 0;
         m_pending.append(it);
     }
     m_lastSpeedBytes = m_downloadedBytes;
@@ -133,44 +135,37 @@ void ModDownloadEngine::pump()
     while (m_active < m_maxThreads) {
         if (m_pending.isEmpty()) {
             // ── 失败文件补位重试（核心调度改进）──
-            // 整合包不容放过任何模组：正常队列已空且有并发空槽时，把上一轮失败的
+            // 整合包不容放过任何模组：正常队列已空且有并发空槽时，把失败的
             // 文件重新入队重试——不干等整轮结束（旧逻辑要 active==0 才重试，
             // 失败发生在早期时其他几百个文件全下完才轮到它）。
-            // 轮次保护：每补位一批计一轮，达到 kMaxRounds-1 后不再补位（由 finishAll 收尾）。
-            if (m_round >= kMaxRounds - 1) break;
+            // 2026-08-12 修复：重试预算从「全局轮次」改为「每文件独立」——
+            // 旧实现 5 轮全局预算会被一波集中失败（网络抖动）快速耗尽，抖动结束后
+            // 晚失败的文件不再有重试额度 → 成片失败、只能取消重导。现在每个文件
+            // 独立计重试次数（至多 kMaxRounds-1 次，含首次共 5 轮），且重试间隔
+            // 随次数线性放大（5s/10s/15s/20s）：短暂抖动期间消耗的尝试在抖动结束后
+            // 仍有补位机会，重试也不会整批同时打爆源。
+            const qint64 now = QDateTime::currentMSecsSinceEpoch();
             int requeued = 0;
             for (auto& it : m_items) {
-                if (it->state == 3) {
-                    it->state = 0; it->sourceIdx = 0; it->failCount = 0;
-                    it->fallbackPassDone = false; it->received = 0; it->error.clear();
-                    m_failedFiles--;
-                    m_pending.append(it);
-                    requeued++;
-                }
+                if (it->state != 3) continue;
+                if (it->retried >= kMaxRounds - 1) continue;                       // 每文件重试上限
+                if (now - it->failedAtMs < m_retryGapMs * (it->retried + 1)) continue;  // 重试间隔
+                resetForRetry(it);
+                it->retried++;
+                m_failedFiles--;
+                m_pending.append(it);
+                requeued++;
             }
-            if (requeued == 0) break;
+            if (requeued == 0) break;   // 无到期可重试文件（间隔中/已达上限），等 50ms 定时器再查
             m_round++;
-            emit logMessage(QStringLiteral("[精卫] [补位重试] 第 %1/%2 轮：%3 个失败文件重新入队")
-                                .arg(m_round + 1).arg(kMaxRounds).arg(requeued));
+            emit logMessage(QStringLiteral("[精卫] [补位重试] 第 %1 批：%2 个失败文件重新入队（每文件上限 %3 次）")
+                                .arg(m_round + 1).arg(requeued).arg(kMaxRounds));
             continue;   // 继续填槽
         }
         auto it = m_pending.takeFirst();
         if (it->state != 0) continue;
         it->state = 1;
         m_active++;
-        // 镜像限频：MCIM/BMCLAPI 每启一线程间隔 ≥ m_mirrorRateLimitMs
-        if (isMirrorHost(it->sources.isEmpty() ? QString() : it->sources.first())) {
-            const qint64 now = QDateTime::currentMSecsSinceEpoch();
-            const qint64 wait = m_lastMirrorLaunchMs + m_mirrorRateLimitMs - now;
-            if (wait > 0) {
-                QTimer::singleShot(wait, this, [this, it]() {
-                    if (m_state == Running && it->state == 1 && !it->reply)
-                        launchRequest(it);
-                });
-                continue;   // 槽已占用，等限频后启动
-            }
-            m_lastMirrorLaunchMs = now;
-        }
         launchRequest(it);
     }
 }
@@ -211,6 +206,24 @@ void ModDownloadEngine::launchRequest(std::shared_ptr<Item> it)
     if (url.isEmpty()) {
         finishItem(it, false, QStringLiteral("无可用下载地址"));
         return;
+    }
+
+    // 镜像限频：MCIM/BMCLAPI 每启一线程间隔 ≥ m_mirrorRateLimitMs（2026-08-12 移到
+    // launchRequest 统一出口——原实现在 pump 里按 sources.first() 判断（当前源已是
+    // 镜像时漏判），且 sourceFailed 就地换源直连完全绕过限频：CF 包批量切镜像时
+    // 12 路并发打爆镜像限流 → 429 → 成片失败自激。现在按实际请求 URL 限频，
+    // 覆盖新启动与换源两条路径）。
+    if (isMirrorHost(url)) {
+        const qint64 now = QDateTime::currentMSecsSinceEpoch();
+        const qint64 wait = m_lastMirrorLaunchMs + m_mirrorRateLimitMs - now;
+        if (wait > 0) {
+            QTimer::singleShot(wait, this, [this, it]() {
+                if (m_state == Running && it->state == 1 && !it->reply)
+                    launchRequest(it);
+            });
+            return;   // 槽已占用，等限频后启动
+        }
+        m_lastMirrorLaunchMs = now;
     }
 
     // 临时文件（成功后原子改名到最终路径；失败/取消清理）
@@ -476,6 +489,7 @@ void ModDownloadEngine::finishItem(std::shared_ptr<Item> it, bool ok, const QStr
         if (!it->tmpPath.isEmpty()) { QFile::remove(it->tmpPath); it->tmpPath.clear(); }
         it->state = 3;
         m_failedFiles++;
+        it->failedAtMs = QDateTime::currentMSecsSinceEpoch();   // 重试间隔计时起点（2026-08-12）
         it->error = err.isEmpty() ? QStringLiteral("文件落盘失败: %1").arg(it->localPath) : err;
         emit logMessage(QStringLiteral("[精卫] [失败] %1: %2").arg(it->localName, it->error));
     }
@@ -495,19 +509,57 @@ void ModDownloadEngine::finishItem(std::shared_ptr<Item> it, bool ok, const QStr
 void ModDownloadEngine::tryStartNextRound()
 {
     if (m_cancelled || m_state != Running) return;
-    if (m_round >= kMaxRounds - 1) { finishAll(); return; }
 
-    int failedCount = 0;
+    // 2026-08-12：与 pump 补位重试同一套「每文件预算 + 重试间隔」规则。
+    // 有文件在间隔等待中（预算未耗尽）时不能收尾——交给 50ms pump 定时器
+    // 到点后自动补位；全部耗尽/无失败才 finishAll。
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    int requeued = 0;
+    bool anyRetryable = false;
     for (auto& it : m_items) {
-        if (it->state == 3) { failedCount++; it->state = 0; it->sourceIdx = 0; it->failCount = 0; it->fallbackPassDone = false; it->received = 0; it->resumeFrom = 0; it->rangeChecked = false; it->error.clear(); m_pending.append(it); }
+        if (it->state != 3) continue;
+        if (it->retried >= kMaxRounds - 1) continue;
+        anyRetryable = true;
+        if (now - it->failedAtMs < m_retryGapMs * (it->retried + 1)) continue;
+        resetForRetry(it);
+        it->retried++;
+        m_failedFiles--;
+        m_pending.append(it);
+        requeued++;
     }
-    if (failedCount == 0) { finishAll(); return; }
+    if (requeued == 0) {
+        if (anyRetryable) return;   // 间隔中：等 pump 定时器到点补位，不提前收尾
+        finishAll();
+        return;
+    }
 
     m_round++;
-    m_failedFiles -= failedCount;
-    emit logMessage(QStringLiteral("[精卫] [重试] 第 %1/%2 轮：%3 个失败文件整体重试")
-                        .arg(m_round + 1).arg(kMaxRounds).arg(failedCount));
+    emit logMessage(QStringLiteral("[精卫] [重试] 第 %1 批：%2 个失败文件整体重试（每文件上限 %3 次）")
+                        .arg(m_round + 1).arg(requeued).arg(kMaxRounds));
     pump();
+}
+
+void ModDownloadEngine::resetForRetry(const std::shared_ptr<Item>& it)
+{
+    // 重试 = 全新一轮：运行态全部复位（2026-08-12 补全——旧实现漏了
+    // resumeFrom/rangeChecked/enoughBytes/slow*，重试时带残留断点续传状态：
+    // 空文件 seek(resumeFrom)+Range 续传 → 前段零填充 → SHA1 必失败；
+    // 无 SHA1 的 CF 文件则大小校验误通过 → 静默落盘损坏文件）
+    it->state = 0;
+    it->sourceIdx = 0;
+    it->failCount = 0;
+    it->fallbackPassDone = false;
+    it->received = 0;
+    it->resumeFrom = 0;
+    it->rangeChecked = false;
+    it->enoughBytes = false;
+    it->slowSinceMs = 0;
+    it->lastWatchBytes = 0;
+    it->slowSwitchCount = 0;
+    it->total = it->fileSize > 0 ? it->fileSize : 0;
+    it->error.clear();
+    if (it->outFile) { it->outFile->close(); it->outFile->deleteLater(); it->outFile = nullptr; }
+    if (!it->tmpPath.isEmpty()) { QFile::remove(it->tmpPath); it->tmpPath.clear(); }
 }
 
 void ModDownloadEngine::finishAll()

@@ -552,6 +552,19 @@ if(SHADOW_BUILD_MODPACK_SELFTEST)
     target_include_directories(ModpackSelfTest PRIVATE src thirdparty/miniz)
     target_link_libraries(ModpackSelfTest PRIVATE Qt6::Core Qt6::Network Qt6::Concurrent)
 
+    # 精卫补位重试回归（2026-08-12）：每文件重试预算 + 任务层重试结果可见性
+    # 用法：JingweiRetryTest.exe（本地 HTTP 服务器，无需外网）
+    add_executable(JingweiRetryTest
+        tests/test_jingwei_retry.cpp
+        src/core/modpack/modpack_common.cpp
+        src/core/modpack/modpack_downloader.cpp
+        src/core/modpack/mod_download_engine.cpp
+        src/core/http_client.cpp
+        src/utils/logger.cpp
+    )
+    target_include_directories(JingweiRetryTest PRIVATE src)
+    target_link_libraries(JingweiRetryTest PRIVATE Qt6::Core Qt6::Network Qt6::Concurrent)
+
     # CF API Key 加密互操作测试（验证 Python 工具链生成的密文可被 C++ 解密）
     add_executable(CfCryptoInteropTest
         tests/test_cf_crypto_interop.cpp

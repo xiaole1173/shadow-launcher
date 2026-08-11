@@ -58,6 +58,8 @@ public:
     void setSourcePolicy(int p) { m_sourcePolicy = p; }
     /// 镜像 host 每启一线程的限频间隔（默认 100ms）
     void setMirrorRateLimitMs(int ms) { m_mirrorRateLimitMs = qMax(0, ms); }
+    /// 失败重试最小间隔（默认 5000ms，随重试次数线性放大；测试可置 0）
+    void setRetryGapMs(qint64 ms) { m_retryGapMs = qMax<qint64>(0, ms); }
 
 signals:
     void progressChanged(int completedFiles, int totalFiles,
@@ -98,6 +100,10 @@ private:
         qint64 slowSinceMs = 0;         // 连续低速起始时刻（0=未触发）
         qint64 lastWatchBytes = 0;      // 看门狗上次采样的 received
         int slowSwitchCount = 0;        // 看门狗换源累计（全源都慢时停止换源，避免误判失败）
+        // 重试（2026-08-12）：每文件独立预算，取代全局轮次闸门——
+        // 旧实现 5 轮全局预算会被一波集中失败（网络抖动）耗尽，抖动结束后晚失败的文件零重试
+        int retried = 0;             // 补位重试入队次数（至多 kMaxRounds-1 次，含首次共 5 轮）
+        qint64 failedAtMs = 0;       // 上次失败时刻（重试间隔节流起点）
     };
 
     enum State { Idle, Running, Cancelled };
@@ -115,6 +121,7 @@ private:
     void speedTick();
     void watchTick();                          // 慢速看门狗：500ms 扫描低速文件 → 换源
     bool verifyFile(const std::shared_ptr<Item>& it) const;
+    void resetForRetry(const std::shared_ptr<Item>& it);   // 重试前完整复位运行态（2026-08-12）
     bool isMirrorHost(const QString& url) const;
 
     State m_state = Idle;
@@ -123,7 +130,8 @@ private:
     int m_maxThreads = 12;
     int m_sourcePolicy = 0;
     int m_mirrorRateLimitMs = 100;
-    int m_round = 0;                 // 当前重试轮（0=首轮）
+    qint64 m_retryGapMs = kRetryGapMs;   // 重试间隔（可被 setRetryGapMs 覆盖，测试用）
+    int m_round = 0;                 // 重试批次计数（仅日志；2026-08-12 起重试预算改为每文件独立）
     static constexpr int kMaxRounds = 5;   // 整合包不容放过任何模组：补位重试上限（每文件至多 5 轮×多源+兜底）
     static constexpr int kProgressEmitThrottleMs = 150;  // 进度发射节流
 
@@ -145,6 +153,7 @@ private:
     static constexpr qint64 kSlowTriggerMs = 2000;
     static constexpr double kGlobalSlowGateMbps = 1.0;   // 1MB/s（2026-08-10 二修：0.25→1.0）
     static constexpr int kMaxSlowSwitches = 6;   // 每文件看门狗换源上限（全源慢时停止，宁可慢爬不误判失败）
+    static constexpr qint64 kRetryGapMs = 5000;  // 失败重试最小间隔（随重试次数线性放大：5s/10s/15s/20s）
     QElapsedTimer m_speedClock;
     qint64 m_lastSpeedBytes = 0;
     QList<qint64> m_speedRecords;            // 30 条 × 100ms ≈ 3s 窗口
