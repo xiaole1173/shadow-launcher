@@ -654,6 +654,7 @@ Rectangle {
                                 width: modGrid.cellWidth - 12
                                 height: 128
                                 radius: StyleTokens.radiusLg
+                                clip: true
                                 color: cardHover.hovered ? "#121620" : "#0e1018"
                                 border { width: 1; color: cardHover.hovered ? StyleTokens.accent : "#1e2430" }
 
@@ -699,19 +700,22 @@ Rectangle {
                                         Text {
                                             text: (model.enabled === false ? (model.modName || model.fileName) + "（已禁用）" : (model.modName || model.fileName))
                                             font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Medium; color: StyleTokens.textSecondary
-                                            elide: Text.ElideRight; Layout.fillWidth: true
+                                            elide: Text.ElideRight; Layout.fillWidth: true; Layout.minimumWidth: 0
                                         }
 
-                                        // Version + loader badge
+                                        // Version + loader badge（08-11 修复：fillWidth+elide 防长版本号撑大布局把 loader 徽章挤出卡片）
                                         RowLayout {
+                                            Layout.fillWidth: true; Layout.minimumWidth: 0
                                             spacing: 4
                                             Text {
                                                 text: "v" + (model.version || "?")
                                                 font.pixelSize: StyleTokens.fontSizeXs; color: "#6ab04c"
+                                                elide: Text.ElideRight; Layout.fillWidth: true; Layout.minimumWidth: 0
                                             }
                                             Rectangle {
                                                 visible: model.loader && model.loader !== "unknown"
                                                 width: loaderText.implicitWidth + 10; height: 16; radius: StyleTokens.radiusXs
+                                                Layout.maximumWidth: 130
                                                 property string _l: (model.loader || "").toLowerCase()
                                                 color: _l === "forge" ? "#c05050" : (_l === "fabric" ? "#3a7a9a" : (_l === "neoforge" ? "#c08050" : (_l === "quilt" ? "#3a8a7a" : (_l === "liteloader" ? "#7070a0" : (_l === "optifine" ? "#8a8a5a" : "#4a6a8a")))))
                                                 Text {
@@ -721,6 +725,7 @@ Rectangle {
                                                     text: _raw ? _raw.charAt(0).toUpperCase() + _raw.slice(1) : ""
                                                     font.pixelSize: StyleTokens.fontSizeXs
                                                     color: StyleTokens.textPrimary
+                                                    elide: Text.ElideRight; width: Math.min(implicitWidth, 110)
                                                 }
                                             }
                                         }
@@ -730,16 +735,17 @@ Rectangle {
                                             text: model.description || ""
                                             font.pixelSize: StyleTokens.fontSizeXs; color: "#7880a0"
                                             elide: Text.ElideRight; maximumLineCount: 2; wrapMode: Text.WordWrap
-                                            Layout.fillWidth: true; Layout.preferredHeight: 28
+                                            Layout.fillWidth: true; Layout.minimumWidth: 0; Layout.preferredHeight: 28
                                             visible: text !== ""
                                         }
 
                                         // Bottom row: file size + delete
                                         RowLayout {
-                                            Layout.fillWidth: true
+                                            Layout.fillWidth: true; Layout.minimumWidth: 0
                                             Text {
                                                 text: model.fileSizeText || ""
                                                 font.pixelSize: StyleTokens.fontSizeXs; color: "#586080"
+                                                elide: Text.ElideRight; Layout.maximumWidth: 120
                                             }
                                             Item { Layout.fillWidth: true }
 
@@ -911,6 +917,7 @@ Rectangle {
                                 width: rpGrid.cellWidth - 12
                                 height: 128
                                 radius: StyleTokens.radiusLg
+                                clip: true
                                 color: rpCardHover.hovered ? "#121620" : "#0e1018"
                                 border { width: 1; color: rpCardHover.hovered ? StyleTokens.accent : "#1e2430" }
 
@@ -955,14 +962,14 @@ Rectangle {
                                         Text {
                                             text: model.name || model.fileName
                                             font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Medium; color: StyleTokens.textSecondary
-                                            elide: Text.ElideRight; Layout.fillWidth: true
+                                            elide: Text.ElideRight; Layout.fillWidth: true; Layout.minimumWidth: 0
                                         }
 
                                         // Version text (green, like Mod page v0.6.10)
                                         Text {
                                             text: model.versionText || ""
                                             font.pixelSize: StyleTokens.fontSizeXs; color: "#6ab04c"
-                                            Layout.fillWidth: true; elide: Text.ElideRight
+                                            Layout.fillWidth: true; elide: Text.ElideRight; Layout.minimumWidth: 0
                                             visible: text !== ""
                                         }
 
@@ -971,16 +978,17 @@ Rectangle {
                                             text: model.authorText || ""
                                             font.pixelSize: StyleTokens.fontSizeXs; color: "#7880a0"
                                             elide: Text.ElideRight; maximumLineCount: 2; wrapMode: Text.WordWrap
-                                            Layout.fillWidth: true; Layout.preferredHeight: 28
+                                            Layout.fillWidth: true; Layout.minimumWidth: 0; Layout.preferredHeight: 28
                                             visible: text !== ""
                                         }
 
                                         // Bottom row: file size + delete
                                         RowLayout {
-                                            Layout.fillWidth: true
+                                            Layout.fillWidth: true; Layout.minimumWidth: 0
                                             Text {
                                                 text: model.fileSizeText || ""
                                                 font.pixelSize: StyleTokens.fontSizeXs; color: "#586080"
+                                                elide: Text.ElideRight; Layout.maximumWidth: 120
                                             }
                                             Item { Layout.fillWidth: true }
 
