@@ -349,7 +349,7 @@
 
 | 日期 | 说明 |
 |---|---|
-| 2026-08-11 | Mod 管理批量启禁用（local_mod_manager.{h,cpp}/shadow_backend.{h,cpp}/VersionSettingsOverlay.qml，c97bcb0）：setAllModsEnabled 遍历 mods 目录批量 jar↔jar.disabled（只处理 jar/jar.disabled，已是目标状态跳过，返回改动数）；ShadowBackend Q_INVOKABLE 转发；Mod 管理 Header 加全部启用（check-circle 绿）/全部禁用（x-circle 红）按钮放打开Mod文件夹左侧，点击刷新列表+toast |
+| 2026-08-11 | Mod 管理批量启禁用（local_mod_manager.{h,cpp}/shadow_backend.{h,cpp}/VersionSettingsOverlay.qml，c97bcb0）：setAllModsEnabled 遍历 mods 目录批量 jar↔jar.disabled（只处理 jar/jar.disabled，已是目标状态跳过，返回改动数）；ShadowBackend Q_INVOKABLE 转发；Mod 管理 Header 加全部启用（check-circle 绿）/全部禁用（x-circle 红）按钮放打开Mod文件夹左侧，点击刷新列表+toast。**08-11 修复**：两按钮 98→80 宽、iconSize 14→13（防挤出右侧打开文件夹/刷新按钮溢出） |
 | 2026-08-10 | 驿道分片慢片看门狗（http_client.{h,cpp}，b361561）：分片 2s 采样，增量 <256KB（128KB/s）判龟速连续 3 次（6s）→ abort 换连接重试；龟速换连接预算每片 2 次（对齐夸父 kMaxWatchdogAborts），预算用完让慢片爬完不失败；龟速 abort 不消耗失败重试预算（低速网络不误杀）——修复分片“前段快后段龟速”慢片拖尾 |
 
 | 2026-08-10 | 整合包模组永不开始/永不完成修复（mod_download_engine.h/.cpp）：根因——①慢速看门狗（<128KB/s 持续 2s）触发换源时 sourceFailed 一律删除 tmpPath + received=0 从头重下 → 慢速源（镜像）上的大文件每次只下 ~200KB 就被换走重来 → 永远下不完（实测 283 模组 2.5 分钟零完成，18:29:18 启动 12 并发后 265 个 pending 永不派发——槽位被换源循环占满，失败后 pump 才派新任务）；②镜像慢速 ↔ edge 挂起超时（Operation canceled）交替循环。修复：慢速换源（slowSinceMs==-1 标记）保留 tmpPath/received 断点续传——Item.resumeFrom + launchRequest Range 头 + ReadWrite/seek append + onReadyRead 首包检测 200（不支持 Range 则截断从头）+ onReplyProgress 绝对进度 resumeFrom+recv；失败换源才重置；tryStartNextRound 重置 resumeFrom/rangeChecked。与 assets/精卫前两轮同思路：下载要按预期字节数主动推进，换源不丢进度 |

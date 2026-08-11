@@ -567,10 +567,10 @@ Rectangle {
                         Text { text: qsTr("Mod 管理（共 %1 个模组）").arg(modSection.totalModCount); font.pixelSize: StyleTokens.fontSizeLg; font.bold: true; color: StyleTokens.textSecondary }
                         Item { Layout.fillWidth: true }
 
-                        // 全部启用 / 全部禁用（2026-08-11）
+                        // 全部启用 / 全部禁用（2026-08-11；08-11 缩小宽度 98→80 防挤出右侧按钮）
                         ShadowButton {
-                            Layout.preferredWidth: 98; Layout.preferredHeight: 30
-                            text: qsTr("全部启用"); iconSource: "icons/lucide/check-circle.svg"; iconSize: 14
+                            Layout.preferredWidth: 80; Layout.preferredHeight: 30
+                            text: qsTr("全部启用"); iconSource: "icons/lucide/check-circle.svg"; iconSize: 13
                             accentColor: "#2a5a40"
                             font.pixelSize: StyleTokens.fontSizeSm
                             onClicked: {
@@ -582,8 +582,8 @@ Rectangle {
                             }
                         }
                         ShadowButton {
-                            Layout.preferredWidth: 98; Layout.preferredHeight: 30
-                            text: qsTr("全部禁用"); iconSource: "icons/lucide/x-circle.svg"; iconSize: 14
+                            Layout.preferredWidth: 80; Layout.preferredHeight: 30
+                            text: qsTr("全部禁用"); iconSource: "icons/lucide/x-circle.svg"; iconSize: 13
                             accentColor: "#9a3838"
                             font.pixelSize: StyleTokens.fontSizeSm
                             onClicked: {
