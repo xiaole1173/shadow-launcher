@@ -129,7 +129,9 @@ static bool applyFullUpdate(const std::wstring& appDirW,
     const QDir ad(appDir);
     const QStringList stale = ad.entryList(QDir::AllEntries | QDir::NoDotAndDotDot);
     for (const QString& e : stale) {
-        if (e == QStringLiteral(".minecraft") || e == QStringLiteral("logs") || e == QStringLiteral("_update"))
+        // 保留：.minecraft（游戏数据）/ logs（日志）/ java_cache（Java 运行时，删了会导致 Java 缺失）/ _update（更新临时）
+        if (e == QStringLiteral(".minecraft") || e == QStringLiteral("logs")
+            || e == QStringLiteral("java_cache") || e == QStringLiteral("_update"))
             continue;
         const QString p2 = appDir + QLatin1Char('/') + e;
         if (QFileInfo(p2).isDir())
