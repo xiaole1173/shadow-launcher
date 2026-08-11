@@ -199,6 +199,38 @@ bool LocalModManager::setModEnabled(const QString& fileName, const QString& vers
     return false;
 }
 
+// ── 批量全部启用/禁用（2026-08-11）──
+// 遍历 mods 目录，把 *.jar ↔ *.jar.disabled 批量改名；返回实际改动数（已是目标状态的不动）
+int LocalModManager::setAllModsEnabled(const QString& versionId, bool enabled)
+{
+    const QString dir = modsDir(versionId);
+    QDir d(dir);
+    if (!d.exists()) return 0;
+
+    int changed = 0;
+    const QFileInfoList entries = d.entryInfoList(QDir::Files | QDir::NoDotAndDotDot, QDir::Name);
+    for (const QFileInfo& fi : entries) {
+        const QString name = fi.fileName();
+        const bool isJar = name.endsWith(QStringLiteral(".jar"), Qt::CaseInsensitive);
+        const bool isJarDisabled = name.endsWith(QStringLiteral(".jar.disabled"), Qt::CaseInsensitive);
+        if (!isJar && !isJarDisabled) continue;   // 只处理 jar / jar.disabled，跳过其他文件
+
+        const bool isDisabled = isJarDisabled;
+        if (enabled == !isDisabled) continue;     // 已是目标状态
+
+        QString newPath;
+        if (enabled) {
+            newPath = dir + QStringLiteral("/") + name.left(name.size() - 9);   // 剥 ".disabled"
+        } else {
+            newPath = dir + QStringLiteral("/") + name + QStringLiteral(".disabled");
+        }
+        if (QFile::exists(newPath)) continue;
+        if (QFile::rename(fi.absoluteFilePath(), newPath)) changed++;
+    }
+    if (changed > 0) emit modsChanged(versionId);
+    return changed;
+}
+
 bool LocalModManager::openModsFolder(const QString& versionId)
 {
     QString dir = modsDir(versionId);

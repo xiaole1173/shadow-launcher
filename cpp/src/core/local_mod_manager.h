@@ -58,6 +58,8 @@ public:
 
     // Enable/disable a mod (rename *.jar ↔ *.jar.disabled, aligned with 主流启动器/主流启动器)
     bool setModEnabled(const QString& fileName, const QString& versionId, bool enabled);
+    /// 批量全部启用/禁用（2026-08-11）：遍历 mods 目录 jar ↔ jar.disabled，返回实际改动数
+    int setAllModsEnabled(const QString& versionId, bool enabled);
 
     // Open the mods folder in explorer
     bool openModsFolder(const QString& versionId);

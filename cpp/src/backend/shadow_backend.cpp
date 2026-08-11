@@ -2146,6 +2146,17 @@ void ShadowBackend::setModEnabled(const QString& filename, const QString& versio
         emit logMessage(QStringLiteral("%1 Mod: %2").arg(enabled ? QStringLiteral("已启用") : QStringLiteral("已禁用"), filename));
 }
 
+int ShadowBackend::setAllModsEnabled(const QString& versionId, bool enabled)
+{
+    if (!m_localMods) return 0;
+    const int n = m_localMods->setAllModsEnabled(versionId, enabled);
+    if (n > 0)
+        emit logMessage(enabled
+            ? QStringLiteral("已全部启用 %1 个模组").arg(n)
+            : QStringLiteral("已全部禁用 %1 个模组").arg(n));
+    return n;
+}
+
 void ShadowBackend::deleteResourcePack(const QString& filename, const QString& versionId)
 {
     if (!m_localMods) return;

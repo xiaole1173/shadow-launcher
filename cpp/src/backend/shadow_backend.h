@@ -132,6 +132,7 @@ class ShadowBackend : public QObject {
     Q_PROPERTY(QString customBgPath READ customBgPath NOTIFY customBgChanged)
     Q_PROPERTY(qreal sidebarOpacity READ sidebarOpacity NOTIFY customBgChanged)
     Q_PROPERTY(qreal contentOpacity READ contentOpacity NOTIFY customBgChanged)
+    Q_PROPERTY(qreal backgroundBlur READ backgroundBlur NOTIFY customBgChanged)
     Q_PROPERTY(qreal cropX READ cropX WRITE setCropX NOTIFY customBgChanged)
     Q_PROPERTY(qreal cropY READ cropY WRITE setCropY NOTIFY customBgChanged)
 
@@ -221,6 +222,8 @@ public:
     Q_INVOKABLE void setSidebarOpacity(qreal v);
     qreal contentOpacity() const;
     Q_INVOKABLE void setContentOpacity(qreal v);
+    qreal backgroundBlur() const;
+    Q_INVOKABLE void setBackgroundBlur(qreal v);
     qreal cropX() const;
     Q_INVOKABLE void setCropX(qreal v);
     qreal cropY() const;
@@ -595,6 +598,8 @@ public:
     Q_INVOKABLE void checkFileChanges() {}
     Q_INVOKABLE void deleteMod(const QString& filename, const QString& versionId = {});
     Q_INVOKABLE void setModEnabled(const QString& filename, const QString& versionId = {}, bool enabled = true);
+    /// 全部启用/禁用（2026-08-11）：返回实际改动数，QML 刷新列表 + toast
+    Q_INVOKABLE int setAllModsEnabled(const QString& versionId, bool enabled);
     /// 导出启动脚本（.bat）——转发 launchBackend（2026-08-07）
     Q_INVOKABLE QString exportLaunchScript(const QString& versionId, const QString& javaPath,
                                            int maxMemoryMB, const QString& jvmArgs = {},
