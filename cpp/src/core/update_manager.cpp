@@ -338,13 +338,22 @@ void UpdateManager::pickAssetAndDownload(bool forceFull)
                 break;
             }
         }
+    } else {
+        // 全量更新：优先选 .zip/.7z 完整包（2026-08-11 起发布 .zip；不依赖 assets 顺序）
+        for (const QJsonValue& a : assets) {
+            const QString name = a["name"].toString();
+            if (name.endsWith(QStringLiteral(".zip")) || name.endsWith(QStringLiteral(".7z"))) {
+                asset = a.toObject();
+                break;
+            }
+        }
     }
     if (asset.isEmpty()) asset = assets.first().toObject();
 
     QString downloadUrl = asset.value("browser_download_url").toString();
     QString fileName    = asset.value("name").toString();
     qint64  fileSize    = static_cast<qint64>(asset.value("size").toDouble());
-    if (fileSize <= 0) fileSize = (fileName.endsWith(".7z") ? 50 : 10) * 1024 * 1024;
+    if (fileSize <= 0) fileSize = ((fileName.endsWith(".7z") || fileName.endsWith(".zip")) ? 60 : 10) * 1024 * 1024;
 
     qCInfo(logApp) << "[UpdateManager] 选择:" << fileName
                    << (fileSize / 1024 / 1024) << "MB" << "forceFull=" << forceFull;

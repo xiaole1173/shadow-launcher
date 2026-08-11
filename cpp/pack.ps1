@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Shadow Launcher - One-click packager (flat structure)
     Copies build artifacts, runs windeployqt, bundles EasyTier, cleans up, compresses.
@@ -182,6 +182,12 @@ if (Test-Path $qmlControlsDir) {
     Get-ChildItem $qmlControlsDir -Directory -ErrorAction SilentlyContinue |
         Where-Object { $_.Name -notin @("Basic", "impl") } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 }
+# Dialogs quickimpl 下的冗余风格 qml（+Fusion/+Imagine/+Material/+Universal，项目全用 Basic）
+$qmlDialogsDir = "$DistDir\qml\QtQuick\Dialogs\quickimpl\qml"
+if (Test-Path $qmlDialogsDir) {
+    Get-ChildItem $qmlDialogsDir -Directory -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -like "+*" } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+}
 Write-Host "       QuickControls2: 只留 Basic 风格 (-12MB)" -ForegroundColor Gray
 
 # 4h. qmltooling 调试插件（发布不需要）
@@ -197,7 +203,7 @@ if (Test-Path $exePath) {
     $sha256 = (Get-FileHash -Path $exePath -Algorithm SHA256).Hash.ToLower()
     $compat = @{
         version           = $VersionTag
-        update_mode       = "exe"
+        update_mode       = "force_full"   # 全量更新：启动器删除除 .minecraft/logs 外所有内容后覆盖
         force_reason      = ""
         qt_version        = "6.8.3"
         resource_epoch    = 1
@@ -260,15 +266,28 @@ Write-Host "  Size   : $totalSizeMB MB  (bin: $binDirSizeMB MB)" -ForegroundColo
 Write-Host "  Files  : $fileCount  (DLLs: $dllCount)" -ForegroundColor White
 Write-Host ""
 
-# ---- 7-Zip ----
+# ---- 7-Zip：ZIP 格式（2026-08-11 起）----
+# 全量更新包 .zip：启动器内置 miniz 解压（不需要用户装 7-Zip）。
+# compat.json 排除出包（它引用 zip 的 SHA256，压缩后单独生成，发布时作为独立 asset 上传）。
 $SevenZip = "C:\Program Files\7-Zip\7z.exe"
 if (Test-Path $SevenZip) {
-    Write-Host "  Compressing with 7-Zip..." -ForegroundColor Yellow
-    $archive = "$ProjectRoot\dist\ShadowLauncher_$VersionTag.7z"
-    & $SevenZip a -mx9 -mmt=on $archive "$DistDir\*" `
-        "-x!ShadowLauncher.exe" 2>&1 | Select-Object -Last 1
+    Write-Host "  Compressing with 7-Zip (zip)..." -ForegroundColor Yellow
+    $archive = "$ProjectRoot\dist\ShadowLauncher_$VersionTag.zip"
+    # 包内必须含 ShadowLauncher.exe（全量更新/首次安装依赖；v0.4.2 曾用 -x! 排除导致全量更新后无主程序）
+    & $SevenZip a -tzip -mx9 -mmt=on $archive "$DistDir\*" "-x!compat.json" 2>&1 | Select-Object -Last 1
     $archiveSizeMB = [math]::Round((Get-Item $archive).Length / $OneMB, 1)
     Write-Host "  Archive: $archive  ($archiveSizeMB MB)" -ForegroundColor Green
+
+    # compat.json 在压缩后生成/更新：full_sha256 = zip 哈希（force_full 模式校验用）
+    $zipSha = (Get-FileHash -Path $archive -Algorithm SHA256).Hash.ToLower()
+    if (Test-Path "$DistDir\compat.json") {
+        $compatObj = Get-Content "$DistDir\compat.json" -Raw | ConvertFrom-Json
+        $compatObj.full_sha256 = $zipSha
+        $compatObj | ConvertTo-Json | Out-File "$DistDir\compat.json" -Encoding utf8 -Force
+        Write-Host "  compat.json full_sha256 = $($zipSha.Substring(0,16))..." -ForegroundColor Green
+    } else {
+        Write-Host "  WARN: compat.json 不存在，full_sha256 未填写" -ForegroundColor Yellow
+    }
 } else {
     Write-Host "  Tip: install 7-Zip for smaller archives" -ForegroundColor Gray
 }

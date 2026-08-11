@@ -46,6 +46,9 @@
 #include "core/http_client.h"
 
 #include "core/screenshot_server.h"
+#include "core/modpack/zip_archive.h"
+#include <QFile>
+#include <functional>
 
 // ── Remove CEF references ──
 
@@ -85,6 +88,86 @@ public:
 
 // Global for screenshot mode
 static QWindow* screenshotWindow = nullptr;
+// ── 全量更新安装（2026-08-11）：删除除 .minecraft/logs/_update 外所有内容后覆盖更新 ──
+// zip 解压到 _update/extracted → 清理旧目录（保留 .minecraft/logs/_update）→ 复制新文件
+// （ShadowLauncher.exe 跳过，由 SLUpdater 等旧进程退出后替换）。成功返回 true 并设置
+// outNewExeW（新 exe 路径）；失败返回 false（跳过更新，继续用当前版本）。
+static bool applyFullUpdate(const std::wstring& appDirW,
+                            const std::wstring& zipPathW,
+                            std::wstring& outNewExeW)
+{
+    const QString appDir = QString::fromWCharArray(appDirW.c_str());
+    const QString updateDir = appDir + QStringLiteral("/_update");
+    const QString extractDir = updateDir + QStringLiteral("/extracted");
+    const QString zipPath = QString::fromWCharArray(zipPathW.c_str());
+
+    // 1) 清理旧解压残留 + 解压新包到 extracted（先解压验证完整性，再动旧目录）
+    QDir(extractDir).removeRecursively();
+    QDir().mkpath(extractDir);
+
+    ShadowLauncher::ZipArchive zip;
+    if (!zip.open(zipPath)) {
+        OutputDebugStringA("[PreInit] 全量更新：无法打开更新包\n");
+        return false;
+    }
+    const int n = zip.extractPrefixTo(QString(), extractDir);
+    zip.close();
+    if (n <= 0) {
+        OutputDebugStringA("[PreInit] 全量更新：解压失败\n");
+        return false;
+    }
+    
+    // 2) 包内必须有新主程序（否则更新后无 exe 可运行）
+    const QString newExe = extractDir + QStringLiteral("/ShadowLauncher.exe");
+    if (!QFileInfo::exists(newExe)) {
+        OutputDebugStringA("[PreInit] 全量更新：包内缺少 ShadowLauncher.exe\n");
+        return false;
+    }
+    outNewExeW = newExe.toStdWString();
+
+    // 3) 删除启动器目录下除 .minecraft / logs / _update 外的所有内容
+    const QDir ad(appDir);
+    const QStringList stale = ad.entryList(QDir::AllEntries | QDir::NoDotAndDotDot);
+    for (const QString& e : stale) {
+        if (e == QStringLiteral(".minecraft") || e == QStringLiteral("logs") || e == QStringLiteral("_update"))
+            continue;
+        const QString p2 = appDir + QLatin1Char('/') + e;
+        if (QFileInfo(p2).isDir())
+            QDir(p2).removeRecursively();
+        else
+            QFile::remove(p2);   // 运行中的 ShadowLauncher.exe 删不掉无妨（SLUpdater 负责替换）
+    }
+
+    // 4) 复制 extracted/* → appDir（exe 跳过，由 SLUpdater 替换）
+    std::function<bool(const QString&, const QString&)> copyTree =
+        [&](const QString& srcDir, const QString& dstDir) -> bool {
+        QDir().mkpath(dstDir);
+        const QDir sd(srcDir);
+        const QStringList items = sd.entryList(QDir::AllEntries | QDir::NoDotAndDotDot);
+        for (const QString& it : items) {
+            const QString s = srcDir + QLatin1Char('/') + it;
+            const QString d = dstDir + QLatin1Char('/') + it;
+            if (QFileInfo(s).isDir()) {
+                if (!copyTree(s, d)) return false;
+            } else {
+                if (it == QStringLiteral("ShadowLauncher.exe")) continue;
+                if (QFile::exists(d)) QFile::remove(d);
+                if (!QFile::copy(s, d)) return false;
+            }
+        }
+        return true;
+    };
+    if (!copyTree(extractDir, appDir)) {
+        OutputDebugStringA("[PreInit] 全量更新：文件复制失败\n");
+        return false;
+    }
+
+    // 5) 更新包已解压完成，删除 zip 释放空间（extracted 保留给 SLUpdater 换 exe）
+    QFile::remove(zipPath);
+    OutputDebugStringA("[PreInit] 全量更新：解压+覆盖完成，准备替换 exe\n");
+    return true;
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -105,10 +188,16 @@ int main(int argc, char *argv[])
         bool lockExists = GetFileAttributesW(lockPath.c_str()) != INVALID_FILE_ATTRIBUTES;
         bool stateExists = GetFileAttributesW(statePath.c_str()) != INVALID_FILE_ATTRIBUTES;
 
+        // 全量更新残留清理：安装完成/中止后 _update/extracted 不再需要（2026-08-11）
+        // （applyFullUpdate 进行中时 extracted 尚不存在，无冲突；重启后的新进程执行此处清理）
+        QDir(QString::fromWCharArray((appDirW + L"\\_update\\extracted").c_str())).removeRecursively();
+
         // If lock exists but no state.json → SLUpdater completed, cleanup
         if (lockExists && !stateExists) {
             OutputDebugStringA("[PreInit] 安装锁存在但无待安装更新，清理锁\n");
             DeleteFileW(lockPath.c_str());
+            // 全量更新残留的 extracted 目录一并清理（SLUpdater 只删 state/lock）
+            QDir(QString::fromWCharArray((appDirW + L"\\_update\\extracted").c_str())).removeRecursively();
             lockExists = false;
         }
         // If lock exists with state → SLUpdater crashed mid-install, retry
@@ -158,7 +247,7 @@ int main(int argc, char *argv[])
                 if (stateVal == 5) {
                     auto pos = json.find("\"download_version\":\"");
                     if (pos != std::string::npos) {
-                        pos += 20;
+                        pos += 21;   // 2026-08-11 off-by-one 修复："download_version":" 为 21 字符
                         auto end = json.find('"', pos);
                         std::string dlVer = json.substr(pos, end - pos);
                         if (dlVer == SHADOW_DISPLAY_VERSION) {
@@ -203,7 +292,7 @@ int main(int argc, char *argv[])
                 } else if (stateVal == 5) { // Ready
                     auto pos = json.find("\"download_path\":\"");
                     if (pos != std::string::npos) {
-                        pos += 18;
+                        pos += 17;   // 2026-08-11 off-by-one 修复："download_path":" 为 17 字符
                         auto end = json.find('"', pos);
                         std::string newFile = json.substr(pos, end - pos);
                         std::wstring newFileW = utf8ToWide(newFile);
@@ -256,6 +345,21 @@ int main(int argc, char *argv[])
                                 }
                             }
                         }
+
+                        // ── 2026-08-11：全量更新（.zip 包）──
+                        // 删除除 .minecraft/logs 外的所有内容后覆盖更新；exe 由 SLUpdater 替换
+                        const bool isZip = newFile.size() >= 4
+                            && newFile.compare(newFile.size() - 4, 4, ".zip") == 0;
+                        std::wstring installNewExeW;
+                        if (isZip && !applyFullUpdate(appDirW, newFileW, installNewExeW)) {
+                            OutputDebugStringA("[PreInit] 全量更新失败，继续使用当前版本\n");
+                            DeleteFileW(statePath.c_str());
+                            DeleteFileW(lockPath.c_str());
+                            newFileW.clear();   // 不执行更新
+                        } else if (isZip) {
+                            newFileW = installNewExeW;   // SLUpdater 替换 extracted 里的新 exe
+                        }
+                        // .exe 增量包走原逻辑（newFileW 不变）
 
                         std::wstring updaterPath = appDirW + L"\\SLUpdater.exe";
                         if (GetFileAttributesW(updaterPath.c_str()) != INVALID_FILE_ATTRIBUTES &&

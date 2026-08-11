@@ -34,10 +34,13 @@ static bool waitForProcess(DWORD pid, DWORD timeoutMs)
     return (result == WAIT_OBJECT_0);
 }
 
-int WINAPI wWinMain(HINSTANCE, HINSTANCE, LPWSTR cmdLine, int)
+int WINAPI wWinMain(HINSTANCE, HINSTANCE, LPWSTR, int)
 {
+    // 2026-08-11 修复：wWinMain 的 lpCmdLine 不含程序名（argc 恒少 1），
+    // 导致 CommandLineToArgvW 只解析出 3 个参数 → 永远弹 Usage、更新从未生效。
+    // 必须用 GetCommandLineW()（含 exe 路径的完整命令行）。
     int argc = 0;
-    LPWSTR* argv = CommandLineToArgvW(cmdLine, &argc);
+    LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
 
     if (argc < 4) {
         MessageBoxW(nullptr,
