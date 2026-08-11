@@ -112,6 +112,28 @@ static QString quoteBatArg(const QString& arg)
 // 策略: Java 21+ → 分代 ZGC (性能最优), Java 15-20 → ZGC, Java 14- → G1GC
 // ZGC 需要 Windows 10 1809+ (build 17763)，不支持时回退到 G1GC
 // gcMode: 0=自动（智能选择） 1=分代ZGC 优先 2=仅 G1GC 3=不指定（返回空，跟随自定义参数）
+// ============================================================
+// 日志脱敏（2026-08-11）：启动参数/JVM 输出写入日志前过滤敏感凭据
+// （正版/外置登录 accessToken、老版 --session 等；对齐主流启动器实现 FilterAccessToken）
+// ============================================================
+QString sanitizeLaunchLog(const QString& input)
+{
+    QString out = input;
+    // 命令行参数：--accessToken *** / --accessToken=<v> / --session <v> / --session=<v>
+    static const QRegularExpression reFlag(
+        QStringLiteral("(--(?:accessToken|session)\\s*=\\s*|--(?:accessToken|session)\\s+)([^\\s]+)"));
+    out.replace(reFlag, QStringLiteral("\\1<hidden>"));
+    // JSON 形式（游戏/模组回显）："accessToken":"***" / "access_token":"***" / "session":"v"
+    static const QRegularExpression reJson(
+        QStringLiteral("(\"(?:accessToken|access_token|session)\"\\s*:\\s*\")([^\"]*)(\")"));
+    out.replace(reJson, QStringLiteral("\\1<hidden>\\3"));
+    // 键值形式（无 -- 前缀）：accessToken=v / access_token=*** / auth_session=v
+    static const QRegularExpression reKv(
+        QStringLiteral("(?<![\\w-])((?:accessToken|access_token|auth_session)\\s*=\\s*)([^\\s,;\"']+)"));
+    out.replace(reKv, QStringLiteral("\\1<hidden>"));
+    return out;
+}
+
 // 对齐主流启动器实现 LaunchAdvanceGC 四档语义（SetupType 0/1/2/3）
 static QStringList collectGcArgs(int javaMajor, bool debugMode, int gcMode = 0)
 {
@@ -409,7 +431,7 @@ void Launcher::start(const QString& versionId, const QString& javaPath, int maxM
 #endif
     }
 
-    qCInfo(logLaunch) << QStringLiteral("[启动] 启动参数: %1").arg(args.join(QLatin1Char(' ')));
+    qCInfo(logLaunch) << QStringLiteral("[启动] 启动参数: %1").arg(sanitizeLaunchLog(args.join(QLatin1Char(' '))));
     qCInfo(logLaunch) << QStringLiteral("[启动] 启动参数共 %1 个").arg(args.size());
 
     // 启动前自定义命令（异步，不阻塞）——主流启动器 preLaunchCommand 对齐
@@ -504,7 +526,7 @@ void Launcher::onReadyReadStdout()
         for (const QString& l : lines) {
             const QString t = l.trimmed();
             if (t.isEmpty()) continue;
-            qCInfo(logLaunch) << QStringLiteral("[JVM 输出] ") + t;
+            qCInfo(logLaunch) << QStringLiteral("[JVM 输出] ") + sanitizeLaunchLog(t);
         }
     }
 
@@ -547,7 +569,7 @@ void Launcher::onReadyReadStderr()
             for (const QString& l : errLines) {
                 const QString t = l.trimmed();
                 if (t.isEmpty()) continue;
-                qCInfo(logLaunch) << QStringLiteral("[JVM 错误输出] ") + t;
+                qCInfo(logLaunch) << QStringLiteral("[JVM 错误输出] ") + sanitizeLaunchLog(t);
             }
         }
 

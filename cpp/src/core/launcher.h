@@ -11,6 +11,10 @@
 
 namespace ShadowLauncher {
 
+// 日志脱敏（2026-08-11）：启动参数/JVM 输出写入日志前过滤敏感凭据
+// （--accessToken/--session 值、JSON/key=value 形式的 accessToken/access_token/auth_session）
+QString sanitizeLaunchLog(const QString& input);
+
 // Forward declarations
 class SettingsBackend;
 

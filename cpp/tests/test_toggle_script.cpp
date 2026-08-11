@@ -270,6 +270,39 @@ int main(int argc, char** argv)
         QDir(gameDir).removeRecursively();
     }
 
+    // ── 2c. 日志脱敏 sanitizeLaunchLog（2026-08-11）──
+    {
+        const QString flagSpace = sanitizeLaunchLog(QStringLiteral("--username Steve --accessToken eyJhbGciOiJSUzI1NiJ9.secret.token --uuid 1234"));
+        const bool flagSpaceOk = flagSpace.contains(QStringLiteral("--accessToken <hidden>"))
+                              && !flagSpace.contains(QStringLiteral("eyJhbGciOiJSUzI1NiJ9.secret.token"))
+                              && flagSpace.contains(QStringLiteral("--username Steve"))
+                              && flagSpace.contains(QStringLiteral("--uuid 1234"));
+        const QString flagEq = sanitizeLaunchLog(QStringLiteral("--accessToken=abc.def.ghi --session=xyz"));
+        const bool flagEqOk = flagEq.contains(QStringLiteral("--accessToken=<hidden>"))
+                           && flagEq.contains(QStringLiteral("--session=<hidden>"))
+                           && !flagEq.contains(QStringLiteral("abc.def.ghi"))
+                           && !flagEq.contains(QStringLiteral("xyz"));
+        const QString sessionSpace = sanitizeLaunchLog(QStringLiteral("--session sess123"));
+        const bool sessionSpaceOk = sessionSpace.contains(QStringLiteral("--session <hidden>"))
+                                 && !sessionSpace.contains(QStringLiteral("sess123"));
+        const QString jsonTok = sanitizeLaunchLog(QStringLiteral("auth ok \"accessToken\":\"tok.value\" \"access_token\":\"x.y\""));
+        const bool jsonTokOk = jsonTok.contains(QStringLiteral("\"accessToken\":\"<hidden>\""))
+                            && jsonTok.contains(QStringLiteral("\"access_token\":\"<hidden>\""))
+                            && !jsonTok.contains(QStringLiteral("tok.value"))
+                            && !jsonTok.contains(QStringLiteral("x.y"));
+        const QString kvTok = sanitizeLaunchLog(QStringLiteral("prop accessToken=kv.val auth_session=old.sess"));
+        const bool kvTokOk = kvTok.contains(QStringLiteral("accessToken=<hidden>"))
+                          && kvTok.contains(QStringLiteral("auth_session=<hidden>"))
+                          && !kvTok.contains(QStringLiteral("kv.val"))
+                          && !kvTok.contains(QStringLiteral("old.sess"));
+        const QString clean = sanitizeLaunchLog(QStringLiteral("--width 1920 --height 1080 -Xmx4G"));
+        const bool cleanOk = clean == QStringLiteral("--width 1920 --height 1080 -Xmx4G");
+        fprintf(stderr, "[2c] sanitize: flagSpace=%d flagEq=%d sessionSpace=%d jsonTok=%d kvTok=%d clean=%d\n",
+                flagSpaceOk ? 1 : 0, flagEqOk ? 1 : 0, sessionSpaceOk ? 1 : 0,
+                jsonTokOk ? 1 : 0, kvTokOk ? 1 : 0, cleanOk ? 1 : 0);
+        if (!(flagSpaceOk && flagEqOk && sessionSpaceOk && jsonTokOk && kvTokOk && cleanOk)) fail++;
+    }
+
     fprintf(stderr, "=== %s\n", fail ? "FAIL" : "PASS");
     return fail ? 1 : 0;
 }
