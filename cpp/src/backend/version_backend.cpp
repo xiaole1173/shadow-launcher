@@ -1163,9 +1163,14 @@ void VersionBackend::installVersion(const QString& versionId)
 
     // 多层重试：全部源失败后整体重试（阶梯超时递增），最多 kJsonFetchMaxRounds 轮
     static constexpr int kJsonFetchMaxRounds = 3;
-    std::function<void(int)> startRound;
+    // 2026-08-11 修复（内测崩溃 0xc0000005 @ 0x1b9712）：原实现为栈上 std::function 且闭包按引用捕获
+    // （&startRound/&launchRequest），fetchVersionJson 返回后即悬空；网络差（三源全失败）触发重试时
+    // use-after-free 崩溃。改为堆上 shared_ptr，闭包按值捕获；launchRequest 侧持 weak_ptr 防循环引用。
+    auto startRound    = std::make_shared<std::function<void(int)>>();
+    auto launchRequest = std::make_shared<std::function<void(const QString&, const QString&, int)>>();
+    const std::weak_ptr<std::function<void(int)>> startRoundWeak = startRound;
 
-    auto launchRequest = [this, versionId, raceCtx, processVersionJson, cachedData, cachedJsonPath, &startRound]
+    *launchRequest = [this, versionId, raceCtx, processVersionJson, cachedData, cachedJsonPath, startRoundWeak]
 
         (const QString& url, const QString& sourceName, int round) {
 
@@ -1229,9 +1234,18 @@ void VersionBackend::installVersion(const QString& versionId)
 
             // ── Finished handler with race logic ──
 
+            // launchRequest 由 startRound 强持有（闭包链），此处 lock 必然成功；防御性短路
+            auto startRoundStrong = startRoundWeak.lock();
+            if (!startRoundStrong) {
+                nam->deleteLater();
+                reply->abort();
+                reply->deleteLater();
+                return;
+            }
+
             connect(reply, &QNetworkReply::finished, this,
 
-                    [this, reply, nam, versionId, raceCtx, processVersionJson, cachedData, cachedJsonPath, sourceName, round, &startRound]() {
+                    [this, reply, nam, versionId, raceCtx, processVersionJson, cachedData, cachedJsonPath, sourceName, round, startRoundStrong]() {
 
                         reply->deleteLater();
 
@@ -1319,7 +1333,7 @@ void VersionBackend::installVersion(const QString& versionId)
                                 if (round + 1 < kJsonFetchMaxRounds) {
                                     qCWarning(logVersion) << QStringLiteral("版本JSON全部源失败 第%1轮 发起第%2轮重试").arg(round + 1).arg(round + 2);
                                     emit logMessage(tr("[版本] 版本信息拉取失败（第 %1 轮），稍后整体重试…").arg(round + 1));
-                                    QTimer::singleShot(500, this, [startRound, round]() { startRound(round + 1); });
+                                    QTimer::singleShot(500, this, [startRoundStrong, round]() { (*startRoundStrong)(round + 1); });
                                     return;
                                 }
 
@@ -1375,9 +1389,9 @@ void VersionBackend::installVersion(const QString& versionId)
 
 
 
-    startRound = [this, versionId, raceCtx, processVersionJson, cachedData, cachedJsonPath,
+    *startRound = [this, versionId, raceCtx, processVersionJson, cachedData, cachedJsonPath,
 
-                  bmclapiUrl, targetVersion, lmUrl, &launchRequest, &startRound](int round) {
+                   bmclapiUrl, targetVersion, lmUrl, launchRequest](int round) {
 
         raceCtx->roundId = round;
 
@@ -1393,13 +1407,13 @@ void VersionBackend::installVersion(const QString& versionId)
 
                             .arg(round + 1).arg(kJsonFetchMaxRounds).arg(8 + round * 4));
 
-        launchRequest(bmclapiUrl, QStringLiteral("BMCLAPI"), round);
+        (*launchRequest)(bmclapiUrl, QStringLiteral("BMCLAPI"), round);
 
-        launchRequest(targetVersion.url, QStringLiteral("Mojang"), round);
+        (*launchRequest)(targetVersion.url, QStringLiteral("Mojang"), round);
 
         if (lmUrl != targetVersion.url) {
 
-            launchRequest(lmUrl, QStringLiteral("LauncherMeta"), round);
+            (*launchRequest)(lmUrl, QStringLiteral("LauncherMeta"), round);
 
         } else {
 
@@ -1409,7 +1423,7 @@ void VersionBackend::installVersion(const QString& versionId)
 
     };
 
-    startRound(0);
+    (*startRound)(0);
 
 }
 

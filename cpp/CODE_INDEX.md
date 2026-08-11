@@ -427,4 +427,6 @@
 | 2026-08-03 | VersionSettingsOverlay 概览快捷入口分类重做（ShadowButton 统一 + 文件夹/日志/其他分组 + 修 stub isModdedVersion 恒隐藏 bug）；StatsPage tooltip 自定义 Popup 圆角框。 |
 | 2026-08-03 | 快捷入口 Mod 按钮 visible 改 sidebar 同款内联白名单（readonly property 中转不生效，内联可靠）；删光影包/config 按钮；移除临时 DIA 日志。 |
 
+| 2026-08-11 | 修版本JSON三源竞速重试崩溃（内测 0xc0000005 @ 0x1b9712）：fetchVersionJson 的 startRound/launchRequest 原为栈上 std::function 且被闭包按引用捕获（&startRound/&launchRequest），函数返回后悬空；三源全失败（网络差）触发重试时 use-after-free 崩。改堆上 shared_ptr + launchRequest 侧 weak_ptr 防环（version_backend.cpp fetchVersionJson） |
+
 > 之后每次代码变更后在此追加一行：日期 + 变更文件 + 一句话说明。
