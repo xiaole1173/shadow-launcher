@@ -116,7 +116,7 @@ Write-Host "[4/5] Copying extra resources..." -ForegroundColor Yellow
 # 导致 build 里有 3 个 CRT 时 msvcp140_2.dll 永远漏拷（实锤：08-12 打包
 # 日志无 msvcp140_2.dll 行）。System32 的版本为系统 VC++ redist 安装
 # （14.5x，向后兼容 Qt 6.8.3 msvc2022 所需 14.3x+），可作最终兑底。
-$crtDlls = @("vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll", "msvcp140_2.dll", "concrt140.dll")
+$crtDlls = @("vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll", "msvcp140_1.dll", "msvcp140_2.dll", "concrt140.dll")
 $crtBase = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\BuildTools\VC\Redist\MSVC"
 $crtDir = Get-ChildItem "$crtBase\*\x64\Microsoft.VC143.CRT" -Directory -ErrorAction SilentlyContinue | Select-Object -First 1
 foreach ($dll in $crtDlls) {
