@@ -13,7 +13,7 @@ Rectangle {
     width: parent ? parent.width : 800
     height: parent ? parent.height : 600
     id: page
-    color: StyleTokens.bgSecondary
+    color: "transparent"
 
     // ── Properties ──────────────────────────────────────────────
     property var backend: null

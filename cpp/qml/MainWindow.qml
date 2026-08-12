@@ -5,6 +5,7 @@ import QtQuick.Controls
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import QtQuick.Dialogs
+import QtQuick.Effects
 
 Window {
     id: appWindow
@@ -295,19 +296,29 @@ Window {
     }
 
     // ── Rounded window container ──
+    // With a custom background the Qt clip cannot round the (transformed)
+    // image corners on this platform, so the window becomes square while a
+    // background is active; rounding returns when no background is set.
     Rectangle {
-        anchors.fill: parent; radius: StyleTokens.radiusWindow
+        anchors.fill: parent
+        radius: hasCustomBg ? 0 : StyleTokens.radiusWindow
         color: hasCustomBg ? "transparent" : StyleTokens.bgPrimary
         clip: true
 
-        // ── Custom background image (clipped by container radius) ──
+        // ── Custom background: sharp layer (crop transform) + blur layer ──
+        // Corner rounding comes from the outer container Rectangle (radius +
+        // clip), exactly as before the blur feature. The blur layer uses
+        // PreserveAspectCrop (no transforms) so the container clip rounds it
+        // correctly; the sharp layer keeps its original crop transform.
         Item {
             id: bgFrame
             anchors.fill: parent; z: -2
             visible: hasCustomBg
             readonly property real cropX: hasCustomBg && backend && typeof backend.cropX === "number" ? backend.cropX : 0.5
             readonly property real cropY: hasCustomBg && backend && typeof backend.cropY === "number" ? backend.cropY : 0.5
+            readonly property real blurAmount: hasCustomBg && backend && typeof backend.backgroundBlur === "number" ? backend.backgroundBlur : 0.0
 
+            // Sharp layer (original crop positioning)
             Image {
                 id: bgImage
                 source: hasCustomBg ? backend.customBgPath : ""
@@ -325,6 +336,51 @@ Window {
                 scale: _s
                 x: _overX > 0 ? -_overX * bgFrame.cropX : -_dispW * (bgFrame.cropX - 0.5)
                 y: _overY > 0 ? -_overY * bgFrame.cropY : -_dispH * (bgFrame.cropY - 0.5)
+            }
+
+            // ── Blur layer: pure QML multi-resolution blend (no shader) ──
+            Item {
+                id: bgBlurLayer
+                anchors.fill: parent
+                visible: bgFrame.blurAmount > 0.001
+                opacity: bgFrame.blurAmount
+                Behavior on opacity { NumberAnimation { duration: 150 } }
+                Image {
+                    width: bgImage._dispW
+                    height: bgImage._dispH
+                    transformOrigin: Item.TopLeft
+                    x: bgImage._overX > 0 ? -bgImage._overX * bgFrame.cropX : -bgImage._dispW * (bgFrame.cropX - 0.5)
+                    y: bgImage._overY > 0 ? -bgImage._overY * bgFrame.cropY : -bgImage._dispH * (bgFrame.cropY - 0.5)
+                    fillMode: Image.PreserveAspectFit
+                    smooth: true
+                    source: hasCustomBg ? backend.customBgPath : ""
+                    sourceSize.width: Math.max(96, Math.round(bgFrame.width * 0.5))
+                    opacity: 0.25
+                }
+                Image {
+                    width: bgImage._dispW
+                    height: bgImage._dispH
+                    transformOrigin: Item.TopLeft
+                    x: bgImage._overX > 0 ? -bgImage._overX * bgFrame.cropX : -bgImage._dispW * (bgFrame.cropX - 0.5)
+                    y: bgImage._overY > 0 ? -bgImage._overY * bgFrame.cropY : -bgImage._dispH * (bgFrame.cropY - 0.5)
+                    fillMode: Image.PreserveAspectFit
+                    smooth: true
+                    source: hasCustomBg ? backend.customBgPath : ""
+                    sourceSize.width: Math.max(64, Math.round(bgFrame.width * 0.28))
+                    opacity: 0.3
+                }
+                Image {
+                    width: bgImage._dispW
+                    height: bgImage._dispH
+                    transformOrigin: Item.TopLeft
+                    x: bgImage._overX > 0 ? -bgImage._overX * bgFrame.cropX : -bgImage._dispW * (bgFrame.cropX - 0.5)
+                    y: bgImage._overY > 0 ? -bgImage._overY * bgFrame.cropY : -bgImage._dispH * (bgFrame.cropY - 0.5)
+                    fillMode: Image.PreserveAspectFit
+                    smooth: true
+                    source: hasCustomBg ? backend.customBgPath : ""
+                    sourceSize.width: Math.max(32, Math.round(bgFrame.width * 0.06))
+                    opacity: 0.6
+                }
             }
         }
 

@@ -132,6 +132,7 @@ void SettingsBackend::loadSettings()
     m_customBgPath = s.value(QStringLiteral("customBg/path"), QString()).toString();
     m_sidebarOpacity = s.value(QStringLiteral("customBg/sidebarOpacity"), 0.90).toDouble();
     m_contentOpacity = s.value(QStringLiteral("customBg/contentOpacity"), 0.70).toDouble();
+    m_backgroundBlur = s.value(QStringLiteral("customBg/blur"), 0.0).toDouble();
     m_cropX = s.value(QStringLiteral("customBg/cropX"), 0.5).toDouble();
     m_cropY = s.value(QStringLiteral("customBg/cropY"), 0.5).toDouble();
 
@@ -180,6 +181,7 @@ void SettingsBackend::saveSettings()
     s.setValue(QStringLiteral("customBg/path"), m_customBgPath);
     s.setValue(QStringLiteral("customBg/sidebarOpacity"), m_sidebarOpacity);
     s.setValue(QStringLiteral("customBg/contentOpacity"), m_contentOpacity);
+    s.setValue(QStringLiteral("customBg/blur"), m_backgroundBlur);
     s.setValue(QStringLiteral("customBg/cropX"), m_cropX);
     s.setValue(QStringLiteral("customBg/cropY"), m_cropY);
 

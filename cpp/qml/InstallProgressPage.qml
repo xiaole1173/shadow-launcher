@@ -20,7 +20,7 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        color: StyleTokens.bgPrimary
+        color: "transparent"
     }
 
     ListView {

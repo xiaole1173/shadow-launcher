@@ -46,7 +46,7 @@ Rectangle {
         // ── 版本列表卡片：占满整页（2026-08-07 左侧“版本文件夹”卡片已移除）──
         Rectangle {
             Layout.fillWidth: true; Layout.fillHeight: true
-            color: StyleTokens.bgSecondary; radius: StyleTokens.radiusLg; border.color: StyleTokens.bgInput
+            color: hasBg ? "#9911141C" : StyleTokens.bgSecondary; radius: StyleTokens.radiusLg; border.color: StyleTokens.bgInput
             ColumnLayout {
                 id: versionRightPanel
                 anchors.fill: parent; anchors.margins: 12; spacing: 6

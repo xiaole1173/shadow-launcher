@@ -186,9 +186,11 @@ Flickable {
                 }
 
                 // Sliders
-                RowLayout {
+                ColumnLayout {
                     visible: hasBg
-                    Layout.fillWidth: true; spacing: 16
+                    Layout.fillWidth: true; spacing: 10
+                    RowLayout {
+                        Layout.fillWidth: true; spacing: 16
                     ColumnLayout {
                         Layout.fillWidth: true; spacing: 4
                         Text { text: qsTr("菜单栏透明度"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary }
@@ -220,7 +222,7 @@ Flickable {
                     }
                     ColumnLayout {
                         Layout.fillWidth: true; spacing: 4
-                        Text { text: qsTr("背景可见度"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary }
+                        Text { text: qsTr("背景明暗度"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary }
                         RowLayout { Layout.fillWidth: true; spacing: 8
                             Slider {
                                 id: contentSPSlider
@@ -247,10 +249,40 @@ Flickable {
                             Text { text: (backend ? backend.contentOpacity : 0.70).toFixed(2); font.pixelSize: StyleTokens.fontSizeSm; color: "#a0a8c0"; Layout.preferredWidth: 32 }
                         }
                     }
+                    }
+                    ColumnLayout {
+                        Layout.fillWidth: true; spacing: 4
+                        Text { text: qsTr("背景模糊度"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary }
+                        RowLayout { Layout.fillWidth: true; spacing: 8
+                            Slider {
+                                id: blurSPSlider
+                                Layout.fillWidth: true; from: 0.0; to: 1.0; stepSize: 0.05
+                                value: backend ? backend.backgroundBlur : 0.0
+                                onMoved: { if (backend) backend.setBackgroundBlur(value) }
+                                background: Rectangle {
+                                    implicitHeight: 4
+                                    x: blurSPSlider.leftPadding
+                                    y: blurSPSlider.topPadding + blurSPSlider.availableHeight / 2 - height / 2
+                                    width: blurSPSlider.availableWidth; height: 4; radius: StyleTokens.radiusXs; color: StyleTokens.bgHover
+                                    Rectangle {
+                                        width: blurSPSlider.visualPosition * parent.width; height: 4; radius: StyleTokens.radiusXs; color: StyleTokens.accent
+                                    }
+                                }
+                                handle: Rectangle {
+                                    implicitWidth: 12; implicitHeight: 12
+                                    x: blurSPSlider.leftPadding + blurSPSlider.visualPosition * (blurSPSlider.availableWidth - width)
+                                    y: blurSPSlider.topPadding + blurSPSlider.availableHeight / 2 - height / 2
+                                    radius: StyleTokens.radiusMd; color: StyleTokens.accentLight
+                                    Behavior on x { SmoothedAnimation { velocity: 600; duration: 200 } }
+                                }
+                            }
+                            Text { text: (backend ? backend.backgroundBlur : 0.0).toFixed(2); font.pixelSize: StyleTokens.fontSizeSm; color: "#a0a8c0"; Layout.preferredWidth: 32 }
+                        }
+                    }
                 }
 
                 Text {
-                    text: qsTr("选择一张图片作为启动器背景。菜单栏和背景可见度可分别调节。")
+                    text: qsTr("选择一张图片作为启动器背景。菜单栏透明度、背景明暗度和背景模糊度可分别调节。")
                     font.pixelSize: StyleTokens.fontSizeSm; color: "#707888"; wrapMode: Text.WordWrap; Layout.fillWidth: true
                 }
             }

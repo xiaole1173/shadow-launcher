@@ -8,7 +8,7 @@ import QtQuick.Layouts
 Rectangle {
     width: parent ? parent.width : 800
     height: parent ? parent.height : 600
-    color: StyleTokens.bgSecondary
+    color: "transparent"
     id: root
 
     property var backend: null
