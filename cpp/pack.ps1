@@ -111,32 +111,35 @@ Write-Host "[4/5] Copying extra resources..." -ForegroundColor Yellow
 # 4a. MSVC CRT DLLs
 # ⚠ 2026-08-12：漏 msvcp140_2.dll 曾导致内测报"找不到 MSVCP140_2.dll"
 # （Qt6Gui.dll / Qt6Quick.dll 依赖它，exe 同目录必须携带）
+# 重写：逐文件三源查找（build dir → VS redist → System32）——旧逻辑是
+# "build dir 找到任意一个就整体跳过 redist"（$crtFound -eq 0 判断），
+# 导致 build 里有 3 个 CRT 时 msvcp140_2.dll 永远漏拷（实锤：08-12 打包
+# 日志无 msvcp140_2.dll 行）。System32 的版本为系统 VC++ redist 安装
+# （14.5x，向后兼容 Qt 6.8.3 msvc2022 所需 14.3x+），可作最终兑底。
 $crtDlls = @("vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll", "msvcp140_2.dll", "concrt140.dll")
-$crtFound = 0
+$crtBase = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\BuildTools\VC\Redist\MSVC"
+$crtDir = Get-ChildItem "$crtBase\*\x64\Microsoft.VC143.CRT" -Directory -ErrorAction SilentlyContinue | Select-Object -First 1
 foreach ($dll in $crtDlls) {
     $src = "$BuildDir\$dll"
+    $from = ""
     if (Test-Path $src) {
-        Copy-Item $src "$DistDir\$dll" -Force
-        Write-Host "       $dll (from build dir)" -ForegroundColor Gray
-        $crtFound++
-    }
-}
-if ($crtFound -eq 0) {
-    $crtBase = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\BuildTools\VC\Redist\MSVC"
-    $crtDir = Get-ChildItem "$crtBase\*\x64\Microsoft.VC143.CRT" -Directory -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($crtDir) {
-        foreach ($dll in $crtDlls) {
-            $src = Join-Path $crtDir.FullName $dll
-            if (Test-Path $src) {
-                Copy-Item $src "$DistDir\$dll" -Force
-                Write-Host "       $dll (from VS redist)" -ForegroundColor Gray
-                $crtFound++
-            }
+        $from = "build dir"
+    } elseif ($crtDir -and (Test-Path (Join-Path $crtDir.FullName $dll))) {
+        $src = Join-Path $crtDir.FullName $dll
+        $from = "VS redist"
+    } else {
+        $sysSrc = Join-Path $env:WINDIR "System32\$dll"
+        if (Test-Path $sysSrc) {
+            $src = $sysSrc
+            $from = "System32"
         }
     }
-}
-if ($crtFound -eq 0) {
-    Write-Host "       WARN: VC++ CRT DLLs not found" -ForegroundColor Yellow
+    if ($from) {
+        Copy-Item $src "$DistDir\$dll" -Force
+        Write-Host "       $dll (from $from)" -ForegroundColor Gray
+    } else {
+        Write-Host "       WARN: $dll not found (build/redist/System32)" -ForegroundColor Yellow
+    }
 }
 
 # 4b. Skins
