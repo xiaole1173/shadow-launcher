@@ -109,7 +109,9 @@ Write-Host ""
 Write-Host "[4/5] Copying extra resources..." -ForegroundColor Yellow
 
 # 4a. MSVC CRT DLLs
-$crtDlls = @("vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll", "concrt140.dll")
+# ⚠ 2026-08-12：漏 msvcp140_2.dll 曾导致内测报"找不到 MSVCP140_2.dll"
+# （Qt6Gui.dll / Qt6Quick.dll 依赖它，exe 同目录必须携带）
+$crtDlls = @("vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll", "msvcp140_2.dll", "concrt140.dll")
 $crtFound = 0
 foreach ($dll in $crtDlls) {
     $src = "$BuildDir\$dll"
