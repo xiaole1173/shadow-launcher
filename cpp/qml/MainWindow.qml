@@ -22,6 +22,8 @@ Window {
     property int loginMode: backend ? backend.lastLoginMode : 0
     property bool showVersionSelect: false
     property bool showVersionSettings: false
+    // 版本选择与版本设置互斥：开设置必收选择（自定义背景透明时两浮层会视觉叠加，点击只到上层）
+    onShowVersionSettingsChanged: if (showVersionSettings) showVersionSelect = false
     // 全局拖放提示文案（由 packDropArea 按拖入类型写入）
     property string packDropHintTitle: qsTr("松开以导入整合包")
     property string packDropHintSub: qsTr("支持 .zip（CurseForge）与 .mrpack（Modrinth）")
@@ -51,6 +53,7 @@ Window {
 
     // 截图测试模式 / 外部调用：打开版本设置浮层并跳到指定分区（-1=保持概览）
     function openVersionSettingsSection(section) {
+        showVersionSelect = false  // 与版本选择互斥，防透明背景叠加
         showVersionSettings = true
         if (versionSettingsLoader.item) {
             if (section >= 0) {

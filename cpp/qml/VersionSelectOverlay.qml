@@ -380,6 +380,7 @@ Rectangle {
                                     if (mouse.button === Qt.RightButton) {
                                         if (backend) backend.setSelectedVersion(model.id)
                                         showVersionSettings = true
+                                        showVersionSelect = false  // 进版本设置同时收起版本选择，防止透明背景（自定义背景）下两浮层叠加
                                         mouse.accepted = true
                                     }
                                 }

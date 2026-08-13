@@ -242,7 +242,7 @@
 
 | 文件 | 行数 | 功能 |
 |---|---|---|
-| `MainWindow.qml` | 1456 | **主窗口**：全 UI 骨架、侧边导航（navIndicator 光条）、页面路由（Loader 加载各页面，0=启动 1=下载 2=联机 3=统计 4=设置 5=安装进度）、全局 DropArea（整合包/Mod/资源包拖拽导入路由）、子浮层（版本选择/版本设置/设置等 Overlay）、ToastManager 挂载、协议同意闸门；崩溃分析接线（`onCrashAnalysisStarted`→Toast「启动失败，正在分析日志信息…」+弹窗分析态，`onCrashAnalysisReady`→结果态）；`--navigate settings:xxx` 支持设置页 section 切换。 |
+| `MainWindow.qml` | 1456 | **主窗口**：全 UI 骨架、侧边导航（navIndicator 光条）、页面路由（Loader 加载各页面，0=启动 1=下载 2=联机 3=统计 4=设置 5=安装进度）、全局 DropArea（整合包/Mod/资源包拖拽导入路由）、子浮层（版本选择/版本设置/设置等 Overlay）、ToastManager 挂载、协议同意闸门；崩溃分析接线（`onCrashAnalysisStarted`→Toast「启动失败，正在分析日志信息…」+弹窗分析态，`onCrashAnalysisReady`→结果态）；`--navigate settings:xxx` 支持设置页 section 切换。**浮层互斥（2026-08-13）**：`onShowVersionSettingsChanged` 联动——showVersionSettings 变 true 时强制 showVersionSelect=false（版本选择/设置同时显示时，自定义背景透明下会视觉叠加，鼠标点击只到上层浮层）；openVersionSettingsSection 也显式先关版本选择。 |
 | `SplashWindow.qml` | 50 | 启动画面。 |
 | `StyleTokens.qml` | 133 | **设计令牌**：颜色（bg/accent/text 系列）、字号、圆角、间距常量。 |
 | `AnimationTokens.qml` | 187 | **动画令牌**：时长/缓动曲线常量。 |
@@ -264,7 +264,7 @@
 | `InstallProgressPage.qml` | 72 | 安装进度页（步骤管线展示）。 |
 | `VersionSelectPage.qml` | 404 | **版本选择页**（独立页形态，替代旧左栏）。 |
 | `VersionSettingsPage.qml` | 1067 | **版本设置页**（独立页形态）。 |
-| `SettingsPage.qml` | 676 | **设置页**：左侧分类导航 → 各 Settings*Page（通用/Java/内存/实验/关于）；关于页含「一键安装所需 Java」卡片（架构徽标 + 前置检测状态三行 + 小字说明 + **下载进度条（百分比/字节/速度）** + 安装中/取消按钮 + Toast 完成与异常反馈 + logMessage 关键提示）。 |
+| `SettingsPage.qml` | 676 | **设置页**：左侧分类导航 → 各 Settings*Page（通用/Java/内存/实验/关于）；关于页含「一键安装所需 Java」卡片（架构徽标 + 前置检测状态三行 + 小字说明 + **下载进度条（百分比/字节/速度）** + 安装中/取消按钮 + Toast 完成与异常反馈 + logMessage 关键提示）；**鸣谢卡（2026-08-12 改版）：4 条原卡片文案更新 + 名字可点击开网页（悬停变蓝+下划线）+ ChunMoMo「内测人员」徽标 + 新增「内测人员的支持」卡**。 |
 | `SettingsGeneralPage.qml` | 883 | 设置-通用：下载源/线程/限速、主题、语言、游戏目录、协议等。 |
 | `SettingsJavaPage.qml` | 408 | 设置-Java：Java 列表/选择/扫描；刷新按钮异步扫描（scanJavaInstallations → onJavaPathChanged → refreshAll 刷新列表+Toast，修复同步读旧缓存问题）。 |
 | `SettingsMemoryPage.qml` | 247 | 设置-内存（汇总视图）。 |
@@ -295,7 +295,7 @@
 | `VersionCard.qml` | 115 | 版本卡片（列表项）。 |
 | `DetailVersionCard.qml` | 173 | 版本详情卡（概览）。 |
 | `DetailInfoCard.qml` | 110 | 通用信息卡（详情页统计项）。 |
-| VersionSelectOverlay.qml | 404 | 版本选择浮层（单卡片占满整页：已安装版本列表 + 顶部工具行 标题/刷新/搜索/导入整合包/安装/排序/筛选；2026-08-07 左侧版本文件夹卡片已删）。 |
+| VersionSelectOverlay.qml | 404 | 版本选择浮层（单卡片占满整页：已安装版本列表 + 顶部工具行 标题/刷新/搜索/导入整合包/安装/排序/筛选；2026-08-07 左侧版本文件夹卡片已删）。**右键进版本设置（2026-08-13 修）**：右键版本条目 onPressed 打开设置同时 showVersionSelect=false（原只置 showVersionSettings=true，自定义背景透明下与设置浮层叠加可见）。 |
 | `VersionSettingsOverlay.qml` | 1490 | **版本设置浮层（实际生效）**：7 分区（概览0/启动配置1/内存2/Mod管理3/资源包4/存档5/工具6），各分区内容 + 顶部启动按钮。概览快捷入口 2026-08-03 分类重做：统一 ShadowButton + 文件夹/日志/其他分组；Mod 文件夹按钮 visible 内联白名单判定（lt ∈ Forge/Fabric/NeoForge/Quilt，与 sidebar Mod 管理同款写法，原版必隐藏）；光影包/config 按钮已移除。 |
 | `VersionLaunchSection.qml` | 599 | 启动配置分区（Java/参数/GPU）。 |
 | `VersionMemorySection.qml` | 251 | 内存分区。 |
@@ -349,6 +349,10 @@
 
 | 日期 | 说明 |
 |---|---|
+| 2026-08-12 | 鸣谢卡片 z0z0r4 补网址跳转（SettingsPage.qml ackItemComp model）：url 补 https://www.mcimirror.top/（用户补充，界面不显示网址）。 |
+| 2026-08-13 | **版本选择→版本设置页面叠加修复（VersionSelectOverlay.qml/MainWindow.qml）**：内测反馈——版本选择页右键版本条目进版本设置后两页面叠加（仅自定义背景开启时可见，点击不穿透）。根因——打开设置只置 showVersionSettings=true，未关 showVersionSelect → 两个浮层 Loader（同 z:5，settings 声明在后在上层）同时 opacity=1/visible=true；VersionSettingsOverlay 根 Rectangle `color: hasBg ? transparent : bgPrimary`——无自定义背景时不透明盖住下层看不出，开启自定义背景（透明）后下层版本选择页透出。修复（双保险）：①VersionSelectOverlay 右键 onPressed 加 showVersionSelect=false（进设置同时收版本选择，淡出动画自然播放）；②MainWindow onShowVersionSettingsChanged 联动 showVersionSettings→强制 showVersionSelect=false + openVersionSettingsSection 显式先关。编译通过。 |
+| 2026-08-12 | 鸣谢条目重叠修复（SettingsPage.qml ackItemComp）：内测反馈——描述小字与名字标题重叠。根因——MouseArea（anchors.fill）与徽标（anchors.verticalCenter）放在 Row（Positioner）内，Positioner 子项使用 anchors 属未定义行为，Row 高度/位置计算异常导致 ackDesc 与名字行重叠。修复——去掉 Row，改纯 anchors 布局（名字/徽标/描述/鼠标区全部直接锚在 ackItem 上，height 改 ackDesc.y+ackDesc.height，与原有 4 条手工条目同构）。 |
+| 2026-08-12 | 设置-关于-鸣谢板块改版（SettingsPage.qml）：①4 条原卡片文案按桌面《鸣谢.docx》更新（bangbang93/z0z0r4/Lucide/ChunMoMo，url/badge 入 Repeater model）；②名字可点击开网页——bangbang93→afdian.com/a/bangbang93、Lucide→lucide.dev（界面不显示网址，无 URL 条目不可点）；③点击交互：平时白色、悬停变 accent 蓝+下划线+手型光标（ColorAnimation 150ms）；④ChunMoMo 加「内测人员」徽标（accentSubtle 底+accentLink 字，仿一键安装 Java 卡架构徽标）；⑤新增「内测人员的支持」卡（3 段文案，同款卡片样式）；旧 4 条手工 Item → 新增 ackItemComp 局部组件 + Repeater 渲染（高度链：Item.height=名字行+3+描述，Positioner 展开）。 |
 | 2026-08-12 | 下载页"最新正式版"显示错误修复（DownloadPage.qml）：根因——latestHighlight 用 backend.versionIds[0]/[1]（Mojang manifest 全量顺序，快照在前，versionIds[1] 是第二个快照而非最新正式版）。修复：改从筛选列表取——最新正式版 = releaseVersions[0]（release 过滤列表新→旧序首项）、最新快照版 = snapshotVersions[0]（已排除愚人节版） |
 | 2026-08-12 | **整合包模组批量下载"成片失败"根因修复（mod_download_engine.{h,cpp}/modpack_downloader.{h,cpp}/tests/test_jingwei_retry.cpp + CMakeLists）**：内测/实测——上百个模组时一旦出现失败就成片失败，取消重导才可能成功。三个叠加根因：①**任务层重试结果被丢弃（直接机制）**：onEngineFileFinished 的 first-only 守卫 + findIndexBySavePath 的 !finished 过滤 → 精卫补位重试成功后同一文件再发 fileFinished 被忽略 → 文件实际已下好仍计失败 → 批量失败误报、failed==total 误判整包导入失败（回滚删除已下文件，只能重导）；②**全局 5 轮重试预算被集中失败耗尽**：pump/tryStartNextRound 用全局 m_round 做闸门且补位重试是"批量整体重入队"，一波网络抖动集中失败（几十个文件）瞬间吃掉 4 次配额 → 抖动结束后晚失败文件零重试 → 永久失败；③**镜像限频失效**：限频在 pump 里按 sources.first() 判断（当前源已是镜像时漏判），且 sourceFailed 就地换源直连完全绕过 → CF 包批量切镜像时 12 路并发打爆 MCIM 限流 429 → 更多失败自激。修复：①findIndexBySavePath 去终态过滤 + onEngineFileFinished 每次事件更新终态（重试成功→done+登记回滚+发 fileFinished；仅首次失败刷屏日志）；②重试预算改**每文件独立**（Item.retried，至多 kMaxRounds-1 次）+ 重试间隔随次数线性放大（kRetryGapMs 5s/10s/15s/20s，可 setRetryGapMs 覆盖）——短暂抖动消耗的尝试在恢复后仍能补上；③镜像限频移入 launchRequest 统一出口（按实际 URL 判断，覆盖新启动+换源两条路径）；顺带修 resetForRetry 补全运行态复位（resumeFrom/rangeChecked/enoughBytes/slow*，旧实现漏了导致重试时空文件 seek+Range → 前段零填充 → SHA1 必败/CF 大小校验误通过落盘损坏）。JingweiRetryTest 19 断言全 PASS：/f2（前 2 次 503）、/f4、/always、/ok 本地服务器控制失败次数，验证每文件请求次数恰为预算语义 + 任务层重试成功可见（旧代码此断言必 FAIL） |
 | 2026-08-11 | Mod 管理批量启禁用（local_mod_manager.{h,cpp}/shadow_backend.{h,cpp}/VersionSettingsOverlay.qml，c97bcb0）：setAllModsEnabled 遍历 mods 目录批量 jar↔jar.disabled（只处理 jar/jar.disabled，已是目标状态跳过，返回改动数）；ShadowBackend Q_INVOKABLE 转发；Mod 管理 Header 加全部启用（check-circle 绿）/全部禁用（x-circle 红）按钮放打开Mod文件夹左侧，点击刷新列表+toast。**08-11 修复**：两按钮 98→80 宽、iconSize 14→13（防挤出右侧打开文件夹/刷新按钮溢出） |
