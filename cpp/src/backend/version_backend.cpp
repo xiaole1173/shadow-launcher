@@ -5298,8 +5298,11 @@ if (!loaderDlUrl.isEmpty()) {
             auto speedState = QSharedPointer<QPair<qint64,qint64>>::create(0, 0);
             HttpClient::DownloadHandle* h = HttpClient::instance().downloadWithReply(url, tmpPath,
                 [this, installName, loaderDlStepIdx, speedState](qint64 recv, qint64 total) {
+                    // 2026-08-14 修复：驿道下载 recv 可能超过 total（分片/206 场景），
+                    // 无钳制导致"下载 NeoForge 主文件"进度突破 100%（实测 106%）。
+                    qint64 pct = (total > 0) ? qMin(recv * 100 / total, qint64(100)) : 0;
                     updateStep(installName, loaderDlStepIdx, QStringLiteral("active"),
-                               total > 0 ? (int)(recv * 100 / total) : 0, recv, total);
+                               static_cast<int>(pct), recv, total);
                     qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
                     qint64 delta = recv - speedState->first;
                     qint64 timeDelta = nowMs - speedState->second;

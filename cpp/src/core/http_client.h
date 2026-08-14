@@ -116,12 +116,14 @@ public:
 
     // 返回 DownloadHandle* 供 abort（分片/单连接统一句柄）
     // resumeFrom: bytes already downloaded (-1 = fresh, >=0 = append to existing file，走单连接)
+    // skipProbe: true = 跳过 Range 探测直接单连接（小文件批量场景省一半往返，2026-08-14）
     DownloadHandle* downloadWithReply(const QString& url, const QString& savePath,
                   std::function<void(qint64 received, qint64 total)> progress,
                   std::function<void(bool ok, const QString& error)> done,
                   qint64 resumeFrom = -1,
                   qint64 expectedSize = -1,
-                  const QString& expectedSha1 = {});
+                  const QString& expectedSha1 = {},
+                  bool skipProbe = false);
 
     // POST with raw body (returns QNetworkReply* for async handling)
     QNetworkReply* post(const QNetworkRequest& request, const QByteArray& body);

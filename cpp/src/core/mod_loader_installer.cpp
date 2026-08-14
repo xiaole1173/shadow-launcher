@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 #include "mod_loader_installer.h"
 #include "../utils/hash_utils.h"
@@ -167,7 +167,9 @@ void ModLoaderInstaller::downloadToFile(const QString& url, const QString& saveP
             m_activeReplies.removeOne(reply);
             if (m_cancelled) { done(false, "Cancelled"); return; }
             done(ok, error);
-        });
+        },
+        -1, -1, QString(),
+        m_downloadSkipProbe);   // 2026-08-14：安装器库小文件批量免探测
     if (reply) m_activeReplies.append(reply);
 }
 
@@ -1818,19 +1820,23 @@ void ModLoaderInstaller::forgeStepLibs(const QByteArray& jarData)
         }
     }
 
-    // ── 并发下载（6 路 + 镜像顺序 fallback + 全局字节速度上报）──
-    constexpr int kConcurrency = 6;
+    // ── 并发下载（12 路 + 镜像顺序 fallback + 全局字节速度上报）──
+    // 2026-08-14：并发 6→12；安装器库多为小文件，免 Range 探测（省一半往返）
+    constexpr int kConcurrency = 12;
+    m_downloadSkipProbe = true;
     struct St {
         int active = 0, next = 0, done = 0;
         bool failed = false;
         QString failErr;
         qint64 doneBytes = 0;
         QHash<int, qint64> inflightRecv;
+        int lastReportedPct = 0;   // 2026-08-14 字节级进度去抖
     };
     auto st = std::make_shared<St>();
     auto finishLibs = [this, st]() {
         m_installerLibsRunning = false;
         m_installerLibsDone = true;
+        m_downloadSkipProbe = false;   // 2026-08-14：安装器库结束恢复免探测关闭
         if (st->failed) qCWarning(logLoader) << st->failErr;
         emit installerLibsDone();
         if (m_pendingInstallAfterLibs && !m_cancelled) {
@@ -1868,6 +1874,9 @@ void ModLoaderInstaller::forgeStepLibs(const QByteArray& jarData)
                             st->inflightRecv.remove(idx);
                             st->done++;
                             st->active--;
+                            // 文件级进度（防回退：完成数比例不低于字节级已报的）
+                            const int donePct = tasks.size() > 0 ? (st->done * 100 / tasks.size()) : 100;
+                            if (donePct > st->lastReportedPct) st->lastReportedPct = donePct;
                             emit installerLibsFileProgress(st->done, tasks.size());
                             (*pump)();
                         } else {
@@ -1877,13 +1886,29 @@ void ModLoaderInstaller::forgeStepLibs(const QByteArray& jarData)
                         }
                     },
                     false,
-                    [this, idx, savePath, st](qint64 recv, qint64 /*total*/) {
+                    [this, idx, savePath, st, tasks](qint64 recv, qint64 /*total*/) {
                         if (m_cancelled) return;
                         st->inflightRecv[idx] = recv;
                         qint64 totalRecv = st->doneBytes;
                         for (auto it = st->inflightRecv.begin(); it != st->inflightRecv.end(); ++it)
                             totalRecv += it.value();
                         emitByteProgress(QFileInfo(savePath).fileName(), totalRecv, totalRecv);
+                        // ── 2026-08-14 进度平滑：文件级百分比按字节累计推进 ──
+                        // 原实现只在每个文件完成时发 installerLibsFileProgress(done,total)，
+                        // 大文件下载中百分比长时间不动 → 用户观感"卡 3% 剩余 81 个文件"。
+                        // 这里按累计字节占预估总量比例补发（字节信号本身已钳制 100%）。
+                        qint64 totalBytes = 0;
+                        for (const auto& t : tasks)
+                            totalBytes += qMax<qint64>(1, QFileInfo(t.savePath).size());
+                        if (totalBytes > 0) {
+                            int pct = static_cast<int>(totalRecv * 100 / totalBytes);
+                            pct = qBound(0, pct, 99);  // 保留 100% 由完成回调触发
+                            if (pct > st->lastReportedPct) {
+                                st->lastReportedPct = pct;
+                                emit installerLibsFileProgress(
+                                    static_cast<int>(tasks.size() * pct / 100), tasks.size());
+                            }
+                        }
                     });
             };
             (*tryMirror)(0);

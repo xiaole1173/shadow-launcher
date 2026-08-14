@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 #pragma once
 
@@ -198,6 +198,8 @@ private:
     bool m_installerLibsDone = false;
     bool m_installerLibsRunning = false;
     bool m_pendingInstallAfterLibs = false;
+    // 2026-08-14：小文件批量场景免 Range 探测（安装器库下载提速）
+    bool m_downloadSkipProbe = false;
     void installNeoForge(const QByteArray& jarData, const QJsonObject& profile);
     void renameVersionFolder(const QString& oldName, const QString& newName);
     /// Extract the embedded forge-installer.jar (helper) to temp, return path

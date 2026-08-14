@@ -768,13 +768,18 @@ HttpClient::DownloadHandle* HttpClient::downloadWithReply(const QString& url, co
                   std::function<void(qint64, qint64)> progress,
                   std::function<void(bool, const QString&)> done,
                   qint64 resumeFrom, qint64 expectedSize,
-                  const QString& expectedSha1)
+                  const QString& expectedSha1, bool skipProbe)
 {
     auto* handle = new DownloadHandle(this);
     if (resumeFrom > 0) {
         // 断点续传走单连接（分片与续传不叠加，保持 update_manager 语义不变）
         startSingle(url, savePath, std::move(progress), std::move(done),
                     resumeFrom, expectedSize, expectedSha1, handle);
+    } else if (skipProbe) {
+        // 免探测单连接（2026-08-14）：安装器库等小文件批量场景，
+        // 跳过 Range: bytes=0-0 探测直接下载，省一半往返（国内源 RTT 高时收益显著）
+        startSingle(url, savePath, std::move(progress), std::move(done),
+                    -1, expectedSize, expectedSha1, handle);
     } else {
         startChunked(url, savePath, std::move(progress), std::move(done),
                      expectedSize, expectedSha1, handle);
