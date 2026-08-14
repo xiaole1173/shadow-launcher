@@ -147,16 +147,21 @@ def cmd_manifest(args, cfg):
     base_url = (args.base_url or cfg["base_url"]).rstrip("/")
 
     # 5. latest.json（字段兼容 Gitee release；force_full 模式资产 = compat + zip）
+    # ── 2026-08-15：URL 加 ?v=<sha前12位> 版本戳 ──
+    # CF 橙色代理默认缓存二进制（zip）4h，覆盖上传后客户端仍拿到旧文件（实测
+    # SHA256 校验失败：期望新哈希、实际旧哈希）。哈希戳使每次发版 URL 变化 →
+    # CF 缓存键变化 → 强制回源新文件，彻底绕开缓存。
     zip_name = os.path.basename(zip_path)
     zip_size = os.path.getsize(zip_path)
+    ver_stamp = actual_sha[:12]
     latest = {
         "tag_name": version,
         "body": notes or "",
         "assets": [
             {"name": "compat.json",
-             "browser_download_url": f"{base_url}/compat.json"},
+             "browser_download_url": f"{base_url}/compat.json?v={ver_stamp}"},
             {"name": zip_name,
-             "browser_download_url": f"{base_url}/{zip_name}",
+             "browser_download_url": f"{base_url}/{zip_name}?v={ver_stamp}",
              "size": zip_size},
         ],
     }
