@@ -6037,8 +6037,21 @@ ModLoaderInstaller* VersionBackend::createLoaderInstaller(const QString& install
             [this, installId](bool ok) {
 
         auto* ds = dlSession(installId);
-        if (ds) {
-            updateStep(installId, ds->loaderStepIdx, QStringLiteral("completed"), 100);
+        if (!ds) return;
+        // ── 2026-08-14 修复：不再用 ds->loaderStepIdx ──
+        // loaderStepIdx 在 verify 完成瞬间可能已被 installerLibsStarted 改为
+        // 安装器库步骤（idx=6），用它标 completed 会把安装器库误标 100% 完成，
+        // 随后下载进度又拉回 active → UI 出现"100% + 剩余62"的矛盾闪烁。
+        // 明确找"校验"步骤（主文件校验 idx=5）标记完成；找不到则不动。
+        for (int i = 0; i < ds->steps.size(); ++i) {
+            QString name = ds->steps[i].toMap().value(QStringLiteral("name")).toString();
+            if (name.contains(QStringLiteral("校验")) || name.contains(QStringLiteral("verify"), Qt::CaseInsensitive)) {
+                // 跳过 MC 资源校验（"校验游戏资源完整性"），只标加载器校验步骤
+                if (name.contains(QStringLiteral("资源"))) continue;
+                updateStep(installId, i, ok ? QStringLiteral("completed")
+                                            : QStringLiteral("failed"), ok ? 100 : 0);
+                break;
+            }
         }
     });
 
