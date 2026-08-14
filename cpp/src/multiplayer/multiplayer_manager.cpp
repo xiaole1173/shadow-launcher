@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 #include "multiplayer_manager.h"
 #include "mc_scanner.h"
@@ -601,7 +601,8 @@ void MultiplayerManager::startHostServer()
 
     // Terracotta-aligned: MC port detected solely via LAN multicast scanner.
     // Removed all fixed-port TCP probes — scanner is the single source of truth.
-    setState(WaitingForMcServer, QStringLiteral("等待MC服务器启动..."));
+    // 2026-08-15：文案改指引式——"等待MC服务器启动"小白看不懂，改为明确操作步骤
+    setState(WaitingForMcServer, QStringLiteral("请打开游戏，进入单人世界后按 「Esc → 对局域网开放」"));
 
     // Start MC LAN multicast scanner to detect real MC server ports
     // Aligned with Terracotta set_scanning: scanner detects [MOTD][AD]{port}[/AD] on 224.0.2.60:4445

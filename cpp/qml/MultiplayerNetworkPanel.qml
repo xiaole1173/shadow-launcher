@@ -83,8 +83,11 @@ Rectangle {
             text: !mp ? "—"
                 : mp.role === 1
                     ? (mp.mcServerName && mp.mcServerName.length > 0 ? mp.mcServerName
-                        : (mp.state === 7 ? "等待MC启动..." : "—"))
+                        : (mp.state === 7 ? qsTr("请打开游戏，进入单人世界后按 「Esc → 对局域网开放」") : "—"))
                     : (mp.role === 2 && mp.state >= 5 ? "127.0.0.1" : "—")
+            // 2026-08-15：指引文案较长，空间不足时右侧省略（开头指引可见）
+            elide: Text.ElideRight
+            Layout.maximumWidth: 180
             color: !mp ? StyleTokens.textMuted
                 : (mp.role === 1 && mp.mcServerName && mp.mcServerName.length > 0) ? StyleTokens.success
                 : (mp.role === 2 && mp.state >= 5) ? StyleTokens.success
