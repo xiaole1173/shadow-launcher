@@ -1,4 +1,4 @@
-﻿# 鈹€鈹€ Sensitive local copies 鈹€鈹€
+# 鈹€鈹€ Sensitive local copies 鈹€鈹€
 # Original source files that contain sensitive information (beta keys, server URLs, etc.)
 # These are kept locally for development; sanitized versions are tracked by git.
 *.local
@@ -74,3 +74,17 @@ _slow_server/
 
 # Local secrets (real values override src/secrets.h placeholders)
 src/secrets_local.h
+
+# ═══ 豁免目录（2026-08-14 历史重写后不再入库，仅本地保留）═══
+# WebView2 登录测试构建产物
+build-wv2/
+# 旧代码备份 / 内部分析文档 / 开发记忆（含第三方品牌引用，不公开）
+backup/
+docs/
+memory/
+# 第三方 LZMA SDK 完整源码（按需单独分发）
+lzma_sdk/
+# 临时反编译产物
+temp_decompile/
+# 旧 CEF 登录辅助（已被 WebView2 方案替代）
+cef_helper/
