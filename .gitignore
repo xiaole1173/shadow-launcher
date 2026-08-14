@@ -54,6 +54,19 @@ cpp/thirdparty/cef/
 # AI assistant internal docs
 .openclaw-knowledge/
 
+# ── 2026-08-14 清理：不再入库的根目录临时文件 ──
+_commit_msg*.txt
+_dl_check.zip
+nuitka-crash-report.xml
+tmp_cmd.bat
+run_git.ps1
+commit_and_status.ps1
+# cpp-winold 是独立仓库（保留本地，不随本仓库上传）
+/cpp-winold/
+/_tmp_rewrite/
+/_git_backup_*/
+/_strip_pcl2.py
+
 # OS
 Thumbs.db
 .DS_Store

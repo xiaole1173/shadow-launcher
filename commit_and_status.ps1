@@ -1,1 +1,0 @@
-cd D:\MC_Project\shadow-launcher\cpp; powershell -ExecutionPolicy Bypass -File run_git.ps1; git add src/; git status --short; git commit -m "feat(cpp): Phase 2 - Logger,VersionManager,Downloader,HttpClient,Launcher"

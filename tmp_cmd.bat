@@ -1,1 +1,0 @@
-cd D:\MC_Project\shadow-launcher\cpp && git add src/ && git status --short && git commit -m "feat(cpp): Phase 2 - Logger+VersionManager+Downloader+HttpClient+Launcher (5 core modules)"
