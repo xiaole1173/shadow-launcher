@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 #include "shadow_backend.h"
+#include "../secrets.h"
 #include "../core/http_client.h"
 #include "../core/resource_fetch_engine.h"
 #include "../core/mod_manager.h"
@@ -698,7 +699,8 @@ ShadowBackend::ShadowBackend(QObject* parent)
 
     // ── Update manager ──
     m_updateManager = new UpdateManager(this);
-    m_updateManager->setRepo(QStringLiteral("xiaole1173"), QStringLiteral("shadow-launcher"));
+    // 更新服务器仓库标识：真实值由 src/secrets_local.h 注入（git 忽略），仓库内为占位符
+    m_updateManager->setRepo(QStringLiteral(SHADOW_GITEE_OWNER), QStringLiteral(SHADOW_GITEE_REPO));
     m_updateManager->setCurrentVersion(appVersion());
     m_updateManager->setQtVersion(QStringLiteral(SHADOW_QT_VERSION));
     m_updateManager->setResourceEpoch(SHADOW_RESOURCE_EPOCH);
@@ -4505,13 +4507,14 @@ void ShadowBackend::checkChangelog()
                 QString dver = dobj.value("version").toString();
                 bool dPersistent = dobj.value("persistent").toBool(false); // 默认 false：仅弹出一次
 
-                // ── Gitee mode: fetch latest release notes from Gitee API ──
+                // ── 更新服务器模式: 从更新服务器 API 获取最新发布说明 ──
+                // （更新服务器地址已脱敏为占位符，发布前由构建方注入真实值）
                 if (dobj.value("gitee").toBool()) {
                     if (dver.isEmpty()) dver = appVersion();
-                    qCInfo(logApp) << "[ShadowBackend] 调试公告 — 从Gitee获取发布说明"
+                    qCInfo(logApp) << "[ShadowBackend] 调试公告 — 从更新服务器获取发布说明"
                                    << (dPersistent ? "[持久模式]" : "[单次模式]");
                     QString giteeUrl = QStringLiteral(
-                        "https://gitee.com/api/v5/repos/YOUR_GITEE_OWNER/YOUR_GITEE_REPO/releases/latest");
+                        "https://gitee.com/api/v5/repos/" SHADOW_GITEE_OWNER "/" SHADOW_GITEE_REPO "/releases/latest");
                     HttpClient::instance().get(giteeUrl,
                         [this, dver, dPersistent, debugPath](int status, const QByteArray& body) {
                             if (status != 200 || body.isEmpty()) {

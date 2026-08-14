@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 #include "account_backend.h"
+#include "../secrets.h"
 #include "../utils/logger.h"
 #include "../utils/token_crypto.h"
 #include "../utils/secure_wipe.h"
@@ -447,7 +448,9 @@ void AccountBackend::microsoftLogin()
         return;
     }
     emit microsoftLoginBusyChanged();
-    const QString clientId = QStringLiteral("YOUR_AZURE_CLIENT_ID");
+    // 微软登录应用标识（Azure App ID）：真实值由 src/secrets_local.h 注入（git 忽略），
+    // 仓库内为占位符（src/secrets.h）。
+    const QString clientId = QStringLiteral(SHADOW_AZURE_CLIENT_ID);
     if (m_embeddedLoginEnabled) {
         qCInfo(logAccount) << QStringLiteral("使用内嵌浏览器登录");
         m_msAuth->startEmbeddedLogin(clientId);
@@ -1100,7 +1103,7 @@ void AccountBackend::refreshMicrosoftToken()
     m_refreshingToken = true;
 
     QUrlQuery postData;
-    postData.addQueryItem(QStringLiteral("client_id"), QStringLiteral("YOUR_AZURE_CLIENT_ID"));
+    postData.addQueryItem(QStringLiteral("client_id"), QStringLiteral(SHADOW_AZURE_CLIENT_ID));
     postData.addQueryItem(QStringLiteral("refresh_token"), m_msRefreshToken);
     postData.addQueryItem(QStringLiteral("grant_type"), QStringLiteral("refresh_token"));
     postData.addQueryItem(QStringLiteral("redirect_uri"), QStringLiteral("http://localhost"));

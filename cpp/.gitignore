@@ -71,3 +71,6 @@ build-test/
 
 # 本地慢速测试服务器数据
 _slow_server/
+
+# Local secrets (real values override src/secrets.h placeholders)
+src/secrets_local.h
