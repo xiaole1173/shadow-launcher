@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 #include "shadow_backend.h"
 #include "../core/http_client.h"
@@ -4237,6 +4237,15 @@ void ShadowBackend::writeLanguageFile(int index) const
 // ============================================================
 // Beta key gate
 // ============================================================
+
+bool ShadowBackend::betaGateEnabled()
+{
+#ifdef SHADOW_ENABLE_BETA_GATE
+    return true;
+#else
+    return false;
+#endif
+}
 
 void ShadowBackend::submitBetaKey(const QString& key)
 {

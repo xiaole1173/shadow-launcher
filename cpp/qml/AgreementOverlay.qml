@@ -19,6 +19,8 @@ Rectangle {
     readonly property string betaHtml: typeof backend !== "undefined" && backend ? (backend.betaAgreementHtml || "") : ""
     readonly property string privacyHtml: typeof backend !== "undefined" && backend ? (backend.privacyAgreementHtml || "") : ""
     readonly property string termsHtml: typeof backend !== "undefined" && backend ? (backend.termsAgreementHtml || "") : ""
+    // 编译期内测开关：公测版（默认）恒 false → 隐藏内测协议行与内测文案
+    readonly property bool betaGateEnabled: typeof backend !== "undefined" && backend ? (backend.betaGateEnabled || false) : false
 
     // Pass-through MouseArea — blocks click-through but allows title drag
     MouseArea {
@@ -82,7 +84,8 @@ Rectangle {
     property bool betaChecked: false
     property bool privacyChecked: false
     property bool termsChecked: false
-    property bool allChecked: betaChecked && privacyChecked && termsChecked
+    // 内测版需勾内测协议；公测版只要求隐私+用户协议
+    property bool allChecked: (!betaGateEnabled || betaChecked) && privacyChecked && termsChecked
     property bool showingAgreement: false
     property string currentAgreementTitle: ""
     property string currentAgreementHtml: ""
@@ -151,7 +154,7 @@ Rectangle {
 
         Text {
             Layout.alignment: Qt.AlignHCenter
-            text: "欢迎使用 Shadow Launcher 内测版！"
+            text: betaGateEnabled ? "欢迎使用 Shadow Launcher 内测版！" : "欢迎使用 Shadow Launcher！"
             font.pixelSize: StyleTokens.fontSizeMd
             font.weight: Font.Medium
             color: "#d0d4e8"
@@ -181,6 +184,7 @@ Rectangle {
                 spacing: 4
                 AgreementRow {
                     id: betaRow; Layout.fillWidth: true
+                    visible: betaGateEnabled
                     labelText: "我已阅读并同意《Shadow Launcher 内测人员协议》"
                     checked: overlay.betaChecked
                     onToggled: overlay.betaChecked = checked

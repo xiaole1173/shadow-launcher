@@ -129,14 +129,14 @@
 
 | 文件 | 行数 | 功能 |
 |---|---|---|
-| `src/main_release.cpp` | 814 | **发布版入口（CMake 实际编译）**。初始化 QML 引擎、统一后端聚合、Beta 内测密钥闸门（无保存密钥 → 先弹 `BetaKeyDialog`，`betaVerified` 后加载 MainWindow）、`TaskbarMinimizeFilter`（最小化到托盘相关）、崩溃/日志初始化。始终从 qrc 预编译资源加载 QML。窗口层：`setColor(transparent)` + **禁用 Win11 DWM 系统圆角（DWMWCP_DONOTROUND）**——防浅色主题下四角露出系统背景色白角（2026-08-03 修）。截图模式 `--navigate settings:about` 支持设置页 section 导航（0-4）。 |
+| `src/main_release.cpp` | 814 | **发布版入口（CMake 实际编译）**。初始化 QML 引擎、统一后端聚合、Beta 内测密钥闸门（仅 `SHADOW_ENABLE_BETA_GATE=ON` 时启用，见 CMake 构建选项；OFF=公测直通 MainWindow，2026-08-14 改）、`TaskbarMinimizeFilter`（最小化到托盘相关）、崩溃/日志初始化。始终从 qrc 预编译资源加载 QML。窗口层：`setColor(transparent)` + **禁用 Win11 DWM 系统圆角（DWMWCP_DONOTROUND）**——防浅色主题下四角露出系统背景色白角（2026-08-03 修）。截图模式 `--navigate settings:about` 支持设置页 section 导航（0-4）。 |
 | `src/main.cpp` | 854 | **开发变体入口（未编入 CMake）**。与 main_release 逻辑相同，但支持 `SHADOW_DEV` 环境变量：从文件系统路径加载 QML 便于热调试；同样含透明背景 + DWM 圆角禁用。 |
 
 ### 1.2 后端聚合层（`src/backend/`，QML 通过 `backend` 单对象访问）
 
 | 文件 | 行数 | 功能 |
 |---|---|---|
-| `shadow_backend.h/.cpp` | 857 / 4450 | **总聚合后端，QML 的 `backend` 对象**。聚合全部子后端（account/version/launch/resource/settings/java/stats/userdata/check/yggdrasil/multiplayer/modManager…），转发数百个 Q_PROPERTY/Q_INVOKABLE；也含少量自有逻辑：GeoIP 地区离线限制（`isOfflineRestricted`）、Beta 密钥校验落盘、自定义背景、Toast/UI 消息通道、`checkAll` 启动检查汇总；崩溃分析信号转发（`crashAnalysisStarted`/`crashAnalysisReady`）+ `analyzeCrashNow`/`exportCrashLogs`/`openPath`；**Java 一键安装完成 → 自动刷新设置-Java 列表 + 一键安装卡片前置检测**。 |
+| `shadow_backend.h/.cpp` | 857 / 4450 | **总聚合后端，QML 的 `backend` 对象**。聚合全部子后端（account/version/launch/resource/settings/java/stats/userdata/check/yggdrasil/multiplayer/modManager…），转发数百个 Q_PROPERTY/Q_INVOKABLE；也含少量自有逻辑：GeoIP 地区离线限制（`isOfflineRestricted`）、Beta 密钥校验落盘（`betaGateEnabled` 编译期属性，2026-08-14 加）、自定义背景、Toast/UI 消息通道、`checkAll` 启动检查汇总；崩溃分析信号转发（`crashAnalysisStarted`/`crashAnalysisReady`）+ `analyzeCrashNow`/`exportCrashLogs`/`openPath`；**Java 一键安装完成 → 自动刷新设置-Java 列表 + 一键安装卡片前置检测**。 |
 | `version_backend.h/.cpp` | 466 / 8287 | **版本管理大后端**：版本清单拉取/刷新（release/snapshot/old/aprilfool）、安装（走 VersionDownloader）、删除/重命名/克隆/迁移隔离、`verifyVersion`（游戏完整性校验）/`cancelVerify`/`cleanCorruptVersion`/`repairVersion`（修复，基于下载器 SHA1 校验重下缺失/损坏文件）、版本详情（Mod/资源包/存档列表异步）、installCards 模型、merged 安装上下文。 |
 | `launch_backend.h/.cpp` | 161 / 1480 | **启动后端**：组装 JVM/游戏参数、Token 刷新决策（`msTokenValid`/`shouldRefresh`）、进程启停（`launch`/`cancelLaunch`/`killGame*`）、在线/离线模式路由；**崩溃分析异步链路**：启动失败 → `crashAnalysisStarted` → `runCrashAnalysis`（QTimer 异步）→ `crashAnalysisReady`；`analyzeCrashNow`/`exportCrashLogs`/`openPath` Q_INVOKABLE。 |
 | `account_backend.h/.cpp` | 156 / 1207 | **账号后端**：离线登录（用户名/UUID/历史）、微软正版登录（MicrosoftAuth 封装：token 管理/后台刷新/过期判断）、皮肤下载/上传/缓存、披风（CapeInfo）、3D 头像渲染触发、离线皮肤。 |
@@ -248,9 +248,9 @@
 | `AnimationTokens.qml` | 187 | **动画令牌**：时长/缓动曲线常量。 |
 | `ToastManager.qml` | 144 | **Toast 通知**：右下角堆叠、天蓝色、`show(msg, duration)`。 |
 | `ToastStyleSuccess.qml` / `ToastStyleWarning.qml` | 27×2 | Toast 成功/警告样式常量。 |
-| `AgreementOverlay.qml` | 329 | 用户协议/隐私/条款同意浮层（HTML 渲染）。 |
+| `AgreementOverlay.qml` | 329 | 用户协议/隐私/条款同意浮层（HTML 渲染）；内测协议行与内测文案按 `betaGateEnabled`（编译期）显隐，公测版隐藏（2026-08-14 改）。 |
 | `BackgroundCropOverlay.qml` | 281 | 自定义背景裁剪设置浮层。 |
-| `BetaKeyDialog.qml` | 154 | 内测密钥输入窗口（无密钥时主程序先加载它）。 |
+| `BetaKeyDialog.qml` | 154 | 内测密钥输入窗口（仅 `SHADOW_ENABLE_BETA_GATE=ON` 时主程序加载它；资源保留随时可加回）。 |
 | `DebugWindow.qml` / `DebugPanel.qml` | 164 / 132 | 调试窗口/面板（Debug 构建）。 |
 | `SubPageOverlays.qml` | 138 | 子页面浮层容器（版本选择/设置等 Overlay 的路由壳）。 |
 
@@ -349,6 +349,7 @@
 
 | 日期 | 说明 |
 |---|---|
+| 2026-08-14 | **公测准备：内测密钥闸门改编译期开关（CMakeLists/main_release.cpp/shadow_backend.{h,cpp}/AgreementOverlay.qml）**：新增 `option(SHADOW_ENABLE_BETA_GATE ... OFF)`（默认 OFF=公测直通 MainWindow；ON=内测，启动弹 BetaKeyDialog）。main_release.cpp 闸门段包进 `#ifdef SHADOW_ENABLE_BETA_GATE`；shadow_backend 新增 `betaGateEnabled` 静态属性（编译期）；AgreementOverlay 内测协议行/「欢迎使用 Shadow Launcher 内测版！」文案按开关显隐（allChecked 改 `(!betaGateEnabled||betaChecked)&&privacy&&terms`）。全部 Beta 代码/QML/协议资源保留，加回内测=cmake -DSHADOW_ENABLE_BETA_GATE=ON 重编译。双向实测：OFF 无 Beta 日志直通主窗口；ON 无密钥→Loading beta key dialog/Waiting for beta key input 卡窗、有密钥→直接放行。 |
 | 2026-08-12 | 鸣谢卡片 z0z0r4 补网址跳转（SettingsPage.qml ackItemComp model）：url 补 https://www.mcimirror.top/（用户补充，界面不显示网址）。 |
 | 2026-08-13 | **版本选择→版本设置页面叠加修复（VersionSelectOverlay.qml/MainWindow.qml）**：内测反馈——版本选择页右键版本条目进版本设置后两页面叠加（仅自定义背景开启时可见，点击不穿透）。根因——打开设置只置 showVersionSettings=true，未关 showVersionSelect → 两个浮层 Loader（同 z:5，settings 声明在后在上层）同时 opacity=1/visible=true；VersionSettingsOverlay 根 Rectangle `color: hasBg ? transparent : bgPrimary`——无自定义背景时不透明盖住下层看不出，开启自定义背景（透明）后下层版本选择页透出。修复（双保险）：①VersionSelectOverlay 右键 onPressed 加 showVersionSelect=false（进设置同时收版本选择，淡出动画自然播放）；②MainWindow onShowVersionSettingsChanged 联动 showVersionSettings→强制 showVersionSelect=false + openVersionSettingsSection 显式先关。编译通过。 |
 | 2026-08-12 | 鸣谢条目重叠修复（SettingsPage.qml ackItemComp）：内测反馈——描述小字与名字标题重叠。根因——MouseArea（anchors.fill）与徽标（anchors.verticalCenter）放在 Row（Positioner）内，Positioner 子项使用 anchors 属未定义行为，Row 高度/位置计算异常导致 ackDesc 与名字行重叠。修复——去掉 Row，改纯 anchors 布局（名字/徽标/描述/鼠标区全部直接锚在 ackItem 上，height 改 ackDesc.y+ackDesc.height，与原有 4 条手工条目同构）。 |

@@ -7,6 +7,16 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
 # ============================================================
+# 构建选项
+# ============================================================
+
+# 内测密钥闸门（Beta gate）：
+#   ON  = 内测版：启动先弹 BetaKeyDialog 密钥验证窗口（无保存密钥时）
+#   OFF = 公测版：直接加载 MainWindow，跳过内测验证（默认）
+# 加回内测：cmake 重新配置 -DSHADOW_ENABLE_BETA_GATE=ON 即可，相关代码/资源全部保留。
+option(SHADOW_ENABLE_BETA_GATE "Enable beta key gate (internal testing)" OFF)
+
+# ============================================================
 # Dependencies
 # ============================================================
 
@@ -472,6 +482,11 @@ target_compile_definitions(ShadowLauncher PRIVATE
     SHADOW_QT_VERSION="${Qt6_VERSION}"
     SHADOW_RESOURCE_EPOCH=1
 )
+
+# Beta gate 开关：ON 时定义 SHADOW_ENABLE_BETA_GATE=1（main_release 启用内测密钥闸门）
+if(SHADOW_ENABLE_BETA_GATE)
+    target_compile_definitions(ShadowLauncher PRIVATE SHADOW_ENABLE_BETA_GATE=1)
+endif()
 
 target_link_libraries(ShadowLauncher PRIVATE
     Qt6::Core

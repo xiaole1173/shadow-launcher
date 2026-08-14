@@ -559,8 +559,11 @@ int main(int argc, char *argv[])
     checkpoint(QStringLiteral("Loading QML (precompiled qrc)..."));
     url = QUrl(QStringLiteral("qrc:/qt/qml/ShadowLauncher/qml/MainWindow.qml"));
 
-    // ── Beta key gate ──
+    // ── Beta key gate（内测闸门）──
+    // 公测版（默认）不定义 SHADOW_ENABLE_BETA_GATE → 直接加载 MainWindow。
+    // 内测版：CMake -DSHADOW_ENABLE_BETA_GATE=ON 重新配置编译，启用下方密钥验证闸门。
     bool loadedBetaDialog = false;
+#ifdef SHADOW_ENABLE_BETA_GATE
     checkpoint(QStringLiteral("Checking beta key..."));
     QString savedKey = ShadowBackend::loadBetaKey();
 
@@ -584,6 +587,7 @@ int main(int argc, char *argv[])
     } else {
         qCInfo(logApp) << QStringLiteral("[Beta] 已保存密钥 直接放行");
     }
+#endif // SHADOW_ENABLE_BETA_GATE
 
     if (!loadedBetaDialog) {
         // Log QML engine warnings for debugging

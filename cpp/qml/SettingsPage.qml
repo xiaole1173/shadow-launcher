@@ -542,6 +542,68 @@ Rectangle {
     }
 
 
+    // ── 鸣谢条目组件：名字（可点击开网页）+ 徽标 + 描述；风格与原卡片一致 ──
+    // 注意：纯 anchors 布局（勿引入 Row/Column Positioner——其子项用 anchors 属未定义行为，
+    // 曾导致描述文字与名字行重叠，2026-08-12 修复）
+    Component {
+        id: ackItemComp
+        Item {
+            id: ackItem
+            width: parent.width
+            height: ackDesc.y + ackDesc.height
+
+            property bool ackHovered: false
+
+            Text {
+                id: ackNameText
+                text: modelData.name
+                font.pixelSize: StyleTokens.fontSizeMd
+                font.bold: true
+                color: ackItem.ackHovered ? StyleTokens.accent : StyleTokens.textPrimary
+                font.underline: ackItem.ackHovered
+                Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
+            }
+            Rectangle {
+                visible: modelData.badge !== ""
+                color: StyleTokens.accentSubtle; radius: StyleTokens.radiusSm
+                implicitHeight: ackBadgeText.implicitHeight + 6
+                implicitWidth: ackBadgeText.implicitWidth + 10
+                anchors.left: ackNameText.right
+                anchors.leftMargin: 8
+                anchors.verticalCenter: ackNameText.verticalCenter
+                Text {
+                    id: ackBadgeText
+                    anchors.centerIn: parent
+                    text: modelData.badge
+                    font.pixelSize: StyleTokens.fontSizeXs
+                    color: StyleTokens.accentLink
+                }
+            }
+            MouseArea {
+                id: ackNameMouse
+                anchors.fill: ackNameText
+                hoverEnabled: modelData.url !== ""
+                cursorShape: modelData.url !== "" ? Qt.PointingHandCursor : Qt.ArrowCursor
+                onEntered: ackItem.ackHovered = true
+                onExited: ackItem.ackHovered = false
+                onClicked: {
+                    if (modelData.url !== "") Qt.openUrlExternally(modelData.url)
+                }
+            }
+            Text {
+                id: ackDesc
+                text: modelData.desc
+                font.pixelSize: StyleTokens.fontSizeSm
+                color: "#8890a0"
+                width: parent.width
+                wrapMode: Text.WordWrap
+                lineHeight: 1.35
+                anchors.top: ackNameText.bottom
+                anchors.topMargin: 3
+            }
+        }
+    }
+
     Component {
         id: aboutComponent
         Flickable {
@@ -623,26 +685,47 @@ Rectangle {
                         anchors.top: parent.top; anchors.margins: 17; spacing: 12
                         Text { text: qsTr("鸣谢"); font.pixelSize: StyleTokens.fontSizeXl; font.bold: true; color: StyleTokens.textPrimary }
                         Column { Layout.fillWidth: true; spacing: 14
-                            Item {
-                                width: parent.width; height: ack1Desc.y + ack1Desc.height
-                                Text { id: ack1Name; text: "bangbang93"; font.pixelSize: StyleTokens.fontSizeMd; font.bold: true; color: StyleTokens.textPrimary; width: parent.width }
-                                Text { id: ack1Desc; text: qsTr("提供的 BMCLAPI 极大程度上解决了各类官方源的逆天下载速度问题！包括 Minecraft、Forge、Neoforge、Optifine 等等。"); font.pixelSize: StyleTokens.fontSizeSm; color: "#8890a0"; width: parent.width; wrapMode: Text.WordWrap; lineHeight: 1.35; anchors.top: ack1Name.bottom; anchors.topMargin: 3 }
+                            Repeater {
+                                width: parent.width
+                                model: [
+                                    { name: "bangbang93", url: "https://afdian.com/a/bangbang93", badge: "",
+                                      desc: qsTr("提供了镜像源和Forge安装工具。点击名字直达镜像源赞助页。") },
+                                    { name: "z0z0r4", url: "https://www.mcimirror.top/", badge: "",
+                                      desc: qsTr("提供了MCIM镜像源，主要用于Mod等资源的下载，虽然不大稳定（也可能是我测试太多给我限速了），但好歹不用死守着有时非常逆天的官方源了。") },
+                                    { name: "Lucide", url: "https://lucide.dev/", badge: "",
+                                      desc: qsTr("提供了启动器目前所有可见的图标！点击名字直达网页。") },
+                                    { name: "ChunMoMo", url: "", badge: qsTr("内测人员"),
+                                      desc: qsTr("直接提供了一台能远程操控的电脑给开发者测试初代联机功能（而且是整整一个下午）！虽然初代联机功能已经废弃，但还是得感谢。") }
+                                ]
+                                delegate: ackItemComp
                             }
-                            Item {
-                                width: parent.width; height: ack2Desc.y + ack2Desc.height
-                                Text { id: ack2Name; text: "z0z0r4"; font.pixelSize: StyleTokens.fontSizeMd; font.bold: true; color: StyleTokens.textPrimary; width: parent.width }
-                                Text { id: ack2Desc; text: qsTr("提供的 MCIM 解决了直连 Modrinth 的逆天下载速度问题。"); font.pixelSize: StyleTokens.fontSizeSm; color: "#8890a0"; width: parent.width; wrapMode: Text.WordWrap; lineHeight: 1.35; anchors.top: ack2Name.bottom; anchors.topMargin: 3 }
-                            }
-                            Item {
-                                width: parent.width; height: ack3Desc.y + ack3Desc.height
-                                Text { id: ack3Name; text: "Lucide"; font.pixelSize: StyleTokens.fontSizeMd; font.bold: true; color: StyleTokens.textPrimary; width: parent.width }
-                                Text { id: ack3Desc; text: qsTr("提供了启动器目前可见的所有图标！"); font.pixelSize: StyleTokens.fontSizeSm; color: "#8890a0"; width: parent.width; wrapMode: Text.WordWrap; lineHeight: 1.35; anchors.top: ack3Name.bottom; anchors.topMargin: 3 }
-                            }
-                            Item {
-                                width: parent.width; height: ack4Desc.y + ack4Desc.height
-                                Text { id: ack4Name; text: "ChunMoMo"; font.pixelSize: StyleTokens.fontSizeMd; font.bold: true; color: StyleTokens.textPrimary; width: parent.width }
-                                Text { id: ack4Desc; text: qsTr("提供了测试联机功能的电脑，将我从想测试联机功能但找不到两台电脑的水深火热中救了出来......"); font.pixelSize: StyleTokens.fontSizeSm; color: "#8890a0"; width: parent.width; wrapMode: Text.WordWrap; lineHeight: 1.35; anchors.top: ack4Name.bottom; anchors.topMargin: 3 }
-                            }
+                        }
+                    }
+                }
+
+                // Internal testing supporters card
+                Rectangle {
+                    Layout.fillWidth: true; radius: StyleTokens.radiusLg; color: StyleTokens.bgSecondary; border.color: StyleTokens.bgInput
+                    Layout.preferredHeight: testerContent.height + 34
+                    ColumnLayout {
+                        id: testerContent
+                        anchors.left: parent.left; anchors.right: parent.right
+                        anchors.top: parent.top; anchors.margins: 17; spacing: 12
+                        Text { text: qsTr("内测人员的支持"); font.pixelSize: StyleTokens.fontSizeXl; font.bold: true; color: StyleTokens.textPrimary }
+                        Text {
+                            Layout.fillWidth: true; wrapMode: Text.WordWrap
+                            text: qsTr("这里非常荣幸地宣布：jh_hello、XChenyYa二人以神奇的bug体制挖掘出了启动器的很多莫名其妙的bug，包括但不限于下载、UI显示、联机等多个方面。")
+                            font.pixelSize: StyleTokens.fontSizeSm; color: "#8890a0"; lineHeight: 1.35
+                        }
+                        Text {
+                            Layout.fillWidth: true; wrapMode: Text.WordWrap
+                            text: qsTr("非常感谢jh_hello、XChenyYa、渡、LUVlhr等人对联机功能后续测试的全方位支持！")
+                            font.pixelSize: StyleTokens.fontSizeSm; color: "#8890a0"; lineHeight: 1.35
+                        }
+                        Text {
+                            Layout.fillWidth: true; wrapMode: Text.WordWrap
+                            text: qsTr("以及其他参与内测的小伙伴们也十分感谢！")
+                            font.pixelSize: StyleTokens.fontSizeSm; color: "#8890a0"; lineHeight: 1.35
                         }
                     }
                 }

@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 #pragma once
 #include <QObject>
@@ -125,6 +125,8 @@ class ShadowBackend : public QObject {
     Q_PROPERTY(QString privacyAgreementHtml READ privacyAgreementHtml CONSTANT)
     Q_PROPERTY(QString termsAgreementHtml READ termsAgreementHtml CONSTANT)
     Q_PROPERTY(bool markAgreed READ isMarkAgreed WRITE setMarkAgreed)
+    // 编译期内测开关（SHADOW_ENABLE_BETA_GATE）：公测版恒 false，QML 据此隐藏内测 UI
+    Q_PROPERTY(bool betaGateEnabled READ betaGateEnabled CONSTANT)
     bool isMarkAgreed() const { return false; }
     void setMarkAgreed(bool v);
 
@@ -627,6 +629,8 @@ public:
     // ── Beta key gate ──
     Q_INVOKABLE void submitBetaKey(const QString& key);
     QString betaStatus() const { return m_betaStatus; }
+    // 编译期内测开关：公测版（未定义 SHADOW_ENABLE_BETA_GATE）恒返回 false
+    static bool betaGateEnabled();
     static QString loadBetaKey();
     static bool validateBetaKey(const QString& key, QString* outError = nullptr);
     static bool saveBetaKey(const QString& key);
