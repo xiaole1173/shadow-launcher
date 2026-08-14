@@ -254,7 +254,7 @@ private:
 
     // ── I/O thread pool ──
     QThreadPool m_ioPool;
-    static constexpr int  kMaxIOWorkers = 4;
+    static constexpr int  kMaxIOWorkers = 8;   // 2026-08-14 4→8：缓解写盘积压（配合 watchdog 完成兜底）
 
     // ── Throttle progress signals ──
     QElapsedTimer m_lastProgressEmit;

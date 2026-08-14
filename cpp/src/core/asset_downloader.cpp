@@ -642,6 +642,18 @@ void AssetDownloader::watchdogTick()
     for (auto* reply : toAbort) {
         reply->abort();
     }
+
+    // ── 完成兜底（2026-08-14 修复：assets 卡 92% 数分钟）──
+    // 背景：最后文件网络下载完成后走 enqueueIO 异步写盘（IO 线程池），
+    // 写盘回调经 QueuedConnection 回主线程调 finishDownload → checkAllFinished。
+    // 若主线程事件循环被其他同步操作（如驿道下载的 QEventLoop 等待）长时间
+    // 占用，或 IO 写盘在途，checkAllFinished 的条件（inFlight/pending/preCheck
+    // 全空 + preCheckQueued==0）暂时不满足；此后若没有新事件再触发
+    // checkAllFinished，下载永远停在 92%（实测 3948/3948 文件完成但 allFinished
+    // 迟到 200s，期间进度条静止、速度不跳——用户观感"卡死"）。
+    // 修复：watchdog 每秒兜底调用一次 checkAllFinished（条件不满足时是空操作，
+    // 写盘完成后下一次 tick 自然放行）。
+    checkAllFinished();
 }
 
 void AssetDownloader::accelTick()
@@ -1275,7 +1287,12 @@ void AssetDownloader::enqueuePreCheck(const AssetTask& task, const QString& chec
     PreCheckPending pcp;
     pcp.task = task;
     pcp.enqueueAtMs = QDateTime::currentMSecsSinceEpoch();
-    m_pendingPreCheck.insert(task.sha1, pcp);
+    // 唯一 key：savePath + sha1（同一 SHA1 可对应多个条目，2026-08-14 修复——
+    // 旧实现用 sha1 作 key，同一 sha1 重复任务时 map 覆盖但 m_preCheckQueued
+    // 计数 +2，回调只 remove 一次 → 计数泄漏 → checkAllFinished 永被
+    // "m_preCheckQueued > 0" 挡住 → assets 卡 92% 数分钟）
+    QString preCheckKey = task.savePath + QLatin1Char('|') + task.sha1;
+    m_pendingPreCheck.insert(preCheckKey, pcp);
     m_preCheckQueued++;
 
     auto* worker = new PreCheckWorker();
@@ -1298,7 +1315,9 @@ void AssetDownloader::enqueuePreCheck(const AssetTask& task, const QString& chec
 
 void AssetDownloader::onPreCheckResult(const AssetTask& task, bool sha1Match)
 {
-    m_pendingPreCheck.remove(task.sha1);
+    // 与 enqueuePreCheck 的唯一 key 对齐（savePath|sha1）
+    QString preCheckKey = task.savePath + QLatin1Char('|') + task.sha1;
+    m_pendingPreCheck.remove(preCheckKey);
     m_preCheckQueued--;
 
     if (m_state != Running) return;

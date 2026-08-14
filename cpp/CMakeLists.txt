@@ -688,6 +688,15 @@ if(SHADOW_BUILD_MODPACK_SELFTEST)
     target_include_directories(AssetWatchdogTest PRIVATE src)
     target_link_libraries(AssetWatchdogTest PRIVATE Qt6::Core Qt6::Network Qt6::Concurrent)
 
+    # 山海经完成兜底 + 同SHA1预检查 key 测试（2026-08-14：assets 卡 92% 修复验证）
+    add_executable(AssetCompletionTest
+        tests/test_asset_completion.cpp
+        src/core/asset_downloader.cpp
+        src/utils/logger.cpp
+    )
+    target_include_directories(AssetCompletionTest PRIVATE src)
+    target_link_libraries(AssetCompletionTest PRIVATE Qt6::Core Qt6::Network Qt6::Concurrent)
+
     # 版本隔离 game 目录布局感知验证（散文件→版本根 / game非空→game）
     add_executable(IsoGdTest
         tests/test_isogd.cpp
