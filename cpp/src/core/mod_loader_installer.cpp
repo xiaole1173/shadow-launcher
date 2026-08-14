@@ -1693,6 +1693,13 @@ void ModLoaderInstaller::forgeStepLibs(const QByteArray& jarData)
 
     struct LibTask { QStringList urls; QString savePath; };
     QList<LibTask> tasks;
+    // ── 2026-08-15：savePath 去重 ──
+    // 库来源合并后可能产生相同 savePath 的重复条目（install_profile 顶层
+    // libraries 自身就含重复 name 时 appendUnique 不去重——它只对并入的
+    // version.json/versionInfo 去重）。重复任务并发下载同一文件，驿道
+    // 写 .tmp 后 rename 冲突 → "重命名失败" → 该文件所有源均失败，
+    // 而 UI 上安装器库却标 completed（日志实测 srgutils-1.0.0.jar 下载两次）。
+    QSet<QString> seenSavePaths;
     {
         QBuffer buffer;
         buffer.setData(jarData);
@@ -1815,6 +1822,8 @@ void ModLoaderInstaller::forgeStepLibs(const QByteArray& jarData)
                     urls << QStringLiteral("https://bmclapi2.bangbang93.com/maven/%1/%2/%3/%4").arg(group, artifactName, version, fileName);
                 }
                 urls.removeDuplicates();
+                if (seenSavePaths.contains(libFile)) continue;   // 2026-08-15 重复 savePath 跳过
+                seenSavePaths.insert(libFile);
                 tasks.append({urls, libFile});
             }
         }
@@ -1836,7 +1845,14 @@ void ModLoaderInstaller::forgeStepLibs(const QByteArray& jarData)
         m_installerLibsRunning = false;
         m_installerLibsDone = true;
         m_downloadSkipProbe = false;   // 2026-08-14：安装器库结束恢复免探测关闭
-        if (st->failed) qCWarning(logLoader) << st->failErr;
+        if (st->failed) {
+            // ── 2026-08-15：失败显式上报，不再"失败也标绿" ──
+            // 原实现 st->failed 时只打日志仍发 installerLibsDone → version_backend
+            // 无条件把安装器库步骤标 completed（日志实测 srgutils 下载失败却
+            // idx=5 completed 100%）。失败应走失败信号，由后端标 failed。
+            qCWarning(logLoader) << st->failErr;
+            emit installerLibsFailed(st->failErr);
+        }
         emit installerLibsDone();
         if (m_pendingInstallAfterLibs && !m_cancelled) {
             m_pendingInstallAfterLibs = false;

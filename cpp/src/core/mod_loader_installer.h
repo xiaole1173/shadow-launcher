@@ -99,6 +99,8 @@ signals:
     // 安装器库下载开始/完成（供版本后端联动步骤状态）
     void installerLibsStarted();
     void installerLibsDone();
+    // 安装器库下载失败（至少一个文件所有源均失败）——版本后端应将步骤标 failed 而非 completed
+    void installerLibsFailed(const QString& err);
     // 安装器库文件级进度（done/total）——步骤右侧显示“剩余 x 个文件”
     void installerLibsFileProgress(int done, int total);
 

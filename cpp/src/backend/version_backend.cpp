@@ -5318,8 +5318,15 @@ if (!loaderDlUrl.isEmpty()) {
                     // 由 handleLoaderData 完成回调置 completed 时触发。
                     qint64 pct = (total > 0) ? qMin(recv * 100 / total, qint64(99)) : 0;
                     if (pct < 0) pct = 0;
+                    // ── 2026-08-15：不再传 bytesRecv/bytesTotal ──
+                    // StepNode::setByteProgress 会用 recv*100/total 覆盖 percentage，
+                    // 驿道分片超额接收时 recv≥total → 显式 pct(99) 被覆盖成 100，
+                    // 而 status 仍是 active → UI 显示"100% + 蓝点"永不转完成态
+                    // （用户实测"主文件 100% 不转为完成态"）。
+                    // 只传显式 pct（完成前上限 99），真正的 100%+completed 由
+                    // handleLoaderData 完成回调置位，杜绝"100% 但 active"。
                     updateStep(installName, loaderDlStepIdx, QStringLiteral("active"),
-                               static_cast<int>(pct), recv, total);
+                               static_cast<int>(pct));
                     qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
                     qint64 delta = recv - speedState->first;
                     qint64 timeDelta = nowMs - speedState->second;
@@ -6477,6 +6484,52 @@ int VersionBackend::findStepByName(const QString& installId, const QString& name
     return -1;
 }
 
+// ── 2026-08-15：精确语义查找 ──
+// findStepByName 是模糊子串匹配：步骤数组同时存在
+//   idx=3 "校验游戏资源完整性"   （MC 下载校验）
+//   idx=6 "校验 NeoForge 完整性"（loader 安装器校验）
+// 两者都包含"完整性"，从头遍历必然误命中 idx=3 →
+// verifyStarted/verifyFinished 驱动错步骤：MC 校验被提前标 active/completed，
+// 而 loader 校验永不更新（用户实测"安装都开始了校验还在冒三点"）。
+// 同理"安装 NeoForge"含"安装"，但"下载 NeoForge 安装器库"也含"安装"，
+// findStepByName("安装") 会误命中安装器库步骤。以下三个函数用
+// 包含+排除组合精确定位，杜绝歧义。
+int VersionBackend::findLoaderVerifyStep(const QString& installId)
+{
+    auto* ds = dlSession(installId);
+    if (!ds) return -1;
+    for (int i = 0; i < ds->steps.size(); ++i) {
+        const QString nm = ds->steps[i].toMap().value(QStringLiteral("name")).toString();
+        if (nm.contains(QStringLiteral("完整性")) && !nm.contains(QStringLiteral("资源")))
+            return i;   // "校验 X 完整性" ✓；"校验游戏资源完整性"被排除
+    }
+    return -1;
+}
+
+int VersionBackend::findLoaderInstallStep(const QString& installId)
+{
+    auto* ds = dlSession(installId);
+    if (!ds) return -1;
+    for (int i = 0; i < ds->steps.size(); ++i) {
+        const QString nm = ds->steps[i].toMap().value(QStringLiteral("name")).toString();
+        if (nm.contains(QStringLiteral("安装")) && !nm.contains(QStringLiteral("安装器库")))
+            return i;   // "安装 X" ✓；"下载 X 安装器库"被排除
+    }
+    return -1;
+}
+
+int VersionBackend::findLoaderLibsStep(const QString& installId)
+{
+    auto* ds = dlSession(installId);
+    if (!ds) return -1;
+    for (int i = 0; i < ds->steps.size(); ++i) {
+        const QString nm = ds->steps[i].toMap().value(QStringLiteral("name")).toString();
+        if (nm.contains(QStringLiteral("安装器库")))
+            return i;
+    }
+    return -1;
+}
+
 void VersionBackend::updateStep(const QString& installId, int index, const QString& status, int percentage,
 
                                  qint64 bytesRecv, qint64 bytesTotal) {
@@ -6526,10 +6579,15 @@ void VersionBackend::updateStep(const QString& installId, int index, const QStri
         } else if (status == "skipped") {
             node->setSkipped();
         }
-        if (percentage > 0)
-            node->setPercentage(percentage);
         if (bytesRecv > 0 && bytesTotal > 0)
             node->setByteProgress(bytesRecv, bytesTotal);
+        // ── 2026-08-15：显式 percentage 必须在 setByteProgress 之后设置 ──
+        // StepNode::setByteProgress 内部用 recv*100/total 重算并覆盖 m_percentage。
+        // 原顺序（先 setPercentage 再 setByteProgress）会让字节口径覆盖显式 pct：
+        // 驿道分片 recv 超额时 recv≥total → 显式 pct(99) 被覆盖成 100，而 status
+        // 仍是 active → UI "100% 蓝点"永不转完成态。显式 pct 应优先。
+        if (percentage > 0)
+            node->setPercentage(percentage);
     }
 
     // ── Sync to old QVariantList ──
@@ -8435,23 +8493,19 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
             setInstallPhase(tr("模组加载器: ") + desc);
             auto* ds = dlSession(installId);
             if (!ds) return;
-            // ── 2026-08-14 修复：merged 步骤映射不再用 step-1+4 硬编码偏移 ──
-            // 原实现：stepIdx = step-1+4；prevIdx = step-2+4。
+            // ── 2026-08-15 重写：merged 步骤映射全用精确语义查找 ──
             // Forge/NeoForge 的 progressChanged step 语义：1=下载主文件、2=校验、3=安装。
-            // 但步骤数组在中间插入了"下载安装器库"（独立信号驱动，不占 step 编号）：
-            //   主文件(4) → 安装器库(5) → 校验(6) → 安装(7)
-            // 旧映射 step3(安装)→6(安装器库)、prevIdx=step2→5(校验)——
-            // 安装步骤开始时把校验步骤误标 completed（progressChanged(3) 的 prevIdx），
-            // 而安装器库 done 才 proceedToLoaderInstall → progressChanged(3) → 校验
-            // 才"完成"。这正是用户观察到的"安装器库下载完成后 verify 才完成"。
-            // 修复：按 ModLoaderInstaller 步骤语义映射到正确步骤（按名字找），
-            // 不再用 prevIdx 自动 completed（安装器库插入后"上一步"不可靠）。
+            // 步骤数组：主文件(4) → 安装器库(5) → 校验(6) → 安装(7)。
+            // ⚠ findStepByName("完整性") 会误命中"校验游戏资源完整性"(idx=3)——
+            // 它包含"完整性"三字且排在 idx=6 之前！verify 信号若驱动 idx=3，
+            // MC 资源校验被提前标 active/completed，而 loader 校验永不更新
+            // （实测"安装都开始了校验还在冒三点"）。必须用排除"资源"的精确查找。
+            // ⚠ findStepByName("安装") 会误命中"下载 X 安装器库"（也含"安装"）。
             int stepIdx = -1;
             if (ds->isMerged()) {
-                const QString nm = desc;  // desc 含步骤描述，映射用 step 编号更稳
                 if (step <= 1)      stepIdx = findStepByName(installId, QStringLiteral("主文件"));
-                else if (step == 2) stepIdx = findStepByName(installId, QStringLiteral("完整性"));
-                else if (step >= 3) stepIdx = findStepByName(installId, QStringLiteral("安装"));
+                else if (step == 2) stepIdx = findLoaderVerifyStep(installId);
+                else if (step >= 3) stepIdx = findLoaderInstallStep(installId);
                 if (stepIdx < 0) stepIdx = (step - 1 + 4);  // fallback 旧逻辑
             } else {
                 stepIdx = step - 1;
@@ -8478,16 +8532,17 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
             ds->mlSpeed = speed;
         });
 
-    // ── verifyStarted / verifyFinished（2026-08-14 修复：merged 校验步骤驱动）──
-    // 背景：merged 用 ctx->installer，原实现未接 verifyStarted/verifyFinished，
-    // "校验 %1 完整性"步骤的 completed 靠 progressChanged(3) 的 prevIdx 误标
-    // （安装器库插入后映射错位）。现在显式驱动：verifyStarted → 校验步骤
-    // active；verifyFinished → 校验步骤 completed/failed。
+    // ── verifyStarted / verifyFinished（2026-08-15 重写：精确驱动 loader 校验步骤）──
+    // ⚠ 2026-08-14 版本用 findStepByName("完整性")——模糊子串匹配误命中
+    // "校验游戏资源完整性"(idx=3)，把 MC 资源校验提前标 active/completed，
+    // 而 loader 校验步骤(idx=6)从未被驱动 → 一直 active 冒三点，直到安装完成
+    // 被兜底循环标绿（实测 23:11:56.589 idx=6/idx=7 同一毫秒 completed）。
+    // 现在用 findLoaderVerifyStep()：只匹配"校验 X 完整性"（排除含"资源"的步骤）。
     connect(ctx->installer, &ModLoaderInstaller::verifyStarted, this,
         [this, installId]() {
             auto* ds = dlSession(installId);
             if (!ds) return;
-            int vi = findStepByName(installId, QStringLiteral("完整性"));
+            int vi = findLoaderVerifyStep(installId);
             if (vi >= 0) {
                 showStep(installId, vi);
                 updateStep(installId, vi, QStringLiteral("active"), 0);
@@ -8497,7 +8552,7 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
         [this, installId](bool ok) {
             auto* ds = dlSession(installId);
             if (!ds) return;
-            int vi = findStepByName(installId, QStringLiteral("完整性"));
+            int vi = findLoaderVerifyStep(installId);
             if (vi >= 0)
                 updateStep(installId, vi, ok ? QStringLiteral("completed")
                                              : QStringLiteral("failed"), ok ? 100 : 0);
@@ -8517,6 +8572,22 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
                 }
             }
         });
+    connect(ctx->installer, &ModLoaderInstaller::installerLibsFailed, this,
+        [this, installId](const QString& err) {
+            auto* ds = dlSession(installId);
+            if (!ds) return;
+            // ── 2026-08-15：安装器库下载失败 → 步骤标 failed（不再"失败也标绿"）──
+            // 原实现 installerLibsDone 无条件标 completed，srgutils 所有源失败也
+            // 显示 100% 完成（日志铁证 23:08:29.872）。失败应如实显示。
+            qCWarning(logVersion) << QStringLiteral("[安装] 安装器库下载失败，安装器库步骤标 failed: %1").arg(err);
+            for (int i = 0; i < ds->steps.size(); ++i) {
+                if (ds->steps[i].toMap().value(QStringLiteral("name")).toString()
+                        .contains(QStringLiteral("安装器库"))) {
+                    updateStep(installId, i, QStringLiteral("failed"), 0);
+                    break;
+                }
+            }
+        });
     connect(ctx->installer, &ModLoaderInstaller::installerLibsDone, this,
         [this, installId]() {
             auto* ds = dlSession(installId);
@@ -8524,7 +8595,12 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
             for (int i = 0; i < ds->steps.size(); ++i) {
                 if (ds->steps[i].toMap().value(QStringLiteral("name")).toString()
                         .contains(QStringLiteral("安装器库"))) {
-                    updateStep(installId, i, QStringLiteral("completed"), 100);
+                    // ── 2026-08-15：若 installerLibsFailed 已把本步骤标 failed，
+                    // 不得再用 completed 覆盖（否则"失败也标绿"）──
+                    QString curStatus = ds->steps[i].toMap()
+                                            .value(QStringLiteral("status")).toString();
+                    if (curStatus != QStringLiteral("failed"))
+                        updateStep(installId, i, QStringLiteral("completed"), 100);
                     // ── 2026-08-14 修复：完成后清空 detail ──
                     // 最后一条 installerLibsFileProgress 可能在 done 接近 total 时
                     // 把 detail 设为"剩余 N"，installerLibsDone 标 completed 后若不
@@ -8532,17 +8608,14 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
                     // detail 应为空。
                     if (auto* node = ds->pipeline()->stepNode(i))
                         node->setDetail(QString());
-                    // ── 2026-08-14 修复：loaderStepIdx 复位到安装步骤 ──
+                    // ── 2026-08-15 重写：loaderStepIdx 复位到安装步骤 ──
                     // 安装器库完成后的 byteProgress（安装阶段）不应再写安装器库步骤，
                     // 否则"安装 NeoForge"进行中安装器库仍显示 active。
-                    // 找"安装"步骤（最后一步）作为 byteProgress 的落点。
-                    for (int k = 0; k < ds->steps.size(); ++k) {
-                        QString nm = ds->steps[k].toMap().value(QStringLiteral("name")).toString();
-                        if (nm.startsWith(QStringLiteral("安装")) || nm.contains(QStringLiteral("安装 "))) {
-                            ds->loaderStepIdx = k;
-                            break;
-                        }
-                    }
+                    // ⚠ 2026-08-14 用 nm.startsWith("安装") 匹配——"下载 X 安装器库"
+                    // 不以"安装"开头（"下载"在前），但为统一改用精确查找，杜绝歧义。
+                    int installIdx = findLoaderInstallStep(installId);
+                    if (installIdx >= 0)
+                        ds->loaderStepIdx = installIdx;
                     break;
                 }
             }

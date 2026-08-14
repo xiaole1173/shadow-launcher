@@ -419,6 +419,13 @@ private:
     void showStep(const QString& installId, int index);  // Make a hidden step visible and active
     /// 按步骤名（子串匹配）查找步骤索引；未找到返回 -1（2026-08-14）
     int findStepByName(const QString& installId, const QString& namePart);
+    /// 精确查找 loader 校验步骤（"校验 X 完整性"，排除"校验游戏资源完整性"），
+    /// findStepByName("完整性") 是模糊子串匹配，会误命中"校验游戏资源完整性"（2026-08-15）
+    int findLoaderVerifyStep(const QString& installId);
+    /// 精确查找 loader 安装步骤（"安装 X"，排除"下载 X 安装器库"——它含"安装"二字）
+    int findLoaderInstallStep(const QString& installId);
+    /// 精确查找 loader 安装器库下载步骤（"下载 X 安装器库"）
+    int findLoaderLibsStep(const QString& installId);
     void rebuildInstallCards();
     void doRebuildInstallCards();
     void activateVerifyOnDownloadsDone(const QString& versionId);
