@@ -79,3 +79,6 @@ cpp/ShadowLauncher_v*/
 /shadow_launcher/
 /_phase4_qml/
 /scrolltest/
+
+# Publish tool output
+publish/
