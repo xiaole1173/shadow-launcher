@@ -1541,6 +1541,29 @@ void VersionBackend::cancelVersionInstall(const QString& versionId)
         return;
     }
 
+    // ── 2026-08-15：已完成安装拒绝取消（防误点 X 破坏已装好的加载器）──
+    // UI 完成态已隐藏 X（updateCardFromSession 置 canCancel=false），但卡片
+    // 绿色定格 3s 后自动消失，期间快速点击仍有窗口。此处兜底：已完成且
+    // 未失败的会话直接忽略取消请求，不执行任何销毁/回滚；失败态不受影响
+    // （失败残留需要清理，保留取消能力）。
+    {
+        auto* dsGuard = dlSession(versionId);
+        if (dsGuard && !dsGuard->isFailed() && dsGuard->totalProgress() >= 1.0) {
+            qCInfo(logVersion).noquote()
+                << "[cancelInstall] 忽略取消：安装已完成 id=" << versionId;
+            int gRow = m_installCardsModel ? m_installCardsModel->findRowByIid(versionId) : -1;
+            if (gRow >= 0) {
+                const InstallCard* gCur = m_installCardsModel->cardAt(gRow);
+                if (gCur && gCur->canCancel != false) {
+                    InstallCard gFull = *gCur;
+                    gFull.canCancel = false;
+                    m_installCardsModel->updateRow(gRow, gFull);
+                }
+            }
+            return;
+        }
+    }
+
 
 
     // ── Merged install card: clean only this task's resources ──
@@ -6383,6 +6406,18 @@ void VersionBackend::updateCardFromSession(const QString& installId, const QStri
             if (ds->fabricApiPending && ds->fabSpeed > 0)
                 s += ds->fabSpeed;
             m_installCardsModel->updateProgressAndSpeed(mrow, p, s);
+
+            // ── 2026-08-15：完成态隐藏取消按钮（对齐非合并分支 6457-6459）──
+            // merged 分支此前从不更新 canCancel → 安装完成绿格定格后右上角 X
+            // 仍显示，误点触发 cancelVersionInstall 对已完成安装执行销毁/回滚
+            // （用户实测易触发 bug）。失败态保留 canCancel=true：QML 因
+            // _meta.failed 仍显示 X，用于清理失败残留（failResourceCard 同款语义）。
+            if (existing && existing->canCancel != false && !ds->isFailed()
+                    && ds->totalProgress() >= 1.0) {
+                InstallCard full = *existing;
+                full.canCancel = false;
+                m_installCardsModel->updateRow(mrow, full);
+            }
         }
         return;
     }
