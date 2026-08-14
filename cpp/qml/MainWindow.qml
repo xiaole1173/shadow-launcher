@@ -1217,10 +1217,13 @@ Window {
         source: "ConfirmDialog.qml"
 
         // Proxy for backward compatibility — external files use confirmDialog.xxx
+        // ⚠ 2026-08-15：Loader 元素上的 function 作用域不含 MainWindow 属性——
+        // 裸写 _pendingTitle 会报 "Invalid write to global property"（首次由
+        // 更新确认框流程触发实测）。必须显式 appWindow._pendingTitle。
         function open(title, message, onAccept) {
-            _pendingTitle = title
-            _pendingMessage = message
-            _pendingOnAccept = onAccept
+            appWindow._pendingTitle = title
+            appWindow._pendingMessage = message
+            appWindow._pendingOnAccept = onAccept
             active = true
             if (item) {
                 item.title = title
@@ -1237,12 +1240,12 @@ Window {
             if (item) {
                 item.closed.connect(function() { active = false })
                 // Re-apply pending props if open() was called before item ready
-                if (_pendingTitle !== "") {
-                    item.title = _pendingTitle
-                    item.message = _pendingMessage
-                    item.onAccept = _pendingOnAccept
+                if (appWindow._pendingTitle !== "") {
+                    item.title = appWindow._pendingTitle
+                    item.message = appWindow._pendingMessage
+                    item.onAccept = appWindow._pendingOnAccept
                     item.opened = true
-                    _pendingTitle = ""
+                    appWindow._pendingTitle = ""
                 }
             }
         }

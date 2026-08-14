@@ -18,11 +18,11 @@ $OneMB       = 1048576
 
 $BuildDate  = Get-Date -Format "yyyy-MM-dd HH:mm"
 
-# Extract version from CMakeLists.txt
+# Extract version from src/version.h (2026-08-15: 唯一版本源, 原 CMakeLists 宏已移除)
 $VersionTag = "v0.0.0"
-$cmakeFile = "$ProjectRoot\CMakeLists.txt"
-if (Test-Path $cmakeFile) {
-    $match = Select-String -Path $cmakeFile -Pattern 'SHADOW_DISPLAY_VERSION="([^"]+)"' | Select-Object -First 1
+$verFile = "$ProjectRoot\src\version.h"
+if (Test-Path $verFile) {
+    $match = Select-String -Path $verFile -Pattern '#define SHADOW_DISPLAY_VERSION "([^"]+)"' | Select-Object -First 1
     if ($match) {
         $VersionTag = $match.Matches.Groups[1].Value
     }

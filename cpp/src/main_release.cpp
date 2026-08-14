@@ -41,6 +41,7 @@
 #endif
 
 #include "utils/logger.h"
+#include "version.h"   // 2026-08-15：SHADOW_DISPLAY_VERSION（原 CMake 宏，现头文件）
 #include "backend/shadow_backend.h"
 #include "multiplayer/elevated_session.h"
 #include "core/http_client.h"

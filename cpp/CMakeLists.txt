@@ -478,7 +478,6 @@ target_include_directories(ShadowLauncher PRIVATE "${CMAKE_SOURCE_DIR}/thirdpart
 # Define WEBP_STATIC_LINK for static lib (needed on Windows)
 target_compile_definitions(ShadowLauncher PRIVATE
     WEBP_STATIC_LINK
-    SHADOW_DISPLAY_VERSION="v1.0.0"
     SHADOW_QT_VERSION="${Qt6_VERSION}"
     SHADOW_RESOURCE_EPOCH=1
 )
@@ -798,7 +797,10 @@ set_target_properties(SLUpdater PROPERTIES
     WIN32_EXECUTABLE TRUE
     AUTOMOC OFF
 )
-target_compile_options(SLUpdater PRIVATE /utf-8)
+target_compile_options(SLUpdater PRIVATE /utf-8 /MT)
+# ⚠ 2026-08-15：/MT 静态 CRT 必须！SLUpdater 若用动态 CRT(/MD) 会按 DLL 搜索
+# 顺序从自身 exe 目录加载 msvcp140.dll（全量更新目录里恰好有）→ 进程自锁 →
+# 覆盖复制该 DLL 恒报 error 32（实测 _update/sl_updater.log 8 次重试全失败）
 target_link_libraries(SLUpdater PRIVATE
     shell32
     comctl32    # 2026-08-15：进度条控件 PROGRESS_CLASS

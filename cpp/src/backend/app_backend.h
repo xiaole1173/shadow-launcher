@@ -4,6 +4,7 @@
 
 #include <QObject>
 #include <QString>
+#include "version.h"   // 2026-08-15：SHADOW_DISPLAY_VERSION 唯一来源（头文件，改版本增量编译）
 
 namespace ShadowLauncher {
 
