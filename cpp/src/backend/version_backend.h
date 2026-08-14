@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 #pragma once
 
@@ -417,6 +417,8 @@ private:
                       const QVector<bool>& showFlags = {});
     void updateStep(const QString& installId, int index, const QString& status, int percentage, qint64 bytesRecv = 0, qint64 bytesTotal = 0);
     void showStep(const QString& installId, int index);  // Make a hidden step visible and active
+    /// 按步骤名（子串匹配）查找步骤索引；未找到返回 -1（2026-08-14）
+    int findStepByName(const QString& installId, const QString& namePart);
     void rebuildInstallCards();
     void doRebuildInstallCards();
     void activateVerifyOnDownloadsDone(const QString& versionId);
