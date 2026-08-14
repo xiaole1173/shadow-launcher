@@ -1711,6 +1711,7 @@ void VersionBackend::cancelVersionInstall(const QString& versionId)
         for (int i = 0; i < m_installQueue.size(); ++i) {
             if (m_installQueue[i] == versionId || m_installQueue[i] == resolvedId) {
                 m_installQueue.removeAt(i);
+                emit cancelNotification(versionId, tr("已取消 %1 的安装").arg(versionId));
                 emit logMessage(tr("已取消队列中的 %1").arg(versionId));
                 emit installStateChanged();
                 emit downloadQueueChanged();
@@ -1744,6 +1745,7 @@ void VersionBackend::cancelVersionInstall(const QString& versionId)
     auto dl = m_downloaders.value(resolvedId, nullptr);
     if (dl) dl->cancel();
 
+    emit cancelNotification(versionId, tr("已取消 %1 的安装").arg(versionId));
     emit logMessage(tr("已取消 %1 的安装").arg(versionId));
 
     m_activeIds.removeOne(resolvedId);

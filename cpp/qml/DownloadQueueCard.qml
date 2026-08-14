@@ -195,8 +195,20 @@ Rectangle {
                         if (backend && _meta.iid)
                             backend.dismissCard(_meta.iid)
                     } else {
-                        if (backend && _meta.iid)
-                            backend.cancelVersionInstall(_meta.iid)
+                        // ── 2026-08-15：按卡片类型分流取消函数 ──
+                        // 此前无条件调 cancelVersionInstall：对资源下载卡
+                        // （iid="mod:N" 的 Mod/资源包/光影/数据包/整合包文件）
+                        // 是错误函数——既不取消下载也无任何反馈。
+                        var iid = _meta.iid || ""
+                        if (iid.indexOf("mod:") === 0) {
+                            var dlId = parseInt(iid.substring(4), 10)
+                            if (!isNaN(dlId) && backend)
+                                backend.cancelModFileDownload(dlId)   // → 取消成功 toast
+                        } else if (iid === "resource") {
+                            if (backend) backend.cancelDownload()
+                        } else {
+                            if (backend) backend.cancelVersionInstall(iid)
+                        }
                     }
                 }
             }

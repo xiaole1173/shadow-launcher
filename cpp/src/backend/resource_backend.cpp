@@ -135,6 +135,8 @@ ResourceBackend::ResourceBackend(QObject* parent)
             this, &ResourceBackend::onModFileDownloadFinished);
     connect(m_modMgr, &ModManager::modFileDownloadFailed,
             this, &ResourceBackend::onModFileDownloadFailed);
+    connect(m_modMgr, &ModManager::modFileDownloadCancelled,
+            this, &ResourceBackend::modFileDownloadCancelled);
 }
 
 ResourceBackend::~ResourceBackend() = default;

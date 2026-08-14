@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 #pragma once
 
@@ -194,6 +194,8 @@ signals:
     void modFileDownloadProgress(int downloadId, qint64 received, qint64 total, qint64 speed);
     void modFileDownloadFinished(int downloadId, bool success, const QString& filePath, const QString& displayName);
     void modFileDownloadFailed(int downloadId, const QString& errorDetail, const QString& displayName);
+    /// 2026-08-15：用户主动取消文件下载（QML 弹"取消成功" toast + 卡片标记取消态）
+    void modFileDownloadCancelled(int downloadId, const QString& displayName);
 
     void shaderVersionsLoaded(const QVariantMap& slugToVersions);
     void shaderVersionsPartial(const QString& slug, const QStringList& versions, const QVariantMap& details);

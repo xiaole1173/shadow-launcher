@@ -429,6 +429,10 @@ ShadowBackend::ShadowBackend(QObject* parent)
             this, &ShadowBackend::logMessage);
     connect(m_version, &VersionBackend::toastMessage,
             this, &ShadowBackend::toastMessage);
+    // ── 2026-08-15：MC/加载器安装取消 → QML toast（此前 cancelNotification
+    //    发射后无人转发，取消毫无用户反馈）──
+    connect(m_version, &VersionBackend::cancelNotification,
+            this, &ShadowBackend::cancelNotification);
     connect(m_version, &VersionBackend::verifyStarted,
             this, &ShadowBackend::verifyStarted);
     connect(m_version, &VersionBackend::verifyProgress,
@@ -678,6 +682,19 @@ ShadowBackend::ShadowBackend(QObject* parent)
                 }
                 // 透传信号给 QML（失败 Toast / 详情页错误弹窗）
                 emit modFileDownloadFailed(dlId, errorDetail, displayName);
+            });
+    // ── 2026-08-15：用户主动取消文件下载 ──
+    // 卡片标记"已取消"（红色失败态，X 变 dismiss），并转发信号 → QML
+    // 弹"xxx 取消成功" toast。此前取消后驿道回调静默 erase，卡片永久卡
+    // 在下载中状态且无任何反馈。
+    connect(m_resource, &ResourceBackend::modFileDownloadCancelled,
+            this, [this](int dlId, const QString& displayName) {
+                if (m_modDownloadCards.contains(dlId)) {
+                    const QString cardId = m_modDownloadCards[dlId];
+                    if (m_version) m_version->failResourceCard(cardId, tr("已取消"));
+                    m_modDownloadCards.remove(dlId);
+                }
+                emit modFileDownloadCancelled(dlId, displayName);
             });
     // 整合包搜索完成透传（QML 回填列表）
     connect(m_resource, &ResourceBackend::modpackSearchResultsReady,

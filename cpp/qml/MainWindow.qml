@@ -182,6 +182,16 @@ Window {
                 toastManager.show((displayName || "文件") + " 下载失败: " + (errorDetail || "未知错误"), "", 5000)
             }
         }
+        // ── 2026-08-15：主动取消下载 → "取消成功" toast（Mod/资源包/光影/数据包/整合包文件）──
+        function onModFileDownloadCancelled(dlId, displayName) {
+            if (toastManager) {
+                toastManager.show((displayName || "文件") + " 取消成功")
+            }
+        }
+        // ── 2026-08-15：MC/加载器安装取消 → toast（cancelNotification 此前无人连接）──
+        function onCancelNotification(installId, message) {
+            if (toastManager) toastManager.show(message)
+        }
         function onResourceDownloadStateChanged() {
             console.log("[main] resourceDownloadStateChanged downloading=", backend ? backend.isResourceDownloading : false)
             // Download panel auto-shows — no nav manipulation needed

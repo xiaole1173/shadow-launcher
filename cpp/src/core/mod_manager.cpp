@@ -515,16 +515,21 @@ int ModManager::downloadModFile(const QString& url, const QString& savePath,
 void ModManager::cancelModFileDownload(int downloadId)
 {
     auto it = m_activeModDownloads.find(downloadId);
-    if (it == m_activeModDownloads.end()) return;
+    if (it == m_activeModDownloads.end() || it->cancelled) return;   // 幂等：重复取消忽略
     qCInfo(logApp) << QStringLiteral("取消Mod下载 id=%1").arg(downloadId);
     it->cancelled = true;
+    const QString displayName = it->displayName;
     if (it->reply) {
         HttpClient::instance().abortDownload(it->reply);
         it->reply = nullptr;
     }
     QFile::remove(it->savePath);
     QFile::remove(it->savePath + ".tmp");
-    emit logMessage(tr("[取消] 已取消 Mod 下载: %1").arg(it->displayName));
+    emit logMessage(tr("[取消] 已取消 Mod 下载: %1").arg(displayName));
+    // ── 2026-08-15：取消完成信号（QML toast + 卡片取消态）──
+    // 驿道 abort 后的完成回调（cancelled 分支）只静默 erase 不发信号，
+    // 若不在此显式上报，卡片会永久停在"下载中"且无任何用户反馈。
+    emit modFileDownloadCancelled(downloadId, displayName);
 }
 
 void ModManager::pauseModFileDownload(int downloadId)

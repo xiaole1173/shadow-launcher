@@ -726,6 +726,10 @@ signals:
     void modFileDownloadProgress(int downloadId, qint64 received, qint64 total);
     void modFileDownloadFinished(int downloadId, bool success, const QString& filePath, const QString& displayName);
     void modFileDownloadFailed(int downloadId, const QString& errorDetail, const QString& displayName);
+    /// 2026-08-15：用户主动取消文件下载（QML 弹"取消成功" toast）
+    void modFileDownloadCancelled(int downloadId, const QString& displayName);
+    /// 2026-08-15：MC/加载器安装取消（转发自 VersionBackend，QML 弹 toast）
+    void cancelNotification(const QString& installId, const QString& message);
     /// 整合包搜索完成（池子全量，QML 按页切片）
     void modpackSearchResultsReady(const QVariantList& results);
     /// 数据包搜索完成（池子全量，QML 按页切片）
