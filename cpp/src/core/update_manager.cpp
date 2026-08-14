@@ -234,6 +234,25 @@ void UpdateManager::doCheck()
                 return;
             }
 
+            // ── 2026-08-15：同版本更新已就绪/在途/暂停 → 不重复下载 ──
+            // 用户实测：每点一次"检查更新"都重新下载已下载好的包（Ready 状态被
+            // 覆盖重下）。此处拦截：版本一致且已有下载状态 → 提示并直接结束检查。
+            if (!m_downloadVersion.isEmpty() && m_downloadVersion == tagName
+                && (m_state == Ready || m_state == Paused || m_state == Downloading)) {
+                qCInfo(logApp) << "[UpdateManager] 同版本更新已就绪/在途，跳过下载"
+                               << "tag=" << tagName << "state=" << static_cast<int>(m_state);
+                if (m_userInitiated) {
+                    if (m_state == Ready)
+                        emit toastMessage(tr("更新已就绪，重启后自动安装"));
+                    else if (m_state == Downloading)
+                        emit toastMessage(tr("更新正在下载中，请稍候"));
+                    else
+                        emit toastMessage(tr("更新下载已暂停，重启后自动续传"));
+                }
+                emit checkCompleted(true, tagName);
+                return;
+            }
+
             // New version — fetch compat.json to decide full vs. exe
             QJsonArray assets = release.value("assets").toArray();
             QString compatUrl;

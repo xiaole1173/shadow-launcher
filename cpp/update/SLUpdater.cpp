@@ -23,6 +23,7 @@
 #include <windows.h>
 #include <shellapi.h>
 #include <commctrl.h>
+#include <tlhelp32.h>   // 2026-08-15：枚举/结束 helper 进程（easytier/wv2login 可能锁文件）
 #include <string>
 #include <cstdio>
 
@@ -209,12 +210,48 @@ static DWORD countFilesRecursive(const std::wstring& dir)
     return n;
 }
 
+// ── 2026-08-15：结束可能锁定更新文件的 helper 进程 ──
+// 旧启动器退出后，easytier-core（联机通道）/wv2login（嵌入式登录）可能作为
+// 独立进程存活并锁定 bin/ 或 WebView2Loader.dll → 复制报 error 32
+// (ERROR_SHARING_VIOLATION)。更新需要替换这些文件，先结束它们是安全的
+// （新版本启动时会重新拉起）。
+static void killHelperProcesses()
+{
+    const wchar_t* names[] = {
+        L"easytier-core.exe", L"easytier-cli.exe", L"wv2login.exe",
+    };
+    for (const wchar_t* n : names) {
+        HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+        if (snap == INVALID_HANDLE_VALUE) continue;
+        PROCESSENTRY32W pe = { sizeof(pe) };
+        if (Process32FirstW(snap, &pe)) {
+            do {
+                if (_wcsicmp(pe.szExeFile, n) == 0) {
+                    HANDLE h = OpenProcess(PROCESS_TERMINATE, FALSE, pe.th32ProcessID);
+                    if (h) {
+                        TerminateProcess(h, 0);
+                        CloseHandle(h);
+                    }
+                }
+            } while (Process32NextW(snap, &pe));
+        }
+        CloseHandle(snap);
+    }
+    Sleep(500);   // 等句柄释放
+}
+
 static bool copyFileOverwrite(const std::wstring& src, const std::wstring& dst)
 {
-    if (CopyFileW(src.c_str(), dst.c_str(), FALSE)) return true;
-    // 目标只读/被占：先删再拷（旧进程已退出，正常无锁）
-    DeleteFileW(dst.c_str());
-    return CopyFileW(src.c_str(), dst.c_str(), FALSE) != FALSE;
+    // ── 2026-08-15：共享冲突重试（error 32 实测）──
+    // 杀 helper 后仍可能被 Defender/索引服务短暂锁定；删除目标后递增间隔重试，
+    // 最多 4 次（0.3/0.6/0.9/1.2s），最后一次失败才返回 false。
+    for (int attempt = 0; attempt < 4; ++attempt) {
+        if (CopyFileW(src.c_str(), dst.c_str(), FALSE)) return true;
+        const DWORD err = GetLastError();
+        DeleteFileW(dst.c_str());   // 目标存在/只读：先删再拷
+        if (attempt < 3) Sleep(300 * (attempt + 1));
+    }
+    return false;
 }
 
 // ── 递归复制（覆盖+新增）；skipExe=true 跳过两个 exe（单独处理）──
@@ -329,6 +366,9 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR, int)
     }
     Sleep(500);   // 确保文件句柄释放
     pumpMessages();
+
+    // ── 2026-08-15：结束 helper 进程，避免复制报 error 32（共享冲突）──
+    killHelperProcesses();
 
     // ── 3. 全量：复制新文件（覆盖+新增）→ 删多余旧文件 ──
     if (isFull) {

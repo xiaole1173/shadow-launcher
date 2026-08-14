@@ -11,6 +11,12 @@ import QtQuick.Controls.Basic
 // 特性: 右下角弹出、天蓝色主题、弹性滑入、淡出消失、多条自动堆叠
 //       showAction：duration=0 常驻（不自动消失），整条可点击触发 onAction，
 //       右上角 ✕ 手动关闭；点击后自动移除
+//
+// 2026-08-15 交互修复（用户实测）：
+//   - 鼠标区域必须挂在 toastRect 内（此前挂在 delegateItem，弹性滑入动画期间
+//     toast 可见但 MouseArea 还在右侧外 → 第一次点击无效）
+//   - ✕ 与"立即重启"按钮各自独立 MouseArea（z 高于整条），hover 效果只作用于
+//     按钮本身，不再整条高亮
 Item {
     id: root
 
@@ -66,7 +72,6 @@ Item {
 
             delegate: Item {
                 id: delegateItem
-                // 宽度绑定到 toastRect 的最终宽度
                 width: toastRect.width
                 height: 34
                 clip: false
@@ -76,9 +81,7 @@ Item {
                     height: 34
                     width: Math.min(toastLabel.implicitWidth + (model.isAction ? 132 : 24), model.isAction ? 480 : 380)
                     radius: StyleTokens.radiusSm
-                    // hover 高亮（仅可点击条）
-                    color: model.isAction && actionMouse.containsMouse ? "#1d2a3a"
-                         : StyleTokens.infoBg
+                    color: StyleTokens.infoBg
                     // 起始位置: 在 delegate 右侧外部（用于弹性滑入动画）
                     x: toastRect.width + 80
 
@@ -98,7 +101,7 @@ Item {
                         anchors.left: parent.left
                         anchors.leftMargin: 10
                         anchors.right: parent.right
-                        anchors.rightMargin: model.isAction ? 118 : 8
+                        anchors.rightMargin: model.isAction ? 128 : 8
                         anchors.verticalCenter: parent.verticalCenter
                         text: model.msg || ""
                         color: StyleTokens.textSecondary
@@ -107,44 +110,63 @@ Item {
                         maximumLineCount: 1
                     }
 
-                    // ── 操作按钮文字（showAction）──
-                    Text {
-                        id: actionLabel
+                    // ═══ 交互层（2026-08-15 重构：全部挂 toastRect 内，动画跟随）═══
+
+                    // ── "立即重启"按钮（z=1，高于整条点击层；hover 变色）──
+                    MouseArea {
+                        id: actionBtnMouse
                         anchors.right: parent.right
                         anchors.rightMargin: 30
                         anchors.verticalCenter: parent.verticalCenter
+                        width: 92; height: 24
                         visible: model.isAction
-                        text: model.actionText || ""
-                        color: StyleTokens.info
-                        font.pixelSize: StyleTokens.fontSizeSm
-                        font.weight: Font.DemiBold
-                    }
-
-                    // ── 关闭按钮（showAction 常驻条）──
-                    Text {
-                        id: closeMark
-                        anchors.right: parent.right
-                        anchors.rightMargin: 10
-                        anchors.verticalCenter: parent.verticalCenter
-                        visible: model.isAction
-                        text: "✕"
-                        color: closeHover.containsMouse ? StyleTokens.textPrimary : StyleTokens.textTertiary
-                        font.pixelSize: StyleTokens.fontSizeXs
-                        MouseArea {
-                            id: closeHover
-                            anchors.fill: parent; hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: { toastRect.removeSelf() }
+                        z: 1
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            var h = root._actionHandlers[model.toastId]
+                            if (h) {
+                                delete root._actionHandlers[model.toastId]
+                                h()
+                            }
+                            toastRect.removeSelf()
+                        }
+                        Text {
+                            anchors.centerIn: parent
+                            text: model.actionText || ""
+                            color: actionBtnMouse.containsMouse ? StyleTokens.info : "#6aa0ff"
+                            font.pixelSize: StyleTokens.fontSizeSm
+                            font.weight: Font.DemiBold
                         }
                     }
 
-                    // ── 整条点击（showAction）──
+                    // ── ✕ 关闭按钮（z=2，最高，独立点击）──
+                    MouseArea {
+                        id: closeMouse
+                        anchors.right: parent.right
+                        anchors.rightMargin: 4
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 24; height: 24
+                        visible: model.isAction
+                        z: 2
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: { toastRect.removeSelf() }
+                        Text {
+                            anchors.centerIn: parent
+                            text: "✕"
+                            color: closeMouse.containsMouse ? StyleTokens.textPrimary : StyleTokens.textTertiary
+                            font.pixelSize: StyleTokens.fontSizeXs
+                        }
+                    }
+
+                    // ── 整条可点（z=0，垫底；点非按钮区也触发 action）──
                     MouseArea {
                         id: actionMouse
                         anchors.fill: parent
-                        enabled: model.isAction
-                        hoverEnabled: model.isAction
-                        cursorShape: model.isAction ? Qt.PointingHandCursor : Qt.ArrowCursor
+                        visible: model.isAction
+                        z: 0
+                        cursorShape: Qt.PointingHandCursor
                         onClicked: {
                             var h = root._actionHandlers[model.toastId]
                             if (h) {
