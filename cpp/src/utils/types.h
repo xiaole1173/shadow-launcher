@@ -55,7 +55,7 @@ enum class DownloadSourcePolicy : int {
 struct DownloadConfig {
     int maxWorkers = 64;
     double speedLimitMB = -1;
-    DownloadSourcePolicy fileSource = DownloadSourcePolicy::PreferOfficial;
+    DownloadSourcePolicy fileSource = DownloadSourcePolicy::PreferOfficial;   // 全局 MC 下载策略
     DownloadSourcePolicy listSource = DownloadSourcePolicy::PreferOfficial;
 };
 

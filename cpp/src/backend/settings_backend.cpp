@@ -154,6 +154,10 @@ void SettingsBackend::loadSettings()
     m_postExitCommand = s.value(QStringLiteral("launch/postExitCommand"), QString()).toString();
 
     // Download settings
+    // 注：全局源策略默认 PreferOfficial(1)——仅影响 MC 下载（夸父/山海经）。
+    // 加载器（Forge/NeoForge/Fabric/OptiFine）的下载源在 version_backend /
+    // mod_loader_installer 内独立处理（2026-08-15：加载器默认镜像优先，
+    // 与全局 fileSource 解耦，避免影响 MC 下载）。
     m_fileDownloadSource = s.value(QStringLiteral("download/fileSource"), 1).toInt();
     m_listDownloadSource = s.value(QStringLiteral("download/listSource"), 1).toInt();
     m_maxDownloadThreads = s.value(QStringLiteral("download/threadLimit"), 64).toInt();

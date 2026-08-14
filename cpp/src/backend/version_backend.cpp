@@ -118,6 +118,35 @@ VersionBackend::VersionBackend(QObject* parent)
 
     m_installCardsModel = new InstallCardModel(this);
 
+    // ── 2026-08-15：速度"抓取式"改造 ──
+    // QML 每 200ms 轮询 cardData() 时，现场读实时会话状态聚合速度
+    // （MC 引擎 EMA + loader mlSpeed + Fabric API），速度不再依赖
+    // byteProgress→throttle→updateCardFromSession 回调刷新链。
+    // 聚合条件与 updateCardFromSession 合并分支严格一致。
+    m_installCardsModel->setLiveSpeedProvider([this](int row) -> qint64 {
+        const InstallCard* c = m_installCardsModel->cardAt(row);
+        if (!c) return 0;
+        // 整合包任务卡片（iid == m_modpackCardId）：走 taskCardToInstallCard
+        // 通道自己的聚合（含 mlPending/ctx 门控），不做现场覆盖
+        if (!m_modpackCardId.isEmpty() && c->iid == m_modpackCardId)
+            return c->speed;
+        auto* ds = dlSession(c->iid);
+        if (!ds) return c->speed;
+        if (ds->isMerged()) {
+            qint64 s = 0;
+            if (m_dlStates.contains(ds->mcVersion) && !ds->mcDownloadDone)
+                s += m_dlStates[ds->mcVersion].speed;
+            if (ds->loaderDownloadActive && ds->mlSpeed > 0)
+                s += ds->mlSpeed;
+            if (ds->fabricApiPending && ds->fabSpeed > 0)
+                s += ds->fabSpeed;
+            return s;
+        }
+        if (m_dlStates.contains(c->iid))
+            return m_dlStates[c->iid].speed;
+        return c->speed;
+    });
+
 
 
 
@@ -5343,17 +5372,28 @@ if (!loaderDlUrl.isEmpty()) {
                     updateStep(installName, loaderDlStepIdx, QStringLiteral("active"),
                                static_cast<int>(pct));
                     qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
-                    qint64 delta = recv - speedState->first;
-                    qint64 timeDelta = nowMs - speedState->second;
+                    // ── 2026-08-15：累计窗口（同安装器库 rawProgress 修复）──
+                    // 原实现每次回调都重置 speedState 锚点 → 驿道进度回调
+                    // 频繁（几十 ms 一次），timeDelta 永远 <200ms → instant 恒 0，
+                    // mlSpeed 保持旧值 → 主文件速度同样"下载中恒 0"。
+                    // 只在算出速度时推进锚点，delta 跨回调累计，每 200ms 出真值。
                     qint64 instant = 0;
-                    if (timeDelta >= 200 && speedState->second > 0 && delta > 0)
-                        instant = delta * 1000 / timeDelta;
-                    speedState->first = recv;
-                    speedState->second = nowMs;
+                    if (speedState->second > 0) {
+                        qint64 delta = recv - speedState->first;
+                        qint64 timeDelta = nowMs - speedState->second;
+                        if (timeDelta >= 200 && delta > 0) {
+                            instant = delta * 1000 / timeDelta;
+                            speedState->first = recv;
+                            speedState->second = nowMs;
+                        }
+                    } else {
+                        speedState->first = recv;
+                        speedState->second = nowMs;
+                    }
                     if (auto* ds = dlSession(installName)) {
                         ds->mlBytesDl = recv;
                         ds->mlBytesAll = total;
-                        if (instant > 0) ds->mlSpeed = instant;
+                        if (instant > 0) ds->mlSpeed = instant;   // 窗口间保持旧值，不写 0
                     }
                 },
                 [this, installName, tmpPath, ctx, onData, onFail](bool ok, const QString& err) {
@@ -5646,12 +5686,22 @@ void VersionBackend::startOptifineJarParallel(const QString& installName, const 
                 ds->loaderDownloadActive = true;
                 if (label == QStringLiteral("BMCLAPI") || label == QStringLiteral("官方")) {
                     qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
-                    qint64 delta = received - ds->fabSpeedLastBytes;
-                    qint64 timeDelta = nowMs - ds->fabSpeedLastMs;
-                    if (timeDelta >= 200 && ds->fabSpeedLastMs > 0 && delta > 0)
-                        ds->mlSpeed = delta * 1000 / timeDelta;
-                    ds->fabSpeedLastBytes = received;
-                    ds->fabSpeedLastMs = nowMs;
+                    // ── 2026-08-15：累计窗口（同驿道/安装器库修复）──
+                    // 原实现每次回调都重置 fabSpeedLastBytes/Ms → 回调频繁时
+                    // timeDelta 恒 <200ms → mlSpeed 永不更新（OptiFine 速度恒 0）。
+                    qint64 delta = 0, timeDelta = 0;
+                    if (ds->fabSpeedLastMs > 0) {
+                        delta = received - ds->fabSpeedLastBytes;
+                        timeDelta = nowMs - ds->fabSpeedLastMs;
+                        if (timeDelta >= 200 && delta > 0) {
+                            ds->mlSpeed = delta * 1000 / timeDelta;
+                            ds->fabSpeedLastBytes = received;
+                            ds->fabSpeedLastMs = nowMs;
+                        }
+                    } else {
+                        ds->fabSpeedLastBytes = received;
+                        ds->fabSpeedLastMs = nowMs;
+                    }
                 }
             });
 
@@ -7179,6 +7229,10 @@ const InstallCard* InstallCardModel::cardAt(int row) const {
     return &m_cards[row];
 }
 
+void InstallCardModel::setLiveSpeedProvider(std::function<qint64(int row)> provider) {
+    m_liveSpeed = std::move(provider);
+}
+
 void InstallCardModel::updateRow(int row, const InstallCard& card) {
     if (row < 0 || row >= m_cards.size()) return;
     // Poll 模式：只更新字段，不发射 dataChanged
@@ -7258,7 +7312,11 @@ QVariantMap InstallCardModel::cardData(int row) const {
     map["name"] = c.name;
     map["type"] = c.type;
     map["progress"] = c.progress;
-    map["speed"] = static_cast<qint64>(c.speed);
+    // ── 2026-08-15：速度"抓取式"改造 ──
+    // 缓存里的 speed 由 throttle 链每 200ms 写入；若轮询时现场聚合（provider），
+    // 速度永远是最新实时值，不再依赖 byteProgress 回调排队刷新。
+    // provider 返回 -1 表示该行不走现场聚合（保持缓存值）。
+    map["speed"] = (m_liveSpeed ? m_liveSpeed(row) : static_cast<qint64>(c.speed));
     map["phase"] = c.phase;
     map["remaining"] = c.remaining;
     map["steps"] = c.steps;
@@ -8607,6 +8665,9 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
         });
 
     // byteProgress: download speed display
+    // ── 2026-08-15：速度改"抓取式"后此 handler 只负责写速度源头 ──
+    // ds->mlSpeed 由 QML 轮询 cardData() → liveSpeed provider 现场读取聚合，
+    // 不再需要在此排队 throttle 刷新（8ac3cc8 的排队已移除）。
     connect(ctx->installer, &ModLoaderInstaller::byteProgress, this,
         [this, installId](const QString& /*file*/, qint64 received, qint64 total, qint64 speed) {
             auto* ds = dlSession(installId);
@@ -8614,16 +8675,6 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
             ds->mlBytesDl = received;
             ds->mlBytesAll = total;
             ds->mlSpeed = speed;
-            // ── 2026-08-15：byteProgress 更新 mlSpeed 后必须排队卡片刷新 ──
-            // 速度聚合（updateCardFromSession）只在 throttle 触发时执行，而
-            // throttle 此前只由 updateStep（installerLibsFileProgress 文件级）
-            // 排队启动。安装器库并发小文件下载时文件级进度低频，mlSpeed
-            // 更新后卡片速度刷新滞后 → UI 显示"下载中但速度 0"。
-            // 这里直接排队，保证每次速度更新都触发 200ms throttle 刷新。
-            if (!m_pendingCardUpdates.contains(installId))
-                m_pendingCardUpdates.append(installId);
-            if (!m_cardUpdateThrottle.isActive())
-                m_cardUpdateThrottle.start();
         });
 
     // ── verifyStarted / verifyFinished（2026-08-15 重写：精确驱动 loader 校验步骤）──

@@ -285,6 +285,8 @@ private:
     qreal m_cropY = 0.5;
 
     // Download settings
+    // 全局源策略默认 PreferOfficial(1)——仅影响 MC 下载；加载器下载源独立
+    // 于 version_backend / mod_loader_installer（默认镜像优先，2026-08-15）
     int m_fileDownloadSource = 1;      // 0=PreferMirror, 1=PreferOfficial, 2=AutoSwitch
     int m_listDownloadSource = 1;
     int m_maxDownloadThreads = 64;

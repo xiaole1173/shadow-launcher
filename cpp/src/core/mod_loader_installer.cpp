@@ -1847,6 +1847,7 @@ void ModLoaderInstaller::forgeStepLibs(const QByteArray& jarData)
         // 这里用 200ms 独立窗口按累计字节自算，绕过全局窗口。
         qint64 speedLastBytes = 0;
         qint64 speedLastMs = 0;
+        qint64 lastSpeed = 0;   // 最近一次算出的速度：窗口间保持，避免轮询抓到 0 闪烁
     };
     auto st = std::make_shared<St>();
     auto finishLibs = [this, st]() {
@@ -1912,19 +1913,33 @@ void ModLoaderInstaller::forgeStepLibs(const QByteArray& jarData)
                         qint64 totalRecv = st->doneBytes;
                         for (auto it = st->inflightRecv.begin(); it != st->inflightRecv.end(); ++it)
                             totalRecv += it.value();
-                        // ── 2026-08-15：独立 200ms 窗口算速度，绕过 emitByteProgress
-                        //    的全局 500ms 窗口（并发小文件下恒发 0）──
+                        // ── 2026-08-15：独立 200ms 滑动窗口算速度 ──
+                        // ⚠ 之前版本每次回调都更新 speedLastMs → 驿道对小文件
+                        // 进度回调极频繁（每几十 ms 一次），dt 永远被重置 <200ms
+                        // → speed 恒 0，仅在某个回调恰好间隔 ≥200ms 时闪现一次
+                        // （用户实测"接近完成时一闪而过 1.1MB/s"）。
+                        // 正确算法：只在算出速度时才推进窗口锚点（累计窗口），
+                        // 回调再频繁也能每 200ms 输出一次真实速度。
+                        // 窗口间保持 lastSpeed 发射（不发 0）——QML 每 200ms 轮询
+                        // cardData()，若窗口间发 0，轮询会一半概率抓到 0 闪烁。
                         qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
                         qint64 speed = 0;
                         if (st->speedLastMs > 0) {
                             qint64 dt = nowMs - st->speedLastMs;
                             qint64 delta = totalRecv - st->speedLastBytes;
-                            if (dt >= 200 && delta > 0)
-                                speed = delta * 1000 / dt;
+                            if (dt >= 200) {
+                                speed = (delta > 0) ? delta * 1000 / dt : 0;
+                                st->lastSpeed = speed;
+                                // 仅算出速度时推进锚点（累计窗口）
+                                st->speedLastBytes = totalRecv;
+                                st->speedLastMs = nowMs;
+                            }
+                            // dt<200：不更新锚点，累计到下一个 200ms 窗口
+                        } else {
+                            st->speedLastBytes = totalRecv;
+                            st->speedLastMs = nowMs;
                         }
-                        st->speedLastBytes = totalRecv;
-                        st->speedLastMs = nowMs;
-                        emit byteProgress(QFileInfo(savePath).fileName(), totalRecv, totalRecv, speed);
+                        emit byteProgress(QFileInfo(savePath).fileName(), totalRecv, totalRecv, st->lastSpeed);
                         // 注意：字节级进度只走 byteProgress（version_backend 钳制 100%）。
                         // 不在此发 installerLibsFileProgress——该信号是文件级（done/total），
                         // 字节级与文件级两个口径交叉更新会导致 UI 出现

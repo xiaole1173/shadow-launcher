@@ -74,6 +74,13 @@ public:
     Q_INVOKABLE QVariantMap cardData(int row) const;  // poll 接口：返回整行数据
     const InstallCard* cardAt(int row) const;  // read-only peek
 
+    // ── 2026-08-15：速度"抓取式"改造 ──
+    // QML 每 200ms 轮询 cardData()。速度是轻量值（三个 qint64 相加），
+    // 不必走 byteProgress→throttle→updateCardFromSession 回调刷新链：
+    // VersionBackend 注入 provider，cardData() 被 poll 时现场读实时会话状态
+    // （ds->mlSpeed / m_dlStates / fabSpeed）聚合返回 → 速度永不依赖回调时序。
+    void setLiveSpeedProvider(std::function<qint64(int row)> provider);
+
     int count() const { return m_cards.size(); }
     int generation() const { return m_generation; }
 
@@ -83,6 +90,7 @@ signals:
 private:
     QVector<InstallCard> m_cards;
     int m_generation = 0;
+    std::function<qint64(int)> m_liveSpeed;   // 2026-08-15：速度现场聚合 provider（轮询时调用）
 };
 
 class VersionManager;
