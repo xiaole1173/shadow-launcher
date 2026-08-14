@@ -5104,16 +5104,21 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
         }
         rebuildSteps(installName, stepNames, weights, shows);
     } else {
+        // ── 2026-08-15：顺序换回 校验(5) → 安装器库(6) ──
+        // 用户确认 NeoForge 实际时序：主文件下载 → SHA1 校验(verify) → 安装器库下载 → 安装。
+        // 上一版把安装器库排在校验前，UI 步骤顺序与真实执行顺序相反（日志实测
+        // 23:52:02.404 idx=6 校验 completed 先于 idx=5 安装器库 active）。
+        // 真实顺序：主文件(4) → 校验(5) → 安装器库(6) → 安装(7)。
         rebuildSteps(installName, {
             tr("下载原版 JSON 文件"),
             tr("下载原版支持库文件"),
             tr("下载原版资源文件"),
             tr("校验游戏资源完整性"),
             tr("下载 %1 主文件").arg(loaderLabel),
-            tr("下载 %1 安装器库").arg(loaderLabel),
             tr("校验 %1 完整性").arg(loaderLabel),
+            tr("下载 %1 安装器库").arg(loaderLabel),
             tr("安装 %1").arg(loaderLabel)
-        }, {3.0, 8.0, 5.0, 0.5, 6.0, 4.0, 0.5, 6.0},
+        }, {3.0, 8.0, 5.0, 0.5, 6.0, 0.5, 4.0, 6.0},
          {true, true, true, true, true, true, true, true});
     }
 
@@ -6105,7 +6110,16 @@ bool VersionBackend::isModLoaderInstalling() const {
         if (it.value() && it.value()->isRunning()) return true;
     }
     for (auto it = m_mergedContexts.constBegin(); it != m_mergedContexts.constEnd(); ++it) {
-        if (it.value() && it.value()->installer && it.value()->installer->isRunning()) return true;
+        if (it.value() && it.value()->installer) {
+            // ── 2026-08-15：安装器库下载阶段也算"安装中" ──
+            // verify-only 模式（installNeoForgeFromData）m_running=false，
+            // 但 forgeStepLibs 下载安装器库仍在进行（m_installerLibsRunning=true）。
+            // 此前 isModLoaderInstalling()=false → ds->mlSpeed 不计入速度显示
+            // → UI 速度恒 0（用户实测"下载安装器库时速度是0但下载确实在进行"）。
+            if (it.value()->installer->isRunning()
+                || it.value()->installer->installerLibsActive())
+                return true;
+        }
     }
     return false;
 
@@ -6450,6 +6464,22 @@ void VersionBackend::showStep(const QString& installId, int index) {
     auto* ds = ensureSession(installId);
 
     if (index < 0 || index >= ds->steps.size()) return;
+
+    // ── 2026-08-15：状态机保护——showStep 不得把已完成/失败步骤打回 active ──
+    // showStep 原本无条件 setActive + 写 ds->steps["status"]="active"，
+    // 绕过 updateStep 的状态机保护（completed 不被降级）。
+    // 若 verifyFinished 已把校验步骤标 completed，而后续又有路径（如
+    // handleLoaderData 的 showStep(verifyStep) / verifyStarted）对同一索引
+    // 调 showStep，会把 completed 打回 active → UI "100% 但冒三点/进行态"
+    // 永不转完成（用户实测"校验Neoforge完整性 100% 不转完成态"）。
+    // 规则与 updateStep 一致：terminal 状态不允许被 active/pending 覆盖。
+    {
+        QString curStatus = ds->steps[index].toMap().value(QStringLiteral("status")).toString();
+        if (curStatus == QStringLiteral("completed")
+            || curStatus == QStringLiteral("failed")
+            || curStatus == QStringLiteral("skipped"))
+            return;
+    }
 
     // ── Update StepNode: unhide + activate ──
     if (auto* node = ds->pipeline()->stepNode(index)) {

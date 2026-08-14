@@ -48,6 +48,9 @@ public:
                                 const QString& bmclType = QString(), const QString& bmclPatch = QString());
 
     bool isRunning() const { return m_running; }
+    /// 安装器库（install_profile libraries）并行下载中——即使 m_running=false
+    /// （verify-only 模式），下载速度也应计入安装速度（2026-08-15）
+    bool installerLibsActive() const { return m_installerLibsRunning; }
     QString loaderVersion() const { return m_loaderVersion; }
     bool hasCachedJar() const { return !m_cachedJar.isEmpty(); }
 
