@@ -88,3 +88,6 @@ lzma_sdk/
 temp_decompile/
 # 旧 CEF 登录辅助（已被 WebView2 方案替代）
 cef_helper/
+
+# Publish tool local config (real base_url / paths)
+tools/publish_config.json

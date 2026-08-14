@@ -41,6 +41,9 @@ public:
     void setQtVersion(const QString& v) { m_qtVersion = v; }
     void setResourceEpoch(int e) { m_resourceEpoch = e; }
     void setRepo(const QString& owner, const QString& repo);
+    /// 2026-08-15：自定义更新服务器 API（latest.json，字段兼容 Gitee release）。
+    /// 非空优先于 setRepo 的 Gitee API。
+    void setUpdateApiUrl(const QString& url);
 
     State state() const { return m_state; }
     bool isBusy() const { return m_state == Checking || m_state == Downloading; }

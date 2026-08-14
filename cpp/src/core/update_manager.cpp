@@ -35,6 +35,12 @@ void UpdateManager::setRepo(const QString& owner, const QString& repo)
                    .arg(owner, repo);
 }
 
+// ── 2026-08-15：自定义更新服务器（latest.json，字段兼容 Gitee release 格式）──
+void UpdateManager::setUpdateApiUrl(const QString& url)
+{
+    m_apiUrl = url;
+}
+
 // ── State persistence ──
 
 static QVersionNumber parseTag(const QString& tag)

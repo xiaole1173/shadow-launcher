@@ -30,6 +30,13 @@
 #define SHADOW_GITEE_REPO "YOUR_GITEE_REPO"
 #endif
 
+// ── 自定义更新服务器 API（2026-08-15 迁移）──
+// 指向自建服务器的 latest.json（字段兼容 Gitee release 格式）。
+// 非空时优先使用，替代 Gitee API；为空则回退 setRepo(Gitee)。
+#ifndef SHADOW_UPDATE_API_URL
+#define SHADOW_UPDATE_API_URL ""
+#endif
+
 // 本地注入：若 secrets_local.h 存在（git 忽略），其 #define 覆盖上述占位符
 #if __has_include("secrets_local.h")
 #include "secrets_local.h"

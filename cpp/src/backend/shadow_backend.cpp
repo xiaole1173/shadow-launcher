@@ -716,8 +716,15 @@ ShadowBackend::ShadowBackend(QObject* parent)
 
     // ── Update manager ──
     m_updateManager = new UpdateManager(this);
-    // 更新服务器仓库标识：真实值由 src/secrets_local.h 注入（git 忽略），仓库内为占位符
-    m_updateManager->setRepo(QStringLiteral(SHADOW_GITEE_OWNER), QStringLiteral(SHADOW_GITEE_REPO));
+    // ── 2026-08-15：更新服务器迁移（secrets 注入）──
+    // secrets_local.h 定义 SHADOW_UPDATE_API_URL（自建服务器 latest.json）时优先；
+    // 为空则回退 Gitee API（setRepo）。
+    const QString customUpdateApi = QStringLiteral(SHADOW_UPDATE_API_URL).trimmed();
+    if (!customUpdateApi.isEmpty()) {
+        m_updateManager->setUpdateApiUrl(customUpdateApi);
+    } else {
+        m_updateManager->setRepo(QStringLiteral(SHADOW_GITEE_OWNER), QStringLiteral(SHADOW_GITEE_REPO));
+    }
     m_updateManager->setCurrentVersion(appVersion());
     m_updateManager->setQtVersion(QStringLiteral(SHADOW_QT_VERSION));
     m_updateManager->setResourceEpoch(SHADOW_RESOURCE_EPOCH);
