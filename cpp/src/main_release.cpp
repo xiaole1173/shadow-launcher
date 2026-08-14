@@ -88,13 +88,17 @@ public:
 
 // Global for screenshot mode
 static QWindow* screenshotWindow = nullptr;
-// ── 全量更新安装（2026-08-11）：删除除 .minecraft/logs/java_cache/agreement_consent.txt/_update 外所有内容后覆盖更新 ──
-// zip 解压到 _update/extracted → 清理旧目录（保留 .minecraft/logs/_update）→ 复制新文件
-// （ShadowLauncher.exe 跳过，由 SLUpdater 等旧进程退出后替换）。成功返回 true 并设置
-// outNewExeW（新 exe 路径）；失败返回 false（跳过更新，继续用当前版本）。
-static bool applyFullUpdate(const std::wstring& appDirW,
-                            const std::wstring& zipPathW,
-                            std::wstring& outNewExeW)
+// ── 全量更新准备（2026-08-15 方案A重构）──
+// 旧实现 applyFullUpdate 在当前进程（PreInit）内删除并复制自身 DLL——
+// 进程存活期间 DLL 被 loader 锁定，删除/复制必然失败 → 全量更新静默失败。
+// 现在这里只做"解压 + 完整性校验"（只写新文件，不触碰已加载文件，安全），
+// 真正的"删旧 + 复制 + 换 exe"移入 SLUpdater（旧进程退出后、无锁时执行）。
+// 成功返回 true 并设置 outNewExeW（新 exe 路径）与 outExtractDirW（解压目录）；
+// 失败返回 false（跳过更新，继续用当前版本）。
+static bool prepareFullUpdate(const std::wstring& appDirW,
+                              const std::wstring& zipPathW,
+                              std::wstring& outNewExeW,
+                              std::wstring& outExtractDirW)
 {
     const QString appDir = QString::fromWCharArray(appDirW.c_str());
     const QString updateDir = appDir + QStringLiteral("/_update");
@@ -116,7 +120,7 @@ static bool applyFullUpdate(const std::wstring& appDirW,
         OutputDebugStringA("[PreInit] 全量更新：解压失败\n");
         return false;
     }
-    
+
     // 2) 包内必须有新主程序（否则更新后无 exe 可运行）
     const QString newExe = extractDir + QStringLiteral("/ShadowLauncher.exe");
     if (!QFileInfo::exists(newExe)) {
@@ -124,52 +128,11 @@ static bool applyFullUpdate(const std::wstring& appDirW,
         return false;
     }
     outNewExeW = newExe.toStdWString();
+    outExtractDirW = extractDir.toStdWString();
 
-    // 3) 删除启动器目录下除 .minecraft / logs / _update 外的所有内容
-    const QDir ad(appDir);
-    const QStringList stale = ad.entryList(QDir::AllEntries | QDir::NoDotAndDotDot);
-    for (const QString& e : stale) {
-        // 保留：.minecraft（游戏数据）/ logs（日志）/ java_cache（Java 运行时，删了会导致 Java 缺失）/
-        //       agreement_consent.txt（协议同意记录，删了要重新同意）/ _update（更新临时）
-        // 其余个性化数据均不在 appDir：设置/自定义背景=QSettings 注册表+图片原路径，beta 密钥/账号=AppData
-        if (e == QStringLiteral(".minecraft") || e == QStringLiteral("logs")
-            || e == QStringLiteral("java_cache") || e == QStringLiteral("_update")
-            || e == QStringLiteral("agreement_consent.txt"))
-            continue;
-        const QString p2 = appDir + QLatin1Char('/') + e;
-        if (QFileInfo(p2).isDir())
-            QDir(p2).removeRecursively();
-        else
-            QFile::remove(p2);   // 运行中的 ShadowLauncher.exe 删不掉无妨（SLUpdater 负责替换）
-    }
-
-    // 4) 复制 extracted/* → appDir（exe 跳过，由 SLUpdater 替换）
-    std::function<bool(const QString&, const QString&)> copyTree =
-        [&](const QString& srcDir, const QString& dstDir) -> bool {
-        QDir().mkpath(dstDir);
-        const QDir sd(srcDir);
-        const QStringList items = sd.entryList(QDir::AllEntries | QDir::NoDotAndDotDot);
-        for (const QString& it : items) {
-            const QString s = srcDir + QLatin1Char('/') + it;
-            const QString d = dstDir + QLatin1Char('/') + it;
-            if (QFileInfo(s).isDir()) {
-                if (!copyTree(s, d)) return false;
-            } else {
-                if (it == QStringLiteral("ShadowLauncher.exe")) continue;
-                if (QFile::exists(d)) QFile::remove(d);
-                if (!QFile::copy(s, d)) return false;
-            }
-        }
-        return true;
-    };
-    if (!copyTree(extractDir, appDir)) {
-        OutputDebugStringA("[PreInit] 全量更新：文件复制失败\n");
-        return false;
-    }
-
-    // 5) 更新包已解压完成，删除 zip 释放空间（extracted 保留给 SLUpdater 换 exe）
+    // 3) 删除 zip 释放空间（extracted 保留给 SLUpdater 复制 + 换 exe）
     QFile::remove(zipPath);
-    OutputDebugStringA("[PreInit] 全量更新：解压+覆盖完成，准备替换 exe\n");
+    OutputDebugStringA("[PreInit] 全量更新：解压+校验完成，准备由 SLUpdater 执行替换\n");
     return true;
 }
 
@@ -259,7 +222,7 @@ int main(int argc, char *argv[])
                 if (stateVal == 5) {
                     auto pos = json.find("\"download_version\":\"");
                     if (pos != std::string::npos) {
-                        pos += 21;   // 2026-08-11 off-by-one 修复："download_version":" 为 21 字符
+                        pos += 20;   // 2026-08-15 修复：'"download_version":"' 实际 20 字符（原 21 off-by-one）
                         auto end = json.find('"', pos);
                         std::string dlVer = json.substr(pos, end - pos);
                         if (dlVer == SHADOW_DISPLAY_VERSION) {
@@ -302,6 +265,16 @@ int main(int argc, char *argv[])
                         FindClose(hFind);
                     }
                 } else if (stateVal == 5) { // Ready
+                    // 解析新版本号（changelog 用；2026-08-15 修复：此前公告写的是当前版本）
+                    std::string dlVer;
+                    {
+                        auto dvPos = json.find("\"download_version\":\"");
+                        if (dvPos != std::string::npos) {
+                            dvPos += 20;   // '"download_version":"' = 20 字符
+                            auto dvEnd = json.find('"', dvPos);
+                            dlVer = json.substr(dvPos, dvEnd - dvPos);
+                        }
+                    }
                     auto pos = json.find("\"download_path\":\"");
                     if (pos != std::string::npos) {
                         pos += 17;   // 2026-08-11 off-by-one 修复："download_path":" 为 17 字符
@@ -348,7 +321,8 @@ int main(int argc, char *argv[])
                                 HANDLE hCl = CreateFileW(clPath.c_str(), GENERIC_WRITE, 0, nullptr,
                                                          CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
                                 if (hCl != INVALID_HANDLE_VALUE) {
-                                    std::string wrapped = "{\"version\":\"" + std::string(SHADOW_DISPLAY_VERSION)
+                                    // 2026-08-15：version 用新版本号（此前误写当前版本 SHADOW_DISPLAY_VERSION）
+                                    std::string wrapped = "{\"version\":\"" + dlVer
                                                          + "\",\"notes\":\"" + jsonEscape(notes) + "\"}";
                                     DWORD written;
                                     WriteFile(hCl, wrapped.data(), (DWORD)wrapped.size(), &written, nullptr);
@@ -358,12 +332,13 @@ int main(int argc, char *argv[])
                             }
                         }
 
-                        // ── 2026-08-11：全量更新（.zip 包）──
-                        // 删除除 .minecraft/logs 外的所有内容后覆盖更新；exe 由 SLUpdater 替换
+                        // ── 2026-08-11/15：全量更新（.zip 包）──
+                        // 解压+校验由 prepareFullUpdate 完成（当前进程存活，不能动自身 DLL）；
+                        // 删除旧文件/复制新文件/换 exe 全部移交 SLUpdater（旧进程退出后无锁执行）
                         const bool isZip = newFile.size() >= 4
                             && newFile.compare(newFile.size() - 4, 4, ".zip") == 0;
-                        std::wstring installNewExeW;
-                        if (isZip && !applyFullUpdate(appDirW, newFileW, installNewExeW)) {
+                        std::wstring installNewExeW, extractDirW;
+                        if (isZip && !prepareFullUpdate(appDirW, newFileW, installNewExeW, extractDirW)) {
                             OutputDebugStringA("[PreInit] 全量更新失败，继续使用当前版本\n");
                             DeleteFileW(statePath.c_str());
                             DeleteFileW(lockPath.c_str());
@@ -384,14 +359,22 @@ int main(int argc, char *argv[])
 
                             OutputDebugStringA("[PreInit] 发现待安装更新，启动 SLUpdater\n");
                             DWORD pid = GetCurrentProcessId();
-                            wchar_t cmdLine[2048];
-                            swprintf_s(cmdLine, L"\"%s\" %lu \"%s\" \"%s\"",
-                                       updaterPath.c_str(), pid, exePathW, newFileW.c_str());
+                            // 全量：第 4 参数 = extracted 目录（SLUpdater 执行删旧+复制+换 exe）；
+                            // 增量：仅 3 参数（SLUpdater 只换 exe）
+                            wchar_t cmdLine[4096];
+                            if (isZip) {
+                                swprintf_s(cmdLine, L"\"%s\" %lu \"%s\" \"%s\" \"%s\"",
+                                           updaterPath.c_str(), pid, exePathW, newFileW.c_str(),
+                                           extractDirW.c_str());
+                            } else {
+                                swprintf_s(cmdLine, L"\"%s\" %lu \"%s\" \"%s\"",
+                                           updaterPath.c_str(), pid, exePathW, newFileW.c_str());
+                            }
 
                             STARTUPINFOW si = { sizeof(si) };
                             PROCESS_INFORMATION pi = {};
                             si.dwFlags = STARTF_USESHOWWINDOW;
-                            si.wShowWindow = SW_HIDE;
+                            si.wShowWindow = SW_SHOW;   // 2026-08-15：SLUpdater 带进度窗口，不再隐藏
                             CreateProcessW(nullptr, cmdLine, nullptr, nullptr,
                                            FALSE, 0, nullptr, nullptr, &si, &pi);
                             CloseHandle(pi.hProcess);

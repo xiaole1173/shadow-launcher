@@ -167,6 +167,26 @@ Window {
         function onToastMessage(message) {
             if (toastManager) toastManager.show(message)
         }
+        // ── 2026-08-15：更新包下载完成 → 常驻 toast → 确认框 → 退出重启安装 ──
+        function onUpdateReadyForRestart(version) {
+            var ver = version || ""
+            if (!toastManager) return
+            toastManager.showAction("更新已就绪：" + ver + "，点击立即重启安装", function() {
+                confirmDialogLoader.open(
+                    qsTr("重启安装更新"),
+                    qsTr("更新 %1 已下载完成，重启后将自动完成安装。\n若正在进行下载或安装任务，请等待完成后再重启。").arg(ver),
+                    function() {
+                        var busy = (backend && (backend.installing
+                                                || backend.isResourceDownloading
+                                                || (backend.modpackBusy && backend.modpackBusy())))
+                        if (busy) {
+                            if (toastManager) toastManager.show(qsTr("有下载任务正在进行，请等待完成后再重启"), "", 5000)
+                            return
+                        }
+                        if (backend) backend.quitForUpdate()
+                    })
+            }, qsTr("立即重启"))
+        }
         // ── 模组/光影/资源包文件下载完成/失败：成功/失败 Toast（卡片保留绿色/红色终态）──
         function onModFileDownloadFinished(dlId, success, filePath, displayName) {
             if (toastManager) {

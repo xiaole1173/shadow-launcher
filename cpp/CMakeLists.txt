@@ -801,4 +801,5 @@ set_target_properties(SLUpdater PROPERTIES
 target_compile_options(SLUpdater PRIVATE /utf-8)
 target_link_libraries(SLUpdater PRIVATE
     shell32
+    comctl32    # 2026-08-15：进度条控件 PROGRESS_CLASS
 )

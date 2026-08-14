@@ -641,6 +641,7 @@ public:
 
     // ── Update ──
     Q_INVOKABLE void checkForUpdate();
+    Q_INVOKABLE void quitForUpdate();   // 2026-08-15：确认重启安装后退出进程（下次启动 PreInit 自动安装）
     bool updateChecking() const;
     int updateState() const;
 
@@ -655,6 +656,9 @@ signals:
     void toastMessage(const QString& message);
     void updateDownloadProgress(qint64 received, qint64 total);
     void updateChangelogAvailable(const QString& version, const QString& notes);
+    /// 2026-08-15：更新包下载完成、可重启安装（转发自 UpdateManager::updateAvailableForInstall，
+    /// QML 弹常驻 toast 引导用户重启）
+    void updateReadyForRestart(const QString& version);
     void accountChanged();
     void microsoftLoginProgress(const QString& step, const QString& detail);
     void microsoftLoginSuccess(const QString& username, const QString& uuid);

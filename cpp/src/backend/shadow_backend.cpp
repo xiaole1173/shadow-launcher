@@ -729,6 +729,9 @@ ShadowBackend::ShadowBackend(QObject* parent)
             this, &ShadowBackend::toastMessage);
     connect(m_updateManager, &UpdateManager::downloadProgress,
             this, [this](qint64 r, qint64 t) { emit updateDownloadProgress(r, t); });
+    // ── 2026-08-15：下载完成 → QML 常驻 toast 引导用户立即重启安装 ──
+    connect(m_updateManager, &UpdateManager::updateAvailableForInstall,
+            this, &ShadowBackend::updateReadyForRestart);
     // Resume paused download from previous session
     m_updateManager->resumePausedDownload();
     // Check for post-update changelog (delay for QML init)
@@ -4626,6 +4629,14 @@ void ShadowBackend::checkForUpdate()
 {
     if (!m_updateManager) return;
     m_updateManager->checkUserInitiated();
+}
+
+// ── 2026-08-15：用户确认"立即重启安装"后退出进程 ──
+// state.json 已标记 Ready，下次启动 PreInit 自动执行安装（增量/全量）。
+void ShadowBackend::quitForUpdate()
+{
+    qCInfo(logApp) << QStringLiteral("[更新] 用户确认重启安装，退出进程");
+    QTimer::singleShot(0, qApp, &QCoreApplication::quit);
 }
 
 bool ShadowBackend::updateChecking() const

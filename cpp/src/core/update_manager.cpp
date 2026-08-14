@@ -288,6 +288,14 @@ void UpdateManager::onCompatJsonReady(const QByteArray& body)
     if (compat.value("update_mode").toString() == QStringLiteral("force_full")) {
         QString reason = compat.value("force_reason").toString();
         qCInfo(logApp) << "[UpdateManager] force_full:" << reason;
+        // ── 2026-08-15：force_full 也设置 full_sha256（原实现直接 return，
+        //    不设置 m_expectedSha256 → 全量包不校验，或残留上一次的 exe_sha256
+        //    导致校验必然失败删包）──
+        m_expectedSha256 = compat.value("full_sha256").toString();
+        if (!m_expectedSha256.isEmpty())
+            qCInfo(logApp) << "[UpdateManager] SHA256 期望=" << m_expectedSha256;
+        else
+            qCWarning(logApp) << "[UpdateManager] compat.json 未提供 full_sha256，跳过校验";
         pickAssetAndDownload(true);
         return;
     }
@@ -348,7 +356,16 @@ void UpdateManager::pickAssetAndDownload(bool forceFull)
             }
         }
     }
-    if (asset.isEmpty()) asset = assets.first().toObject();
+    // ── 2026-08-15：找不到匹配资产不再回退 assets.first()（原回退可能把 .zip
+    //    当增量 exe 下载 → SHA256 用 exe_sha256 校验必然失败 → 更新中断）──
+    if (asset.isEmpty()) {
+        qCWarning(logApp) << "[UpdateManager] 未找到匹配的更新资产 forceFull=" << forceFull;
+        if (m_userInitiated)
+            emit toastMessage(forceFull ? tr("未找到全量更新包，请稍后重试")
+                                        : tr("未找到增量更新文件，请稍后重试"));
+        setState(Idle);
+        return;
+    }
 
     QString downloadUrl = asset.value("browser_download_url").toString();
     QString fileName    = asset.value("name").toString();
@@ -428,9 +445,11 @@ void UpdateManager::resumeDownload(qint64 resumeFrom)
             m_downloadReceived = received;
             m_downloadTotal = total;
             emit downloadProgress(received, total);
-            static qint64 lastSaved = 0;
-            if (received - lastSaved > 512 * 1024 || received >= total) {
-                lastSaved = received;
+            // ── 2026-08-15：m_lastStateSaved 为成员（原 static 局部变量跨下载
+            //    残留：第二次下载 received < 旧 lastSaved 时断点永不保存）──
+            if (received - m_lastStateSaved > 512 * 1024
+                || (total > 0 && received >= total)) {
+                m_lastStateSaved = received;
                 saveState();
             }
         },
@@ -461,24 +480,34 @@ void UpdateManager::onDownloadFinished(bool ok, const QString& error, int httpSt
     // SHA256 integrity check
     if (!m_expectedSha256.isEmpty()) {
         QFile verifyFile(m_downloadPath);
-        if (verifyFile.open(QIODevice::ReadOnly)) {
-            QCryptographicHash hash(QCryptographicHash::Sha256);
-            hash.addData(&verifyFile);
-            QString actual = hash.result().toHex().toLower();
-            verifyFile.close();
-            if (actual != m_expectedSha256.toLower()) {
-                qCWarning(logApp) << "[UpdateManager] SHA256 校验失败"
-                                  << "期望=" << m_expectedSha256
-                                  << "实际=" << actual;
-                QFile::remove(m_downloadPath);
-                setState(Idle);
-                if (m_userInitiated)
-                    emit toastMessage(tr("下载文件校验失败，文件可能已损坏"));
-                emit downloadFailed(tr("SHA256 mismatch"));
-                return;
-            }
-            qCInfo(logApp) << "[UpdateManager] SHA256 校验通过";
+        // ── 2026-08-15：文件打不开 = 损坏/被占用，不能跳过校验（原实现直接
+        //    放行 → 损坏文件进入 Ready 被安装）──
+        if (!verifyFile.open(QIODevice::ReadOnly)) {
+            qCWarning(logApp) << "[UpdateManager] SHA256 校验文件无法打开:"
+                              << m_downloadPath << verifyFile.errorString();
+            QFile::remove(m_downloadPath);
+            setState(Idle);
+            if (m_userInitiated)
+                emit toastMessage(tr("下载文件无法读取，已删除，请重新更新"));
+            emit downloadFailed(tr("verify file unreadable"));
+            return;
         }
+        QCryptographicHash hash(QCryptographicHash::Sha256);
+        hash.addData(&verifyFile);
+        QString actual = hash.result().toHex().toLower();
+        verifyFile.close();
+        if (actual != m_expectedSha256.toLower()) {
+            qCWarning(logApp) << "[UpdateManager] SHA256 校验失败"
+                              << "期望=" << m_expectedSha256
+                              << "实际=" << actual;
+            QFile::remove(m_downloadPath);
+            setState(Idle);
+            if (m_userInitiated)
+                emit toastMessage(tr("下载文件校验失败，文件可能已损坏"));
+            emit downloadFailed(tr("SHA256 mismatch"));
+            return;
+        }
+        qCInfo(logApp) << "[UpdateManager] SHA256 校验通过";
     }
 
     qCInfo(logApp) << "[UpdateManager] 下载完成 => Ready";

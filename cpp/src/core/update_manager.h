@@ -110,6 +110,7 @@ private:
     QString m_downloadFileName;
     qint64 m_downloadTotal = 0;
     qint64 m_downloadReceived = 0;
+    qint64 m_lastStateSaved = 0;   // 2026-08-15：断点状态保存节流锚点（替代原 static 局部变量，跨下载残留）
     HttpClient::DownloadHandle* m_activeReply = nullptr;
 
     // Suppress state file saves during init
