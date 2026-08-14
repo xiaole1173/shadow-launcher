@@ -89,13 +89,22 @@ StepNode* StepPipeline::addStep(const QString& key, const QString& name, qreal w
     m_model->appendStep(node);
     m_keyIndex[key] = idx;
 
-    // 监听完成信号
-    connect(node, &StepNode::statusChanged, this, [this, key]() {
-        auto* n = step(key);
-        if (n && n->status() == StepStatus::Completed) {
-            advance();
-        }
-    });
+    // ── 2026-08-15：移除自动推进钩子 ──
+    // 原实现监听每个 StepNode 的 statusChanged：任意步骤 Completed → advance()
+    // → 把 m_currentIndex+1 的步骤无条件 setActive()。
+    // 这在顺序执行场景（纯 MC 下载）下成立，但 merged 安装是**并行**的：
+    // MC 下载与 NeoForge 主文件/安装器库同时进行、乱序完成。例如：
+    //   · "下载原版支持库文件"完成后 advance → 误把"下载NeoForge主文件"
+    //     StepNode setActive（用户实测：主文件被转回进行态，进度 100%）
+    //   · "下载原版资源文件"完成后 advance → 误把"校验NeoForge完整性"
+    //     StepNode setActive（同样 100% 却冒进行态）
+    //   · 主文件/校验提前完成后 advance 顺序错位，MC 校验(idx=3)被误激活
+    // advance() 只改 StepNode 不改 ds->steps → UI(pipeline) 显示 active 而
+    // 日志(ds->steps)显示 completed —— 正是"100% 不转完成态"的根源。
+    // 修复：步骤状态完全由 updateStep/showStep 显式驱动（merged 与纯 MC
+    // 的 updateStep 都是显式的）；weightedProgress() 遍历全节点不受影响；
+    // QML phase 由 steps 状态 derivePhase 驱动，不依赖 currentIndex。
+    // advance()/currentStepIndex() 保留为显式 API（调用方主动推进时使用）。
 
     return node;
 }
