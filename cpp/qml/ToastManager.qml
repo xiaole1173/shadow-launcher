@@ -114,6 +114,7 @@ Item {
                         id: actionMouse
                         anchors.fill: parent
                         visible: model.isAction
+                        hoverEnabled: true   // ⚠ 必须！containsMouse 依赖它，否则 hover 高亮恒不触发
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
                             var h = root._actionHandlers[model.toastId]

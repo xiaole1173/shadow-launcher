@@ -1209,44 +1209,30 @@ Window {
         }
     }
 
-    // Confirm Dialog (lazy-loaded — only builds SceneGraph when shown)
+    // Confirm Dialog (常驻加载 — 2026-08-15: 原 active:false+asynchronous 异步
+    // 懒加载需要 _pendingTitle 挂起机制，但该属性位于嵌套块不在根 Window 上，
+    // open() 访问报 "Cannot assign to non-existent property"。改为常驻加载后
+    // item 立即可用，open() 只操作 Loader 自身属性，不再依赖外部属性)
     Loader {
         id: confirmDialogLoader
-        active: false; asynchronous: true
+        active: true
         anchors.fill: parent; z: 399
         source: "ConfirmDialog.qml"
 
         // Proxy for backward compatibility — external files use confirmDialog.xxx
-        // ⚠ 2026-08-15：Loader 元素上的 function 作用域不含 MainWindow 属性——
-        // 裸写 _pendingTitle 会报 "Invalid write to global property"（首次由
-        // 更新确认框流程触发实测）。必须显式 appWindow._pendingTitle。
         function open(title, message, onAccept) {
-            appWindow._pendingTitle = title
-            appWindow._pendingMessage = message
-            appWindow._pendingOnAccept = onAccept
-            active = true
-            if (item) {
-                item.title = title
-                item.message = message
-                item.onAccept = onAccept
-                item.opened = true
-            }
+            if (!item) return
+            item.title = title
+            item.message = message
+            item.onAccept = onAccept
+            item.opened = true
         }
         function close() {
             if (item) item.opened = false
-            active = false
         }
         onItemChanged: {
             if (item) {
                 item.closed.connect(function() { active = false })
-                // Re-apply pending props if open() was called before item ready
-                if (appWindow._pendingTitle !== "") {
-                    item.title = appWindow._pendingTitle
-                    item.message = appWindow._pendingMessage
-                    item.onAccept = appWindow._pendingOnAccept
-                    item.opened = true
-                    appWindow._pendingTitle = ""
-                }
             }
         }
     }
@@ -1265,17 +1251,7 @@ Window {
             }
         }
     }
-
-    // Pending state for when Loader hasn't created item yet
-    property string _pendingTitle: ""
-    property string _pendingMessage: ""
-    property var _pendingOnAccept: null
-
-    Component.onCompleted: {
-        // Override confirmDialog.visible setter to handle pending
-        // (QML proxy object already handles synchronization)
     }
-}
 
     // Mod download error dialog
     Rectangle {
