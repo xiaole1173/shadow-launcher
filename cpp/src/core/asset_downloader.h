@@ -218,6 +218,14 @@ private:
         qint64 progressBytes = 0;          // bytes tracked via downloadProgress (增量)
         qint64 lastProgressMs = 0;         // 最近一次字节进展时刻（挂起看门狗用，2026-08-10）
         bool  watchdogAborted = false;     // 看门狗已 abort（跳过 host 失败记录，防误伤源）
+        // ── 慢速拖流跟踪（2026-08-14）──
+        // 背景：官方资源 CDN 对部分文件限速/拥塞时，请求持续有零星字节流
+        // （几 KB/s），lastProgressMs 不断刷新 → 30s 无进展判定永不触发 →
+        // 单个慢文件拖死整个下载（实测 assets 卡 97% 4 分钟）。
+        // 策略：窗口内平均速率低于阈值且连续多窗口 → 判龟速 abort 换源。
+        qint64 rateWindowStartMs = 0;      // 当前速率窗口起始时刻
+        qint64 rateWindowBytes = 0;        // 窗口起始时的 progressBytes
+        int    slowStreak = 0;             // 连续低速窗口计数
     };
     QMap<QNetworkReply*, InFlight> m_inFlight;
     int  m_failedCount = 0;

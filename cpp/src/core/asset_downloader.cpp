@@ -45,6 +45,15 @@ namespace {
     }
 } // anonymous
 
+// ── 慢速拖流看门狗常量（2026-08-14）──
+// 官方资源 CDN 限速/拥塞时单文件持续零星字节（绕过 30s 无进展判定），
+// 需按"窗口平均速率"判龟速。参考夸父慢速分片（2s 采样 <256KB 判龟速）。
+namespace {
+    constexpr int    kRateWindowMs     = 4000;   // 速率窗口 4s
+    constexpr qint64 kMinRateBps       = 64 * 1024;  // 窗口内平均 < 64KB/s 判低速
+    constexpr int    kMaxSlowStreak    = 5;      // 连续 5 窗口（20s）低速 → abort
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 // Construction / Destruction
 // ═════════════════════════════════════════════════════════════════════════════
@@ -637,6 +646,35 @@ void AssetDownloader::watchdogTick()
             toAbort.append(wit.key());
             qCWarning(logAsset) << QStringLiteral("  [山海经] 挂起看门狗: %1 无进展 %2s，中止换源（镜像[%3]）")
                 .arg(w.task.sha1).arg((nowW - w.lastProgressMs) / 1000).arg(w.mirrorIndex + 1);
+            continue;
+        }
+
+        // ── 慢速拖流看门狗（2026-08-14）──
+        // 背景：资源 CDN 限速/拥塞时单文件持续零星字节流（几 KB/s），
+        // 上面的"30s 无进展"判定被不断刷新的 lastProgressMs 绕过 → 单个慢
+        // 文件拖死整个下载（实测 assets 卡 97% 4 分钟，日志无更新）。
+        // 策略：按窗口平均速率判龟速——窗口内增量 < 64KB/s 计一次低速，
+        // 连续 5 个窗口（20s）低速 → abort 换镜像（有字节流但太慢照样换）。
+        if (w.rateWindowStartMs == 0) {
+            w.rateWindowStartMs = nowW;
+            w.rateWindowBytes = w.progressBytes;
+        } else if (nowW - w.rateWindowStartMs >= kRateWindowMs) {
+            qint64 windowBytes = w.progressBytes - w.rateWindowBytes;
+            qint64 windowMs = nowW - w.rateWindowStartMs;
+            qint64 avgBps = (windowMs > 0) ? (windowBytes * 1000 / windowMs) : 0;
+            w.rateWindowStartMs = nowW;
+            w.rateWindowBytes = w.progressBytes;
+            if (avgBps < kMinRateBps) {
+                w.slowStreak++;
+                if (w.slowStreak >= kMaxSlowStreak) {
+                    w.watchdogAborted = true;
+                    toAbort.append(wit.key());
+                    qCWarning(logAsset) << QStringLiteral("  [山海经] 慢速拖流看门狗: %1 窗口均速 %2 KB/s 持续低速，中止换源（镜像[%3]）")
+                        .arg(w.task.sha1).arg(avgBps / 1024.0, 0, 'f', 0).arg(w.mirrorIndex + 1);
+                }
+            } else {
+                w.slowStreak = 0;
+            }
         }
     }
     for (auto* reply : toAbort) {
