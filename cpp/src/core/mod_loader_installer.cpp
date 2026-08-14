@@ -34,6 +34,7 @@
 #include <QNetworkReply>
 #include <QEventLoop>
 #include <QTimer>
+#include <QDateTime>
 #include "utils/lzma/LzmaDec.h"
 #include "utils/logger.h"
 
@@ -1839,6 +1840,13 @@ void ModLoaderInstaller::forgeStepLibs(const QByteArray& jarData)
         QString failErr;
         qint64 doneBytes = 0;
         QHash<int, qint64> inflightRecv;
+        // ── 2026-08-15：安装器库独立速度状态 ──
+        // emitByteProgress 用 ModLoaderInstaller 全局 500ms 窗口算速度，
+        // 并发小文件（每文件 <1s）下大部分回调 elapsed<500ms → 恒发 0，
+        // UI 显示"安装器库下载中但速度 0"（用户实测）。
+        // 这里用 200ms 独立窗口按累计字节自算，绕过全局窗口。
+        qint64 speedLastBytes = 0;
+        qint64 speedLastMs = 0;
     };
     auto st = std::make_shared<St>();
     auto finishLibs = [this, st]() {
@@ -1904,8 +1912,20 @@ void ModLoaderInstaller::forgeStepLibs(const QByteArray& jarData)
                         qint64 totalRecv = st->doneBytes;
                         for (auto it = st->inflightRecv.begin(); it != st->inflightRecv.end(); ++it)
                             totalRecv += it.value();
-                        emitByteProgress(QFileInfo(savePath).fileName(), totalRecv, totalRecv);
-                        // 注意：字节级进度只走 emitByteProgress（version_backend 钳制 100%）。
+                        // ── 2026-08-15：独立 200ms 窗口算速度，绕过 emitByteProgress
+                        //    的全局 500ms 窗口（并发小文件下恒发 0）──
+                        qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+                        qint64 speed = 0;
+                        if (st->speedLastMs > 0) {
+                            qint64 dt = nowMs - st->speedLastMs;
+                            qint64 delta = totalRecv - st->speedLastBytes;
+                            if (dt >= 200 && delta > 0)
+                                speed = delta * 1000 / dt;
+                        }
+                        st->speedLastBytes = totalRecv;
+                        st->speedLastMs = nowMs;
+                        emit byteProgress(QFileInfo(savePath).fileName(), totalRecv, totalRecv, speed);
+                        // 注意：字节级进度只走 byteProgress（version_backend 钳制 100%）。
                         // 不在此发 installerLibsFileProgress——该信号是文件级（done/total），
                         // 字节级与文件级两个口径交叉更新会导致 UI 出现
                         // "100% 但剩余 62 个文件" 的矛盾显示（2026-08-14 修复）。
@@ -2073,6 +2093,15 @@ void ModLoaderInstaller::forgeStep3_install(const QByteArray& jarData) {
             }
         }
     }
+
+    // ── 2026-08-15：安装步骤立即激活，不等 prepareImpl 完成 ──
+    // forgeStep3_prepareImpl 含 client_mappings 下载（裸 QNAM+QEventLoop 同步，
+    // 9MB 国内网络可能 10s+），此前 progressChanged(3) 在后台任务完成后的
+    // onDone 才发 → "安装器库完成 → 安装NeoForge 激活"之间有 10s 空窗，
+    // 期间安装步骤保持 pending、其余步骤全绿，用户困惑。
+    // 现在 runInstallTask 启动前就激活安装步骤，空窗期显示"准备安装中"。
+    m_currentStep = 3;
+    emit progressChanged(3, m_totalSteps, QStringLiteral("正在准备安装..."));
 
     // 重活（client_mappings 下载 + maven jars 解压）搬到后台线程，主线程不再阻塞
     runInstallTask([this, jarData, mavenVer]() {
