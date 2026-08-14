@@ -8614,6 +8614,16 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
             ds->mlBytesDl = received;
             ds->mlBytesAll = total;
             ds->mlSpeed = speed;
+            // ── 2026-08-15：byteProgress 更新 mlSpeed 后必须排队卡片刷新 ──
+            // 速度聚合（updateCardFromSession）只在 throttle 触发时执行，而
+            // throttle 此前只由 updateStep（installerLibsFileProgress 文件级）
+            // 排队启动。安装器库并发小文件下载时文件级进度低频，mlSpeed
+            // 更新后卡片速度刷新滞后 → UI 显示"下载中但速度 0"。
+            // 这里直接排队，保证每次速度更新都触发 200ms throttle 刷新。
+            if (!m_pendingCardUpdates.contains(installId))
+                m_pendingCardUpdates.append(installId);
+            if (!m_cardUpdateThrottle.isActive())
+                m_cardUpdateThrottle.start();
         });
 
     // ── verifyStarted / verifyFinished（2026-08-15 重写：精确驱动 loader 校验步骤）──
