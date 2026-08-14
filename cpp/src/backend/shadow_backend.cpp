@@ -4638,12 +4638,20 @@ void ShadowBackend::checkForUpdate()
     m_updateManager->checkUserInitiated();
 }
 
-// ── 2026-08-15：用户确认"立即重启安装"后退出进程 ──
-// state.json 已标记 Ready，下次启动 PreInit 自动执行安装（增量/全量）。
+// ── 2026-08-15：用户确认"立即重启安装"后，自动重启启动器触发 PreInit 安装 ──
+// state.json 已标记 Ready。原实现只 quit()（用户必须手动重开启动器才走 PreInit，
+// 体验断裂）。改为：先 startDetached 启动新进程（其 main() PreInit 会检测
+// state.json=Ready → 解压 → SLUpdater 安装 → SLUpdater 替换 exe 后自动重启
+// 新版本），再延迟退出当前进程。
 void ShadowBackend::quitForUpdate()
 {
-    qCInfo(logApp) << QStringLiteral("[更新] 用户确认重启安装，退出进程");
-    QTimer::singleShot(0, qApp, &QCoreApplication::quit);
+    qCInfo(logApp) << QStringLiteral("[更新] 用户确认重启安装，自动重启启动器触发更新");
+    const QString exePath = QCoreApplication::applicationFilePath();
+    if (!QProcess::startDetached(exePath, QStringList())) {
+        qCWarning(logApp) << QStringLiteral("[更新] 自动重启启动器失败，请手动打开") << exePath;
+    }
+    // 给子进程一点启动时间再退出（避免当前进程过早退出影响文件锁）
+    QTimer::singleShot(500, qApp, &QCoreApplication::quit);
 }
 
 bool ShadowBackend::updateChecking() const
