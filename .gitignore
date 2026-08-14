@@ -74,3 +74,8 @@ cpp/tools/encrypt_addr.py
 cpp/src/multiplayer/encrypted_addr_local.h
 
 cpp/ShadowLauncher_v*/
+
+# ── 2026-08-14 清理：历史原型目录（保留本地，不随仓库上传）──
+/shadow_launcher/
+/_phase4_qml/
+/scrolltest/
