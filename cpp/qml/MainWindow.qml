@@ -168,6 +168,7 @@ Window {
             if (toastManager) toastManager.show(message)
         }
         // ── 2026-08-15：更新包下载完成 → 常驻 toast → 确认框 → 退出重启安装 ──
+        // toast 已简化为"整条可点"（无内部按钮组件），点击任意位置即触发
         function onUpdateReadyForRestart(version) {
             var ver = version || ""
             if (!toastManager) return
@@ -185,7 +186,7 @@ Window {
                         }
                         if (backend) backend.quitForUpdate()
                     })
-            }, qsTr("立即重启"))
+            })
         }
         // ── 模组/光影/资源包文件下载完成/失败：成功/失败 Toast（卡片保留绿色/红色终态）──
         function onModFileDownloadFinished(dlId, success, filePath, displayName) {

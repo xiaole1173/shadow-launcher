@@ -26,6 +26,7 @@
 #include <tlhelp32.h>   // 2026-08-15：枚举/结束 helper 进程（easytier/wv2login 可能锁文件）
 #include <string>
 #include <cstdio>
+#include <cstdarg>
 
 #pragma comment(lib, "comctl32.lib")
 
@@ -69,6 +70,32 @@ static void showError(const wchar_t* msg, DWORD err = GetLastError())
     wchar_t buf[1024];
     swprintf_s(buf, L"%s (error: %lu)", msg, err);
     MessageBoxW(nullptr, buf, L"Shadow Launcher Update", MB_ICONERROR);
+}
+
+// ── 2026-08-15：详细日志（OutputDebugString + _update/sl_updater.log）──
+// 之前报错不记录失败文件路径，无法定位 error 32 具体来源。日志写在
+// _update/ 下（成功清理 _update 时一并删除；失败保留供诊断）。
+static FILE* g_logFile = nullptr;
+
+static void openLog(const std::wstring& appDir)
+{
+    const std::wstring p = appDir + L"\\_update\\sl_updater.log";
+    _wfopen_s(&g_logFile, p.c_str(), L"w, ccs=UTF-8");
+}
+
+static void logMsg(const wchar_t* fmt, ...)
+{
+    wchar_t buf[2048];
+    va_list ap;
+    va_start(ap, fmt);
+    vswprintf_s(buf, fmt, ap);
+    va_end(ap);
+    OutputDebugStringW(buf);
+    OutputDebugStringW(L"\n");
+    if (g_logFile) {
+        fwprintf(g_logFile, L"%s\n", buf);
+        fflush(g_logFile);
+    }
 }
 
 static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
@@ -240,24 +267,33 @@ static void killHelperProcesses()
     Sleep(500);   // 等句柄释放
 }
 
-static bool copyFileOverwrite(const std::wstring& src, const std::wstring& dst)
+// ── 2026-08-15：复制单个文件，失败重试 8 次（0.5/1/1.5/…/4s ≈ 18s）──
+// 覆盖目标：DeleteFileW 先行（目标只读/存在）；每次失败记录具体文件路径到
+// 日志（此前只报 error 32 无路径，无法定位）。返回 true 成功；失败时
+// *failPath 记录是哪个文件。
+static bool copyFileOverwrite(const std::wstring& src, const std::wstring& dst,
+                              std::wstring* failPath = nullptr)
 {
-    // ── 2026-08-15：共享冲突重试（error 32 实测）──
-    // 杀 helper 后仍可能被 Defender/索引服务短暂锁定；删除目标后递增间隔重试，
-    // 最多 4 次（0.3/0.6/0.9/1.2s），最后一次失败才返回 false。
-    for (int attempt = 0; attempt < 4; ++attempt) {
+    for (int attempt = 0; attempt < 8; ++attempt) {
         if (CopyFileW(src.c_str(), dst.c_str(), FALSE)) return true;
         const DWORD err = GetLastError();
-        DeleteFileW(dst.c_str());   // 目标存在/只读：先删再拷
-        if (attempt < 3) Sleep(300 * (attempt + 1));
+        DeleteFileW(dst.c_str());
+        logMsg(L"[SLUpdater] 复制失败 %s -> %s (err=%lu, attempt=%d)",
+               src.c_str(), dst.c_str(), err, attempt + 1);
+        Sleep(500 * (attempt + 1));
     }
+    if (failPath) *failPath = dst;
     return false;
 }
 
 // ── 递归复制（覆盖+新增）；skipExe=true 跳过两个 exe（单独处理）──
-// done/total 用于进度（40%→90%）；失败返回 false（不清理，下次启动重试）
+// done/total 用于进度（40%→90%）。
+// 2026-08-15：isBin=true 的子树（bin/ 联机组件：easytier/wintun/WinDivert）失败
+// 降级跳过（联机可选功能，缺失不阻止启动器更新；日志记录），核心文件失败
+// 才整体失败（*firstFail 记录具体文件）。
 static bool copyTreeOverwrite(const std::wstring& srcDir, const std::wstring& dstDir,
-                              DWORD& done, DWORD total, bool skipExe)
+                              DWORD& done, DWORD total, bool skipExe,
+                              bool isBin, int* skipped, std::wstring* firstFail)
 {
     CreateDirectoryW(dstDir.c_str(), nullptr);
     std::wstring search = srcDir + L"\\*";
@@ -271,11 +307,22 @@ static bool copyTreeOverwrite(const std::wstring& srcDir, const std::wstring& ds
         std::wstring s = srcDir + L"\\" + fd.cFileName;
         std::wstring d = dstDir + L"\\" + fd.cFileName;
         if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-            if (!copyTreeOverwrite(s, d, done, total, skipExe)) { ok = false; break; }
+            const bool childBin = isBin || wcscmp(fd.cFileName, L"bin") == 0;
+            if (!copyTreeOverwrite(s, d, done, total, skipExe, childBin, skipped, firstFail)) {
+                ok = false; break;
+            }
         } else {
             if (skipExe && (wcscmp(fd.cFileName, L"ShadowLauncher.exe") == 0
                          || wcscmp(fd.cFileName, L"SLUpdater.exe") == 0)) continue;
-            if (!copyFileOverwrite(s, d)) { ok = false; break; }
+            if (!copyFileOverwrite(s, d)) {
+                if (isBin) {
+                    (*skipped)++;
+                    logMsg(L"[SLUpdater] bin 联机组件复制失败已跳过: %s", d.c_str());
+                    continue;   // 联机可选，降级跳过
+                }
+                if (firstFail) *firstFail = d;
+                ok = false; break;
+            }
             done++;
             if (total > 0) {
                 const int pct = 40 + static_cast<int>(static_cast<double>(done) * 50.0 / static_cast<double>(total));
@@ -372,17 +419,33 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR, int)
 
     // ── 3. 全量：复制新文件（覆盖+新增）→ 删多余旧文件 ──
     if (isFull) {
+        openLog(appDirW);
+        logMsg(L"[SLUpdater] 全量更新开始 oldPid=%lu isFull=1", oldPid);
         setPhase(L"正在更新文件…", 5);
         DWORD total = countFilesRecursive(fullExtractDir);
         DWORD done = 0;
-        if (!copyTreeOverwrite(fullExtractDir, appDirW, done, total, true)) {
+        int skippedBin = 0;
+        std::wstring firstFail;
+        if (!copyTreeOverwrite(fullExtractDir, appDirW, done, total, true,
+                               false, &skippedBin, &firstFail)) {
             // 失败：不删 state.json / zip → 下次启动 PreInit 自动重试（自愈）
-            showError(L"文件更新失败，将保留现场，下次启动自动重试", GetLastError());
+            logMsg(L"[SLUpdater] 全量复制失败，保留现场待重试。失败文件: %s 已复制=%lu/%lu 跳过bin=%d",
+                   firstFail.c_str(), done, total, skippedBin);
+            if (g_logFile) { fclose(g_logFile); g_logFile = nullptr; }
+            wchar_t errBuf[1024];
+            swprintf_s(errBuf, L"文件更新失败(%s)，将保留现场，下次启动自动重试。详情见 _update/sl_updater.log",
+                       firstFail.c_str());
+            showError(errBuf, ERROR_SHARING_VIOLATION);
             DestroyWindow(g_hwnd);
             return 4;
         }
+        if (skippedBin > 0)
+            logMsg(L"[SLUpdater] 警告: %d 个 bin/ 联机组件复制失败已跳过（不影响启动器本体）", skippedBin);
         setPhase(L"正在清理旧文件…", 92);
         deleteStaleFiles(appDirW, fullExtractDir);
+    } else {
+        openLog(appDirW);
+        logMsg(L"[SLUpdater] 增量更新开始 oldPid=%lu isFull=0", oldPid);
     }
 
     // ── 4. 替换 exe（增量/全量共用）：rename old → .old，move new → old，失败回滚 ──
@@ -407,7 +470,8 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR, int)
         DeleteFileW(backupPath.c_str());   // 替换成功，删除旧 exe 备份
     }
 
-    // ── 5. 清理 _update（state/lock/zip/extracted 一并删除）──
+    // ── 5. 清理 _update（state/lock/zip/extracted/日志 一并删除）──
+    if (g_logFile) { fclose(g_logFile); g_logFile = nullptr; }   // 先关日志再删目录
     setPhase(L"正在清理更新缓存…", 98);
     removeDirRecursive(appDirW + L"\\_update");
     pumpMessages();

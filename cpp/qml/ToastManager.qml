@@ -7,16 +7,15 @@ import QtQuick.Controls.Basic
 // ToastManager — 独立可复用的通知组件
 // 用法: toastManager.show("消息内容", 持续毫秒)
 //       toastManager.show("消息内容")  // 默认 3000ms
-//       toastManager.showAction("消息", onAction, "按钮文字")  // 2026-08-15：常驻可点击
+//       toastManager.showAction("消息", onAction)  // 2026-08-15：常驻可点击
 // 特性: 右下角弹出、天蓝色主题、弹性滑入、淡出消失、多条自动堆叠
-//       showAction：duration=0 常驻（不自动消失），整条可点击触发 onAction，
-//       右上角 ✕ 手动关闭；点击后自动移除
+//       showAction：duration=0 常驻（不自动消失），【整个 toast 作为点击区域】
+//       点击任意位置触发 onAction 后自动移除
 //
-// 2026-08-15 交互修复（用户实测）：
-//   - 鼠标区域必须挂在 toastRect 内（此前挂在 delegateItem，弹性滑入动画期间
-//     toast 可见但 MouseArea 还在右侧外 → 第一次点击无效）
-//   - ✕ 与"立即重启"按钮各自独立 MouseArea（z 高于整条），hover 效果只作用于
-//     按钮本身，不再整条高亮
+// 2026-08-15 简化（用户实测按钮组件交互异常，弃用修复改为整条可点）：
+//   - 删除"立即重启"按钮与 ✕ 关闭按钮（此前多级 MouseArea 分层仍异常）
+//   - 整条 toast 即点击区（MouseArea 挂 toastRect 内，动画跟随），hover 整条
+//     轻微高亮作为可点击反馈
 Item {
     id: root
 
@@ -40,16 +39,15 @@ Item {
     }
 
     // ── 2026-08-15：常驻可点击 toast（duration=0 不自动消失）──
-    // 用于"更新已就绪，点击立即重启安装"等需要用户决策的场景。
-    function showAction(message, onAction, actionText) {
+    // 整个 toast 为点击区域，点击任意位置触发 onAction。
+    function showAction(message, onAction) {
         if (!message || message === "") return
         var tid = toastIdCounter++
         toastModel.insert(0, {
             "msg": message,
             "duration": 0,
             "toastId": tid,
-            "isAction": true,
-            "actionText": actionText || "立即处理"
+            "isAction": true
         })
         if (onAction) root._actionHandlers[tid] = onAction
     }
@@ -79,9 +77,10 @@ Item {
                 Rectangle {
                     id: toastRect
                     height: 34
-                    width: Math.min(toastLabel.implicitWidth + (model.isAction ? 132 : 24), model.isAction ? 480 : 380)
+                    width: Math.min(toastLabel.implicitWidth + 24, 420)
                     radius: StyleTokens.radiusSm
-                    color: StyleTokens.infoBg
+                    // 整条可点：hover 轻微高亮作为反馈（2026-08-15 简化）
+                    color: model.isAction && actionMouse.containsMouse ? "#1d2a3a" : StyleTokens.infoBg
                     // 起始位置: 在 delegate 右侧外部（用于弹性滑入动画）
                     x: toastRect.width + 80
 
@@ -95,13 +94,13 @@ Item {
                         radius: StyleTokens.radiusXs
                     }
 
-                    // ── 消息文字（action toast 右侧预留按钮区）──
+                    // ── 消息文字 ──
                     Text {
                         id: toastLabel
                         anchors.left: parent.left
                         anchors.leftMargin: 10
                         anchors.right: parent.right
-                        anchors.rightMargin: model.isAction ? 128 : 8
+                        anchors.rightMargin: 8
                         anchors.verticalCenter: parent.verticalCenter
                         text: model.msg || ""
                         color: StyleTokens.textSecondary
@@ -110,62 +109,11 @@ Item {
                         maximumLineCount: 1
                     }
 
-                    // ═══ 交互层（2026-08-15 重构：全部挂 toastRect 内，动画跟随）═══
-
-                    // ── "立即重启"按钮（z=1，高于整条点击层；hover 变色）──
-                    MouseArea {
-                        id: actionBtnMouse
-                        anchors.right: parent.right
-                        anchors.rightMargin: 30
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: 92; height: 24
-                        visible: model.isAction
-                        z: 1
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            var h = root._actionHandlers[model.toastId]
-                            if (h) {
-                                delete root._actionHandlers[model.toastId]
-                                h()
-                            }
-                            toastRect.removeSelf()
-                        }
-                        Text {
-                            anchors.centerIn: parent
-                            text: model.actionText || ""
-                            color: actionBtnMouse.containsMouse ? StyleTokens.info : "#6aa0ff"
-                            font.pixelSize: StyleTokens.fontSizeSm
-                            font.weight: Font.DemiBold
-                        }
-                    }
-
-                    // ── ✕ 关闭按钮（z=2，最高，独立点击）──
-                    MouseArea {
-                        id: closeMouse
-                        anchors.right: parent.right
-                        anchors.rightMargin: 4
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: 24; height: 24
-                        visible: model.isAction
-                        z: 2
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: { toastRect.removeSelf() }
-                        Text {
-                            anchors.centerIn: parent
-                            text: "✕"
-                            color: closeMouse.containsMouse ? StyleTokens.textPrimary : StyleTokens.textTertiary
-                            font.pixelSize: StyleTokens.fontSizeXs
-                        }
-                    }
-
-                    // ── 整条可点（z=0，垫底；点非按钮区也触发 action）──
+                    // ── 整个 toast 即点击区（2026-08-15 简化；挂 toastRect 内动画跟随）──
                     MouseArea {
                         id: actionMouse
                         anchors.fill: parent
                         visible: model.isAction
-                        z: 0
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
                             var h = root._actionHandlers[model.toastId]
