@@ -5,63 +5,59 @@
 """
 Shadow Launcher 发布工具（2026-08-15，自建更新服务器版）
 
-功能：
-  package  — 把 Release 目录打包成全量更新 zip（自动排除 .minecraft/logs 等）
-  manifest — 生成 latest.json + compat.json（自动计算 exe/full 的 SHA256）
-  all      — package + manifest 一键完成
+定位：pack.ps1 的配套工具 —— 打包由 pack.ps1 完成（windeployqt + 7-Zip +
+compat.json 生成），本工具只负责把产物组织成自建服务器所需的 latest.json
+（字段兼容 Gitee release，UpdateManager 直接消费），并输出上传清单。
+
+子命令：
+  all      — 先跑 pack.ps1（打 dist + zip + compat.json），再生成 latest.json
+  manifest — 从已有产物（dist 目录）生成 latest.json（不重新打包）
+  config   — 显示当前配置
 
 用法：
-  python publish_release.py all --version v0.2.3 --notes "更新说明"
-  python publish_release.py all --version v0.2.3 --notes-file notes.txt --force-full "Qt 升级"
-  python publish_release.py package --release-dir build/Release --out out
-  python publish_release.py manifest --version v0.2.3 --exe build/Release/ShadowLauncher.exe --zip out/ShadowLauncher.zip
+  python publish_release.py all --notes "更新说明"
+  python publish_release.py manifest --notes "更新说明"          # 已跑过 pack.ps1 时
+  python publish_release.py manifest --notes-file notes.txt
   python publish_release.py config
 
 配置：本目录 publish_config.json（git 忽略，由 publish_config.example.json 复制改值）：
   {
-    "base_url": "https://update.example.com/update",
-    "qt_version": "6.8.3",
-    "resource_epoch": 1,
-    "release_dir": "D:/latest-code/cpp/build/Release",
-    "output_dir": "D:/latest-code/publish"
+    "base_url":  "https://shadowlauncher.cn/downloads",   # 服务器上放置资产的目录
+    "dist_dir":  "D:/latest-code/cpp/dist",                # pack.ps1 产物目录
+    "output_dir": "D:/latest-code/publish"                 # latest.json 输出目录
   }
 
-发布流程：
-  1. MSBuild 构建 Release
-  2. python publish_release.py all --version vX.Y.Z --notes "..."
-  3. 把 output_dir 下所有文件上传到服务器 /update/ 目录（与 base_url 对应）
-  4. 客户端 next 启动/手动检查即可发现新版本（检查接口 + exe/zip 下载均走
-     base_url，nginx 默认支持 Range 断点续传）
+发布流程（三步）：
+  1. MSBuild 构建 Release（SHADOW_DEV=1 时 pack.ps1 自动重构建）
+  2. python publish_release.py all --notes "更新说明"
+     → 产物: dist/ShadowLauncher_<版本>.zip（pack.ps1）
+            dist/ShadowLauncher/compat.json（pack.ps1，full_sha256=zip 哈希）
+            <output_dir>/latest.json（本工具）
+  3. 上传 latest.json + compat.json + zip 到服务器 base_url 目录
+     → 客户端（secrets_local.h 已填 SHADOW_UPDATE_API_URL）检查/下载全走自建服务器
 
 服务器 nginx 参考：tools/update_server_nginx.example.conf
 """
 
 import argparse
+import glob
 import hashlib
 import json
 import os
-import shutil
+import re
+import subprocess
 import sys
-import zipfile
 
 TOOL_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(TOOL_DIR, "publish_config.json")
-
-# 全量 zip 打包排除清单（与 SLUpdater 全量安装保留项一致）
-EXCLUDE_NAMES = {
-    ".minecraft", "logs", "java_cache", "_update",
-    "agreement_consent.txt", "ShadowLauncher.exe.old",
-}
-EXCLUDE_SUFFIXES = (".pdb", ".old")
+PACK_SCRIPT = os.path.join(os.path.dirname(TOOL_DIR), "pack.ps1")   # cpp/pack.ps1
 
 
 def load_config():
     cfg = {
-        "base_url": "https://update.example.com/update",
-        "qt_version": "6.8.3",
-        "resource_epoch": 1,
-        "release_dir": "build/Release",
-        "output_dir": "publish",
+        "base_url": "https://shadowlauncher.cn/downloads",
+        "dist_dir": "D:/latest-code/cpp/dist",
+        "output_dir": "D:/latest-code/publish",
     }
     if os.path.exists(CONFIG_PATH):
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:
@@ -77,115 +73,88 @@ def sha256_of(path):
     return h.hexdigest()
 
 
-def collect_files(root):
-    """返回 (相对路径列表, 总字节)，排除清单与全量更新保留项一致。"""
-    files, total = [], 0
-    for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in EXCLUDE_NAMES]
-        for fn in filenames:
-            if fn in EXCLUDE_NAMES or fn.endswith(EXCLUDE_SUFFIXES):
-                continue
-            # 构建产物里的测试 exe 无需打进全量包
-            if fn.endswith("Test.exe") or fn.endswith("Test.pdb"):
-                continue
-            rel = os.path.relpath(os.path.join(dirpath, fn), root)
-            files.append(rel)
-            total += os.path.getsize(os.path.join(dirpath, fn))
-    files.sort()
-    return files, total
+def find_latest_zip(dist_dir):
+    """dist 目录下最新的 ShadowLauncher_*.zip。"""
+    zips = [p for p in glob.glob(os.path.join(dist_dir, "ShadowLauncher_*.zip"))
+            if os.path.isfile(p)]
+    if not zips:
+        return None
+    return max(zips, key=os.path.getmtime)
 
 
-def cmd_package(args, cfg):
-    release_dir = os.path.abspath(args.release_dir or cfg["release_dir"])
-    out_dir = os.path.abspath(args.out or cfg["output_dir"])
-    os.makedirs(out_dir, exist_ok=True)
+def version_from_zip(zip_path):
+    m = re.search(r"ShadowLauncher_(.+)\.zip$", os.path.basename(zip_path))
+    return m.group(1) if m else None
 
-    exe = os.path.join(release_dir, "ShadowLauncher.exe")
-    if not os.path.exists(exe):
-        print(f"[package] 错误: Release 目录缺少 ShadowLauncher.exe: {exe}")
+
+def run_pack():
+    if not os.path.exists(PACK_SCRIPT):
+        print(f"[pack] 错误: 找不到 pack.ps1: {PACK_SCRIPT}")
         return 1
-
-    files, total = collect_files(release_dir)
-    if not files:
-        print("[package] 错误: 没有可打包的文件")
-        return 1
-
-    zip_path = os.path.join(out_dir, "ShadowLauncher.zip")
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-        for rel in files:
-            zf.write(os.path.join(release_dir, rel), rel)
-
-    print(f"[package] 全量包已生成: {zip_path}")
-    print(f"[package] 文件数={len(files)} 原始大小={total/1048576:.1f}MB "
-          f"压缩后={os.path.getsize(zip_path)/1048576:.1f}MB")
+    print(f"[pack] 调用 pack.ps1 ...")
+    r = subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
+                        "-File", PACK_SCRIPT])
+    if r.returncode != 0:
+        print(f"[pack] pack.ps1 失败 exit={r.returncode}")
+        return r.returncode
+    print("[pack] pack.ps1 完成")
     return 0
 
 
 def cmd_manifest(args, cfg):
-    if not args.version:
-        print("[manifest] 错误: 必须指定 --version（如 v0.2.3）")
-        return 1
-
+    dist_dir = os.path.abspath(args.dist_dir or cfg["dist_dir"])
     out_dir = os.path.abspath(args.out or cfg["output_dir"])
     os.makedirs(out_dir, exist_ok=True)
 
-    # 定位 exe / zip
-    exe_path = os.path.abspath(args.exe) if args.exe else os.path.join(
-        os.path.abspath(args.release_dir or cfg["release_dir"]), "ShadowLauncher.exe")
-    zip_path = os.path.abspath(args.zip) if args.zip else os.path.join(out_dir, "ShadowLauncher.zip")
-    if not os.path.exists(exe_path):
-        print(f"[manifest] 错误: 找不到 exe: {exe_path}")
+    # 1. 定位 zip
+    zip_path = os.path.abspath(args.zip) if args.zip else find_latest_zip(dist_dir)
+    if not zip_path or not os.path.exists(zip_path):
+        print(f"[manifest] 错误: 找不到 ShadowLauncher_*.zip（先跑 pack.ps1 或指定 --zip）: {dist_dir}")
         return 1
-    if not os.path.exists(zip_path):
-        print(f"[manifest] 错误: 找不到全量 zip: {zip_path}（先跑 package 或指定 --zip）")
+    version = args.version or version_from_zip(zip_path)
+    if not version:
+        print("[manifest] 错误: 无法从 zip 文件名推断版本，请指定 --version")
         return 1
-    # zip 必须包含主程序（否则全量安装后无 exe 可运行）
-    with zipfile.ZipFile(zip_path) as zf:
-        if "ShadowLauncher.exe" not in zf.namelist():
-            print(f"[manifest] 错误: zip 内缺少 ShadowLauncher.exe: {zip_path}")
-            return 1
 
-    # SHA256（小写，与启动器 toLower 比较一致）
-    exe_sha = sha256_of(exe_path)
-    full_sha = sha256_of(zip_path)
+    # 2. compat.json（pack.ps1 生成于 dist/ShadowLauncher/，full_sha256=zip 哈希）
+    compat_path = args.compat or os.path.join(dist_dir, "ShadowLauncher", "compat.json")
+    if not os.path.exists(compat_path):
+        print(f"[manifest] 错误: 找不到 compat.json: {compat_path}")
+        return 1
+    with open(compat_path, "r", encoding="utf-8") as f:
+        compat = json.load(f)
 
+    # 3. 防呆校验：compat.full_sha256 必须等于 zip 实际哈希
+    actual_sha = sha256_of(zip_path)
+    declared_sha = (compat.get("full_sha256") or "").lower()
+    if declared_sha and declared_sha != actual_sha:
+        print("[manifest] 错误: compat.json full_sha256 与 zip 实际哈希不一致！")
+        print(f"  declared: {declared_sha}")
+        print(f"  actual  : {actual_sha}")
+        print("  说明 zip 与 compat.json 不是同一次 pack 的产物，拒绝生成")
+        return 1
+    if not declared_sha:
+        print("[manifest] 警告: compat.json 缺 full_sha256（可能未压缩后更新），照常生成")
+
+    # 4. notes（latest.json body，更新公告用）
     notes = args.notes
     if args.notes_file:
         with open(args.notes_file, "r", encoding="utf-8") as f:
             notes = f.read().strip()
 
     base_url = (args.base_url or cfg["base_url"]).rstrip("/")
-    qt_version = args.qt or cfg["qt_version"]
-    epoch = args.epoch if args.epoch is not None else cfg["resource_epoch"]
 
-    # ── compat.json ──
-    compat = {
-        "qt_version": qt_version,
-        "resource_epoch": int(epoch),
-        "update_mode": "force_full" if args.force_full else "auto",
-        "exe_sha256": exe_sha,
-        "full_sha256": full_sha,
-    }
-    if args.force_full:
-        compat["force_reason"] = args.force_full
-    compat_path = os.path.join(out_dir, "compat.json")
-    with open(compat_path, "w", encoding="utf-8") as f:
-        json.dump(compat, f, ensure_ascii=False, indent=2)
-
-    # ── latest.json（字段兼容 Gitee release，UpdateManager 直接消费）──
-    exe_size = os.path.getsize(exe_path)
+    # 5. latest.json（字段兼容 Gitee release；force_full 模式资产 = compat + zip）
+    zip_name = os.path.basename(zip_path)
     zip_size = os.path.getsize(zip_path)
     latest = {
-        "tag_name": args.version,
+        "tag_name": version,
         "body": notes or "",
         "assets": [
             {"name": "compat.json",
              "browser_download_url": f"{base_url}/compat.json"},
-            {"name": "ShadowLauncher.exe",
-             "browser_download_url": f"{base_url}/ShadowLauncher.exe",
-             "size": exe_size},
-            {"name": "ShadowLauncher.zip",
-             "browser_download_url": f"{base_url}/ShadowLauncher.zip",
+            {"name": zip_name,
+             "browser_download_url": f"{base_url}/{zip_name}",
              "size": zip_size},
         ],
     }
@@ -193,24 +162,30 @@ def cmd_manifest(args, cfg):
     with open(latest_path, "w", encoding="utf-8") as f:
         json.dump(latest, f, ensure_ascii=False, indent=2)
 
-    print(f"[manifest] 版本        : {args.version}")
-    print(f"[manifest] qt_version  : {qt_version}  resource_epoch={epoch}  mode={compat['update_mode']}")
-    print(f"[manifest] exe  SHA256 : {exe_sha}")
-    print(f"[manifest] zip  SHA256 : {full_sha}")
-    print(f"[manifest] 已生成: {compat_path}")
-    print(f"[manifest] 已生成: {latest_path}")
-    print("[manifest] 上传清单（到服务器 /update/，对应 base_url）:")
-    print(f"            {os.path.basename(latest_path)}")
-    print(f"            {os.path.basename(compat_path)}")
-    print(f"            ShadowLauncher.exe  ({exe_size/1048576:.1f}MB)")
-    print(f"            ShadowLauncher.zip  ({zip_size/1048576:.1f}MB)")
+    # 6. 把 compat.json 拷到输出目录（方便一起上传）
+    out_compat = os.path.join(out_dir, "compat.json")
+    with open(compat_path, "r", encoding="utf-8") as f:
+        with open(out_compat, "w", encoding="utf-8") as f2:
+            f2.write(f.read())
+
+    print(f"[manifest] 版本        : {version}")
+    print(f"[manifest] zip         : {zip_path} ({zip_size/1048576:.1f}MB)")
+    print(f"[manifest] mode        : {compat.get('update_mode')}  (自建服务器建议保持 force_full)")
+    print(f"[manifest] full_sha256 : {actual_sha}")
+    print(f"[manifest] 已生成      : {latest_path}")
+    print(f"[manifest] 已生成      : {out_compat}")
+    print(f"[manifest] 上传清单（到服务器 {base_url}/）:")
+    print(f"            latest.json")
+    print(f"            compat.json")
+    print(f"            {zip_name}")
+    print(f"[manifest] 客户端 API  : {base_url}/latest.json")
     return 0
 
 
 def cmd_all(args, cfg):
-    r1 = cmd_package(args, cfg)
-    if r1 != 0:
-        return r1
+    r = run_pack()
+    if r != 0:
+        return r
     return cmd_manifest(args, cfg)
 
 
@@ -221,30 +196,24 @@ def cmd_config(_args, cfg):
 
 
 def main():
-    p = argparse.ArgumentParser(description="Shadow Launcher 发布工具")
+    p = argparse.ArgumentParser(description="Shadow Launcher 发布工具（pack.ps1 配套）")
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    for name in ("package", "manifest", "all"):
+    for name in ("all", "manifest"):
         sp = sub.add_parser(name)
-        sp.add_argument("--version", help="新版本号，如 v0.2.3（manifest/all 必填）")
-        sp.add_argument("--notes", default="", help="更新说明（直接传入）")
+        sp.add_argument("--version", help="版本号（默认从 zip 文件名解析）")
+        sp.add_argument("--notes", default="", help="更新说明（latest.json body）")
         sp.add_argument("--notes-file", help="更新说明（从文件读）")
-        sp.add_argument("--exe", help="增量 exe 路径（默认 release_dir/ShadowLauncher.exe）")
-        sp.add_argument("--zip", help="全量 zip 路径（默认 output_dir/ShadowLauncher.zip）")
-        sp.add_argument("--release-dir", help="Release 构建目录（默认取配置）")
+        sp.add_argument("--zip", help="zip 路径（默认取 dist 目录最新）")
+        sp.add_argument("--compat", help="compat.json 路径（默认 dist/ShadowLauncher/compat.json）")
+        sp.add_argument("--dist-dir", help="dist 目录（默认取配置）")
         sp.add_argument("--out", help="输出目录（默认取配置 output_dir）")
         sp.add_argument("--base-url", help="服务器 URL 前缀（默认取配置）")
-        sp.add_argument("--qt", help="Qt 版本（默认取配置；与构建的 SHADOW_QT_VERSION 一致）")
-        sp.add_argument("--epoch", type=int, help="资源 epoch（默认取配置；与 SHADOW_RESOURCE_EPOCH 一致）")
-        sp.add_argument("--force-full", nargs="?", const="手动指定",
-                        help="强制全量更新模式，可选原因文本")
 
     sub.add_parser("config")
 
     args = p.parse_args()
     cfg = load_config()
-    if args.cmd == "package":
-        return cmd_package(args, cfg)
     if args.cmd == "manifest":
         return cmd_manifest(args, cfg)
     if args.cmd == "all":

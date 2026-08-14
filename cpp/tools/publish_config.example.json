@@ -1,7 +1,5 @@
 {
-  "base_url": "https://update.example.com/update",
-  "qt_version": "6.8.3",
-  "resource_epoch": 1,
-  "release_dir": "D:/latest-code/cpp/build/Release",
+  "base_url": "https://shadowlauncher.cn/downloads",
+  "dist_dir": "D:/latest-code/cpp/dist",
   "output_dir": "D:/latest-code/publish"
 }

@@ -1,0 +1,11 @@
+{
+  "build_date": "2026-08-14 18:09",
+  "qt_version": "6.8.3",
+  "exe_sha256": "3236163abe7d96f4ae13bfc18f5a9dd944e6383673b39aa04aeeb4347b622a16",
+  "force_reason": "",
+  "release_notes_url": "https://gitee.com/xiaole1173/shadow-launcher/releases",
+  "version": "v1.0.0",
+  "resource_epoch": 1,
+  "update_mode": "force_full",
+  "full_sha256": "ee9beab7c2b5e86bc9f1128fd3a525d81ed8243a44e5916806f341f35a950acc"
+}
