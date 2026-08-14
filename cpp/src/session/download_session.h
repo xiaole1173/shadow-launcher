@@ -113,6 +113,11 @@ public:
     qint64 mlBytesDone = 0;
     qint64 mlFileTotal = 0;
     qint64 mlSpeed = 0;          // ML 下载瞬时速度 (bytes/s)
+    /// 2026-08-15：加载器相关下载（主文件/安装器库）进行中标志。
+    /// 聚合卡片速度时用它替代脆弱的 isModLoaderInstalling()——
+    /// 驿道下载主文件阶段 installer 未 running（verify-only），
+    /// isModLoaderInstalling() 返回 false → 主文件速度不计入（用户实测）。
+    bool loaderDownloadActive = false;
     qint64 fabSpeed = 0;         // Fabric API 下载速度 (bytes/s, delta/200ms)
     qint64 fabSpeedLastBytes = 0; // 上次 Fabric API 接收字节
     qint64 fabSpeedLastMs = 0;    // 上次 Fabric API 速度时间戳

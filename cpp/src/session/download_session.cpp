@@ -97,7 +97,12 @@ void DownloadSession::reset() {
     bmclPatch.clear();
 
     mlBytesDl = mlBytesAll = mlBytesDone = 0;
-    
+    mlSpeed = 0;
+    fabSpeed = 0;
+    fabSpeedLastBytes = 0;
+    fabSpeedLastMs = 0;
+    loaderDownloadActive = false;   // 2026-08-15
+
     mlFileTotal = 0;
 
     smoothProgress = 0.0;

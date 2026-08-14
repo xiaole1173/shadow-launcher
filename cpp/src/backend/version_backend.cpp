@@ -5311,6 +5311,12 @@ if (!loaderDlUrl.isEmpty()) {
             const QString tmpPath = QDir::tempPath() + QStringLiteral("/sl_loader_")
                 + QString::number(QRandomGenerator::global()->generate() % 1000000) + QStringLiteral(".jar");
             auto speedState = QSharedPointer<QPair<qint64,qint64>>::create(0, 0);
+            // ── 2026-08-15：主文件下载进行中 → 速度计入卡片 ──
+            // 此前聚合条件用 isModLoaderInstalling()，但驿道下载主文件阶段
+            // installer 未 running（verify-only 模式）→ 主文件速度恒 0。
+            // 显式标志驱动：开始 active，完成/失败回调复位。
+            if (auto* ds = dlSession(installName))
+                ds->loaderDownloadActive = true;
             HttpClient::DownloadHandle* h = HttpClient::instance().downloadWithReply(url, tmpPath,
                 [this, installName, loaderDlStepIdx, speedState](qint64 recv, qint64 total) {
                     // ── 2026-08-14 修复：进度真实反映下载状态，不提前到 100% ──
@@ -5348,6 +5354,8 @@ if (!loaderDlUrl.isEmpty()) {
                 },
                 [this, installName, tmpPath, ctx, onData, onFail](bool ok, const QString& err) {
                     if (ctx) ctx->loaderDlHandle = nullptr;
+                    if (auto* ds = dlSession(installName))
+                        ds->loaderDownloadActive = false;   // 2026-08-15 复位
                     if (!ok) {
                         qWarning() << "[Coordinator] Loader download failed (驿道):" << err;
                         QFile::remove(tmpPath);
@@ -5610,10 +5618,26 @@ void VersionBackend::startOptifineJarParallel(const QString& installName, const 
             actx->optifineJarReplies.append(reply);
 
         connect(reply, &QNetworkReply::downloadProgress, this,
-            [this, installName](qint64 received, qint64 total) {
+            [this, installName, label](qint64 received, qint64 total) {
                 if (total > 0) {
                     int pct = (int)(received * 100 / total);
                     updateStep(installName, 3, QStringLiteral("active"), pct, received, total);
+                }
+                // ── 2026-08-15：OptiFine JAR 下载速度接入卡片 ──
+                // 此前 OptiFine 下载完全没算速度（只 updateStep 进度）。
+                // 双源竞速只取胜者速度；delta/500ms 计算，更新 fabSpeed
+                // 通道（Fabric API 同款），并置 loaderDownloadActive。
+                auto* ds = dlSession(installName);
+                if (!ds) return;
+                ds->loaderDownloadActive = true;
+                if (label == QStringLiteral("BMCLAPI") || label == QStringLiteral("官方")) {
+                    qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+                    qint64 delta = received - ds->fabSpeedLastBytes;
+                    qint64 timeDelta = nowMs - ds->fabSpeedLastMs;
+                    if (timeDelta >= 200 && ds->fabSpeedLastMs > 0 && delta > 0)
+                        ds->mlSpeed = delta * 1000 / timeDelta;
+                    ds->fabSpeedLastBytes = received;
+                    ds->fabSpeedLastMs = nowMs;
                 }
             });
 
@@ -5624,13 +5648,22 @@ void VersionBackend::startOptifineJarParallel(const QString& installName, const 
                 reply->deleteLater();
                 nam->deleteLater();
 
-                if (*won) return;  // another source already won
+                if (*won) {
+                    // 败者源：速度已被胜者接管；若这是唯一活动下载则复位
+                    auto* ds = dlSession(installName);
+                    if (ds && !ds->optifineJarDone) {
+                        // 另一源可能仍在下载，暂不复位；由胜者 finished 复位
+                    }
+                    return;
+                }
 
                 if (reply->error() != QNetworkReply::NoError) {
                     qCInfo(logApp) << QStringLiteral("OptiFine %1 下载失败: %2").arg(label, reply->errorString());
                     (*pendingCount)--;
                     if (*pendingCount <= 0) {
                         *won = true;
+                        if (auto* ds = dlSession(installName))
+                            ds->loaderDownloadActive = false;   // 2026-08-15
                         emit logMessage(tr("OptiFine 下载失败（BMCLAPI 和官方源均失败）"));
                         updateStep(installName, 3, QStringLiteral("failed"), 0);
                         if (auto* ds = dlSession(installName)) ds->markFailed(tr("OptiFine 下载失败"));
@@ -5647,6 +5680,8 @@ void VersionBackend::startOptifineJarParallel(const QString& installName, const 
                     (*pendingCount)--;
                     if (*pendingCount <= 0) {
                         *won = true;
+                        if (auto* ds = dlSession(installName))
+                            ds->loaderDownloadActive = false;   // 2026-08-15
                         emit logMessage(tr("OptiFine 下载失败（所有源返回无效数据）"));
                         updateStep(installName, 3, QStringLiteral("failed"), 0);
                         if (auto* ds = dlSession(installName)) ds->markFailed(tr("OptiFine 下载失败"));
@@ -5675,6 +5710,7 @@ void VersionBackend::onParallelOptifineDone(const QString& installName, const QB
     if (ds->optifineInstallTriggered) return;
     ds->optifineInstallTriggered = true;
     ds->optifineJarDone = true;
+    ds->loaderDownloadActive = false;   // 2026-08-15：OptiFine JAR 下载结束
     if (!jarData.isEmpty()) ds->optifineJarData = jarData;
 
     // Use merged context for coordination
@@ -6237,7 +6273,7 @@ void VersionBackend::updateCardFromSession(const QString& installId, const QStri
             qint64 ts = 0;
             if (m_dlStates.contains(ds->mcVersion) && !ds->mcDownloadDone)
                 ts += m_dlStates[ds->mcVersion].speed;
-            if (isModLoaderInstalling() && ds->mlSpeed > 0)
+            if (ds->loaderDownloadActive && ds->mlSpeed > 0)
                 ts += ds->mlSpeed;
             if (ds->fabricApiPending && ds->fabSpeed > 0)
                 ts += ds->fabSpeed;
@@ -6277,7 +6313,7 @@ void VersionBackend::updateCardFromSession(const QString& installId, const QStri
             qint64 s = 0;
             if (m_dlStates.contains(ds->mcVersion) && !ds->mcDownloadDone)
                 s += m_dlStates[ds->mcVersion].speed;
-            if (isModLoaderInstalling() && ds->mlSpeed > 0)
+            if (ds->loaderDownloadActive && ds->mlSpeed > 0)
                 s += ds->mlSpeed;
             if (ds->fabricApiPending && ds->fabSpeed > 0)
                 s += ds->fabSpeed;
@@ -7539,10 +7575,12 @@ auto* ds = dlSession(it.key());
             }
 
             // Add ML installer download speed (while actively running)
-
-            bool mlActive = isModLoaderInstalling();
-
-            if (mlActive && ds->mlSpeed > 0)
+            // ── 2026-08-15：用显式 loaderDownloadActive 标志 ──
+            // isModLoaderInstalling() 覆盖不到驿道下载主文件阶段（verify-only
+            // 模式 m_running=false）→ 主文件速度恒 0。显式标志在
+            // downloadViaYidao 开始时置位、完成/失败复位，主文件/安装器库
+            // 下载阶段都能计入速度。
+            if (ds->loaderDownloadActive && ds->mlSpeed > 0)
 
                 s += ds->mlSpeed;
 
@@ -8593,6 +8631,7 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
         [this, installId]() {
             auto* ds = dlSession(installId);
             if (!ds) return;
+            ds->loaderDownloadActive = true;   // 2026-08-15：安装器库下载计入速度
             for (int i = 0; i < ds->steps.size(); ++i) {
                 if (ds->steps[i].toMap().value(QStringLiteral("name")).toString()
                         .contains(QStringLiteral("安装器库"))) {
@@ -8622,6 +8661,7 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
         [this, installId]() {
             auto* ds = dlSession(installId);
             if (!ds) return;
+            ds->loaderDownloadActive = false;   // 2026-08-15：安装器库下载结束
             for (int i = 0; i < ds->steps.size(); ++i) {
                 if (ds->steps[i].toMap().value(QStringLiteral("name")).toString()
                         .contains(QStringLiteral("安装器库"))) {
