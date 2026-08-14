@@ -7,6 +7,7 @@
 #include <QDir>
 #include <QDirIterator>
 #include <QFileInfo>
+#include <QHash>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -16,6 +17,7 @@
 #include <QSysInfo>
 #include <QTextStream>
 #include <QTimer>
+#include <QVersionNumber>
 
 #ifdef Q_OS_WIN
 #  ifndef WIN32_LEAN_AND_MEAN
@@ -846,6 +848,56 @@ static QString resolveLibraryPath(const QJsonObject& lib, const QString& librari
     return {};
 }
 
+// ── log4j-slf4j 绑定去重辅助（2026-08-14 NeoForge 1.20.6 修复）──
+// 判断 maven 名是否为 slf4j 绑定（log4j-slf4j-impl / log4j-slf4j2-impl / log4j-slf4j18-impl）
+static bool isSlf4jBinding(const QString& mavenName)
+{
+    return mavenName.contains(QStringLiteral("log4j-slf4j"));
+}
+
+// 提取 group:artifact 键（忽略版本与 @jar 后缀）→ 同一 artifact 去重用
+static QString slf4jArtifactKey(const QString& mavenName)
+{
+    // "org.apache.logging.log4j:log4j-slf4j2-impl:2.19.0@jar" → "log4j-slf4j2-impl"
+    QStringList parts = mavenName.split(QLatin1Char(':'));
+    return parts.size() >= 2 ? parts[1] : mavenName;
+}
+
+// 从 maven 名提取版本号（容忍 @jar 后缀）
+static QVersionNumber extractVersion(const QString& mavenName)
+{
+    QStringList parts = mavenName.split(QLatin1Char(':'));
+    if (parts.size() < 3) return {};
+    QString ver = parts[2];
+    int atIdx = ver.indexOf(QLatin1Char('@'));
+    if (atIdx >= 0) ver = ver.left(atIdx);
+    return QVersionNumber::fromString(ver);
+}
+
+// 从已解析的库路径提取版本号（路径 .../artifact/ver/artifact-ver.jar）
+static QVersionNumber extractVersionFromPath(const QString& libPath)
+{
+    // 取倒数第二段（版本目录）
+    QStringList parts = libPath.split(QLatin1Char('/'), Qt::SkipEmptyParts);
+    if (parts.size() >= 2)
+        return QVersionNumber::fromString(parts[parts.size() - 2]);
+    return {};
+}
+
+// 按 maven name 解析库路径（用于移除已入 cp 的旧 slf4j 绑定路径）
+static QString resolveLibraryPathForName(const QString& mavenName, const QString& librariesDir)
+{
+    QString name = mavenName;
+    int atIdx = name.indexOf(QLatin1Char('@'));
+    if (atIdx >= 0) name = name.left(atIdx);  // 去掉 @jar 后缀
+    QStringList parts = name.split(QLatin1Char(':'));
+    if (parts.size() < 3) return {};
+    QString groupPath = parts[0].replace(QLatin1Char('.'), QLatin1Char('/'));
+    return librariesDir + QLatin1Char('/') + groupPath + QLatin1Char('/') + parts[1]
+           + QLatin1Char('/') + parts[2] + QLatin1Char('/') + parts[1]
+           + QLatin1Char('-') + parts[2] + QStringLiteral(".jar");
+}
+
 static QStringList buildClasspath(const QString& versionId, const QJsonObject& versionJson,
                                    const QString& gameDir,
                                    const QSet<QString>& moduleExcludePaths = {})
@@ -856,6 +908,9 @@ static QStringList buildClasspath(const QString& versionId, const QJsonObject& v
     // Precompute version jar path (added LAST — see end of function)
     QString versionJar = gameDir + QStringLiteral("/versions/") + versionId
                          + QStringLiteral("/") + versionId + QStringLiteral(".jar");
+
+    // ── slf4j 绑定去重表（artifactKey → 保留的 maven name，版本比较用）──
+    QHash<QString, QString> slf4jBestName;
 
     // Collect libraries from version JSON + all inheritsFrom parents
     QSet<QString> seenLibs;  // deduplicate by resolved path
@@ -913,6 +968,39 @@ static QStringList buildClasspath(const QString& versionId, const QJsonObject& v
                     qDebug() << "[Launch] Skipping module-path JAR:" << relativePath;
                     continue;
                 }
+
+                // ── log4j-slf4j 绑定去重（2026-08-14 NeoForge 1.20.6 启动崩溃修复）──
+                // 背景：NeoForge 20.6.139 的 version JSON 同时列出
+                //   log4j-slf4j2-impl:2.19.0@jar（NeoForge 条目，Automatic-Module-Name
+                //   错误地为 org.apache.logging.log4j.slf4j）与
+                //   log4j-slf4j2-impl:2.22.1（MC 父 JSON 条目，module-info 正确为
+                //   org.apache.logging.log4j.slf4j2.impl）。
+                // 启动参数 --add-modules ALL-MODULE-PATH 会同时加载两个模块，
+                // 两者都导出 org.apache.logging.slf4j 包 → ResolutionException：
+                //   "Modules ...slf4j2.impl and ...slf4j export package org.apache.logging.slf4j"
+                // 处理：同一 artifact 的多个 slf4j 绑定只保留最高版本（module-info
+                // 正确的现代版本）。slf4j 绑定先记入 map 不直接入 cp，循环结束后
+                // 统一把保留版本加入 cp —— 避免中途移除短路径路径的匹配问题。
+                const QString libName = lib[QStringLiteral("name")].toString();
+                if (isSlf4jBinding(libName)) {
+                    QString artifactKey = slf4jArtifactKey(libName);
+                    auto it = slf4jBestName.find(artifactKey);
+                    if (it == slf4jBestName.end()) {
+                        slf4jBestName.insert(artifactKey, libName);
+                    } else {
+                        QVersionNumber cand = extractVersion(libName);
+                        QVersionNumber cur = extractVersion(it.value());
+                        if (cand > cur) {
+                            qDebug() << "[Launch] slf4j binding dedup: 升级到" << libName;
+                            slf4jBestName.insert(artifactKey, libName);
+                        } else {
+                            qDebug() << "[Launch] slf4j binding dedup: 保留" << it.value()
+                                     << "排除" << libName;
+                        }
+                    }
+                    continue;  // 不入 cp，循环后统一加入保留版本
+                }
+
                 if (!seenLibs.contains(libPath)) {
                     seenLibs.insert(libPath);
                     cp.append(libPath);
@@ -946,6 +1034,16 @@ static QStringList buildClasspath(const QString& versionId, const QJsonObject& v
         if (parseErr.error != QJsonParseError::NoError) break;
         currentJson = parentDoc.object();
         currentId = parentId;
+    }
+
+    // 循环结束后统一加入保留的 slf4j 绑定（去重后的最高版本）
+    for (auto it = slf4jBestName.constBegin(); it != slf4jBestName.constEnd(); ++it) {
+        QString keptPath = resolveLibraryPathForName(it.value(), libsDir);
+        if (!keptPath.isEmpty() && QFileInfo::exists(keptPath) && !seenLibs.contains(keptPath)) {
+            seenLibs.insert(keptPath);
+            cp.append(keptPath);
+            qDebug() << "[Launch] slf4j binding kept:" << it.value() << keptPath;
+        }
     }
 
     // Add version's own jar LAST (after all libraries), so that library JARs

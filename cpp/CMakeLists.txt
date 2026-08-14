@@ -748,6 +748,26 @@ if(SHADOW_BUILD_MODPACK_SELFTEST)
     )
     target_include_directories(LaunchDetailTest PRIVATE src)
     target_link_libraries(LaunchDetailTest PRIVATE Qt6::Core Qt6::Network Qt6::Gui Qt6::Widgets Qt6::GuiPrivate)
+
+    # NeoForge 1.20.6 log4j-slf4j 绑定去重测试（2026-08-14：启动崩溃 ResolutionException 修复验证）
+    add_executable(Slf4jDedupTest
+        tests/test_slf4j_dedup.cpp
+        src/core/launcher.cpp
+        src/core/mc_language.cpp
+        src/utils/logger.cpp
+    )
+    target_include_directories(Slf4jDedupTest PRIVATE src)
+    target_link_libraries(Slf4jDedupTest PRIVATE Qt6::Core Qt6::Network Qt6::Gui Qt6::Widgets Qt6::GuiPrivate)
+
+    # 真实 1.20.6-neoforge JSON 验证（用户游戏目录，本地跑）
+    add_executable(Slf4jRealTest
+        tests/test_slf4j_real.cpp
+        src/core/launcher.cpp
+        src/core/mc_language.cpp
+        src/utils/logger.cpp
+    )
+    target_include_directories(Slf4jRealTest PRIVATE src)
+    target_link_libraries(Slf4jRealTest PRIVATE Qt6::Core Qt6::Network Qt6::Gui Qt6::Widgets Qt6::GuiPrivate)
 endif()
 
 # ============================================================
