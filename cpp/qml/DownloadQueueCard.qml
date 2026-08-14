@@ -164,14 +164,17 @@ Rectangle {
             width: parent.width - 30
         }
 
-        // ── 操作按钮：仅任务运行中/排队(canCancel) 与失败态显示；
-        //    完成（绿色）态永久隐藏，规避误点取消引发异常 ──
+        // ── 操作按钮：完成态永久隐藏，规避误点取消引发异常 ──
+        // 显示条件（2026-08-15 重写，直接用 QML 既有完成态信号 _hot.progress>=1.0）：
+        //   - 失败态      → 显示（点击 = dismissCard 清理残留）
+        //   - 完成态      → 隐藏（_hot.progress >= 1.0，不依赖 C++ canCancel 时序）
+        //   - 运行中/排队 → 由 canCancel 决定（默认 true 显示取消）
         Rectangle {
             id: actionBtn
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             width: 20; height: 20; radius: 10
-            visible: (_meta.canCancel !== false) || _meta.failed
+            visible: _meta.failed || (_meta.canCancel !== false && _hot.progress < 1.0)
             color: actionMouse.containsMouse ? "#4a1a1a" : "transparent"
 
             Behavior on color { ColorAnimation { duration: 120 } }
