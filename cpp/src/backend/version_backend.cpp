@@ -5233,10 +5233,14 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
 
 
     // ── Forge/NeoForge: download installer JAR（按下载源策略选主源，失败走下方 fallback 列表）──
-    QString verArg = mcVersion + "-" + loaderVersion;
     QString fmv = m_forgeMavenVer;
     QString loaderDlUrl;
-    const bool preferOfficial = downloadPreferOfficial();
+    // ── 2026-08-15：加载器主文件下载默认镜像源优先（BMCLAPI）──
+    // 不跟随全局 fileSource（那是 MC 下载的源策略，改它会波及夸父/山海经）。
+    // 加载器独立策略：镜像先试，失败 fallback 官方——国内网络下官方 maven
+    // （maven.neoforged.net / maven.minecraftforge.net）显著拖慢安装。
+    // 若后续要开放加载器源设置，在此接入即可（当前固定镜像优先）。
+    const bool preferOfficial = false;
     if (loaderType == QStringLiteral("forge")) {
         loaderDlUrl = preferOfficial
             ? QStringLiteral("https://maven.minecraftforge.net/net/minecraftforge/forge/%1/forge-%1-installer.jar").arg(fmv)
@@ -5375,7 +5379,7 @@ if (!loaderDlUrl.isEmpty()) {
         // 主 URL（下载源策略决定官方/镜像）
         downloadViaYidao(loaderDlUrl,
             [handleLoaderData](const QByteArray& data) { handleLoaderData(data); },
-            [this, installName, loaderType, loaderVersion, mcVersion, forgeInstallerBranch, loaderDlStepIdx, ctx, downloadViaYidao, handleLoaderData]() {
+            [this, installName, loaderType, loaderVersion, mcVersion, forgeInstallerBranch, loaderDlStepIdx, ctx, downloadViaYidao, handleLoaderData, loaderDlUrl]() {
                 // 主 URL 失败 → fallback 链（与主 URL 同一套版本 ID 语义）
                 QStringList fallbackUrls;
                 if (loaderType == QStringLiteral("forge")) {
@@ -5392,7 +5396,17 @@ if (!loaderDlUrl.isEmpty()) {
                     addFb(QStringLiteral("https://maven.minecraftforge.net"), branchVer);
                     addFb(QStringLiteral("https://maven.minecraftforge.net"), baseVer);
                 } else if (loaderType == QStringLiteral("neoforge")) {
-                    fallbackUrls << QStringLiteral("https://maven.neoforged.net/releases/net/neoforged/neoforge/%1/neoforge-%1-installer.jar").arg(loaderVersion);
+                    // ── 2026-08-15：fallback 补 BMCLAPI 镜像 ──
+                    // 此前 NeoForge 主文件 fallback 只有官方 maven.neoforged.net——
+                    // 官方源失败时无镜像可退（BMCLAPI 镜像 neoForge 主文件，
+                    // 路径同官方）。若主源已走镜像则 fallback 官方；否则镜像先行。
+                    const QString rel = QStringLiteral("net/neoforged/neoforge/%1/neoforge-%1-installer.jar").arg(loaderVersion);
+                    if (loaderDlUrl.contains(QStringLiteral("bmclapi")))
+                        fallbackUrls << QStringLiteral("https://maven.neoforged.net/releases/") + rel;
+                    else {
+                        fallbackUrls << QStringLiteral("https://bmclapi2.bangbang93.com/maven/") + rel;
+                        fallbackUrls << QStringLiteral("https://maven.neoforged.net/releases/") + rel;
+                    }
                 }
 
                 auto fbIdx = QSharedPointer<int>::create(0);
@@ -5862,7 +5876,8 @@ ModLoaderInstaller* VersionBackend::createLoaderInstaller(const QString& install
     m_mlInstallers[installId] = ml;
 
     ml->setGameDir(m_gameDir);
-    ml->setPreferOfficial(downloadPreferOfficial());
+    // 2026-08-15：加载器安装器库/依赖库下载默认镜像优先（不跟随全局 fileSource）
+    ml->setPreferOfficial(false);
 
     // --- progressChanged: step-level progress ---
     connect(ml, &ModLoaderInstaller::progressChanged, this,
@@ -8351,7 +8366,8 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
     // Create ModLoaderInstaller (redirected to temp dir)
     ctx->installer = new ModLoaderInstaller(this);
     ctx->installer->setGameDir(ctx->tempDir);
-    ctx->installer->setPreferOfficial(downloadPreferOfficial());
+    // 2026-08-15：加载器安装器库/依赖库下载默认镜像优先（不跟随全局 fileSource）
+    ctx->installer->setPreferOfficial(false);
 
     // ── Signal connections for merged context installers ──
 
