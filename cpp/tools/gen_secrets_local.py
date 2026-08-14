@@ -2,7 +2,7 @@
 """
 gen_secrets_local.py — 生成本地真实值头文件 src/secrets_local.h（git 忽略）。
 
-用法：python tools/gen_secrets_local.py --azure 1167b841-... --owner xiaole1173 --repo shadow-launcher
+用法：python tools/gen_secrets_local.py --azure <AZURE_CLIENT_ID> --owner <GITEE_OWNER> --repo <GITEE_REPO>
 说明：生成的 secrets_local.h 被 .gitignore 忽略，仅存在于开发者机器；
       仓库内 src/secrets.h 为占位符版本，两者通过 __has_include 联动。
 """
