@@ -1230,11 +1230,6 @@ Window {
         function close() {
             if (item) item.opened = false
         }
-        onItemChanged: {
-            if (item) {
-                item.closed.connect(function() { active = false })
-            }
-        }
     }
 
     // Compatibility object — other files still access confirmDialog.xxx

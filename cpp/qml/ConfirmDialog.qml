@@ -20,6 +20,13 @@ Item {
         if (!opened) closed()
     }
 
+    // ── 2026-08-15：opened 控制整体可见性 ──
+    // 原设计依赖 Loader active:false 卸载来隐藏（常驻加载后对话框无条件显示，
+    // 启动即弹出空窗口只有取消/确认）。opened=false 时必须整体不可见。
+    visible: opened
+    opacity: opened ? 1 : 0
+    Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+
     // Dim overlay
     Rectangle {
         anchors.fill: parent; z: 0; color: "#000000"

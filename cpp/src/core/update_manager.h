@@ -82,7 +82,7 @@ signals:
 private:
     void setState(State s);
     void doCheck();
-    void onCompatJsonReady(const QByteArray& body);
+    void onCompatJsonReady(const QByteArray& body, const QString& tagName = QString());
     void pickAssetAndDownload(bool forceFull);
     void startDownload();
     void resumeDownload(qint64 resumeFrom);

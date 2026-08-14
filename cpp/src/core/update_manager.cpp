@@ -276,7 +276,7 @@ void UpdateManager::doCheck()
                 HttpClient::instance().get(compatUrl,
                     [this, tagName, startFullDl](int cStatus, const QByteArray& cBody) {
                         if (cStatus == 200) {
-                            onCompatJsonReady(cBody);
+                            onCompatJsonReady(cBody, tagName);
                             emit checkCompleted(true, tagName);
                         } else {
                             qCWarning(logApp) << "[UpdateManager] compat.json HTTP" << cStatus;
@@ -300,9 +300,16 @@ void UpdateManager::doCheck()
     );
 }
 
-void UpdateManager::onCompatJsonReady(const QByteArray& body)
+void UpdateManager::onCompatJsonReady(const QByteArray& body, const QString& tagName)
 {
     QJsonObject compat = QJsonDocument::fromJson(body).object();
+
+    // ── 2026-08-15：正常流程必须设置 m_downloadVersion ──
+    // 此前只在 startFullDl（compat 失败路径）设置；compat 成功路径（正常流程）
+    // 走 onCompatJsonReady → pickAssetAndDownload，m_downloadVersion 恒空 →
+    // 下载完成 toast 显示"更新已就绪：，点击立即重启安装"（版本空）。
+    if (!tagName.isEmpty())
+        m_downloadVersion = tagName;
 
     qCInfo(logApp) << "[UpdateManager] compat.json 解析成功"
                    << "qt=" << compat.value("qt_version").toString()
