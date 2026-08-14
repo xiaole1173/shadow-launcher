@@ -6441,7 +6441,33 @@ void VersionBackend::updateStep(const QString& installId, int index, const QStri
 
     if (index < 0 || index >= ds->steps.size()) return;
 
+    // ── 状态机保护（2026-08-14 修复问题3：主文件 100% 不变完成）──
+    // 背景：MC 下载与 forge/neoforge 下载并行，多个进度信号（byteProgress /
+    // downloadViaYidao progress / installerLibsFileProgress）各自更新不同子步骤，
+    // 但 loaderStepIdx 可能被多处指向；下载完成回调置 completed 后，若有迟到
+    // 的 active 进度（如驿道 recv==total 的最后一跳）落到同一步骤，会把
+    // completed 覆盖回 active → 步骤 100% 却永不"完成"。
+    // 规则：非 completed/failed 状态不得降级已完成的步骤（active/pending 迟到更新
+    // 一律忽略；显式重新激活由调用方先置 pending 再 active）。
+    {
+        QString curStatus = ds->steps[index].toMap().value(QStringLiteral("status")).toString();
+        const bool terminal = (curStatus == QStringLiteral("completed")
+                            || curStatus == QStringLiteral("failed")
+                            || curStatus == QStringLiteral("skipped"));
+        const bool downgrade = (status == QStringLiteral("active")
+                             || status == QStringLiteral("pending"));
+        if (terminal && downgrade) {
+            // 迟到的 active/pending 更新忽略——不覆盖已完成状态
+            return;
+        }
+    }
+
     // ── Update StepNode ──
+    // 2026-08-14：统一钳制 percentage 到 [0,100]——驿道下载 recv 可能超过 total
+    // （分片/206/合并场景），多处调用路径（显式 pct、bytesRecv/bytesTotal 自动计算）
+    // 若某一路径未钳制，进度会突破 100%（实测主文件 110%）。
+    if (percentage < 0) percentage = 0;
+    if (percentage > 100) percentage = 100;
     auto* node = ds->pipeline()->stepNode(index);
     if (node) {
         if (status == "active") {
@@ -6469,6 +6495,7 @@ void VersionBackend::updateStep(const QString& installId, int index, const QStri
     // Auto-compute percentage from bytes if provided and no explicit percentage given
     if (percentage == 0 && bytesRecv > 0 && bytesTotal > 0) {
         percentage = (int)((bytesRecv * 100) / bytesTotal);
+        if (percentage > 100) percentage = 100;   // 2026-08-14 钳制
     }
 
     QString oldStatus = step["status"].toString();

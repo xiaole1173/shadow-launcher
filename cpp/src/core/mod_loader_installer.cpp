@@ -1830,7 +1830,6 @@ void ModLoaderInstaller::forgeStepLibs(const QByteArray& jarData)
         QString failErr;
         qint64 doneBytes = 0;
         QHash<int, qint64> inflightRecv;
-        int lastReportedPct = 0;   // 2026-08-14 字节级进度去抖
     };
     auto st = std::make_shared<St>();
     auto finishLibs = [this, st]() {
@@ -1874,9 +1873,6 @@ void ModLoaderInstaller::forgeStepLibs(const QByteArray& jarData)
                             st->inflightRecv.remove(idx);
                             st->done++;
                             st->active--;
-                            // 文件级进度（防回退：完成数比例不低于字节级已报的）
-                            const int donePct = tasks.size() > 0 ? (st->done * 100 / tasks.size()) : 100;
-                            if (donePct > st->lastReportedPct) st->lastReportedPct = donePct;
                             emit installerLibsFileProgress(st->done, tasks.size());
                             (*pump)();
                         } else {
@@ -1886,29 +1882,17 @@ void ModLoaderInstaller::forgeStepLibs(const QByteArray& jarData)
                         }
                     },
                     false,
-                    [this, idx, savePath, st, tasks](qint64 recv, qint64 /*total*/) {
+                    [this, idx, savePath, st](qint64 recv, qint64 /*total*/) {
                         if (m_cancelled) return;
                         st->inflightRecv[idx] = recv;
                         qint64 totalRecv = st->doneBytes;
                         for (auto it = st->inflightRecv.begin(); it != st->inflightRecv.end(); ++it)
                             totalRecv += it.value();
                         emitByteProgress(QFileInfo(savePath).fileName(), totalRecv, totalRecv);
-                        // ── 2026-08-14 进度平滑：文件级百分比按字节累计推进 ──
-                        // 原实现只在每个文件完成时发 installerLibsFileProgress(done,total)，
-                        // 大文件下载中百分比长时间不动 → 用户观感"卡 3% 剩余 81 个文件"。
-                        // 这里按累计字节占预估总量比例补发（字节信号本身已钳制 100%）。
-                        qint64 totalBytes = 0;
-                        for (const auto& t : tasks)
-                            totalBytes += qMax<qint64>(1, QFileInfo(t.savePath).size());
-                        if (totalBytes > 0) {
-                            int pct = static_cast<int>(totalRecv * 100 / totalBytes);
-                            pct = qBound(0, pct, 99);  // 保留 100% 由完成回调触发
-                            if (pct > st->lastReportedPct) {
-                                st->lastReportedPct = pct;
-                                emit installerLibsFileProgress(
-                                    static_cast<int>(tasks.size() * pct / 100), tasks.size());
-                            }
-                        }
+                        // 注意：字节级进度只走 emitByteProgress（version_backend 钳制 100%）。
+                        // 不在此发 installerLibsFileProgress——该信号是文件级（done/total），
+                        // 字节级与文件级两个口径交叉更新会导致 UI 出现
+                        // "100% 但剩余 62 个文件" 的矛盾显示（2026-08-14 修复）。
                     });
             };
             (*tryMirror)(0);
