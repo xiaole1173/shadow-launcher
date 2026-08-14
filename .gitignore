@@ -65,7 +65,6 @@ commit_and_status.ps1
 /cpp-winold/
 /_tmp_rewrite/
 /_git_backup_*/
-/_strip_pcl2.py
 
 # OS
 Thumbs.db
