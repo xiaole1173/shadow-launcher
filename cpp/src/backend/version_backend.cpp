@@ -8457,12 +8457,31 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
             for (int i = 0; i < ds->steps.size(); ++i) {
                 if (ds->steps[i].toMap().value(QStringLiteral("name")).toString()
                         .contains(QStringLiteral("安装器库"))) {
+                    // ── 2026-08-14 修复：改走 updateStep（统一钳制 + 状态机保护）──
+                    // 原实现直接 node->setDetail/setPercentage，绕过 updateStep 的
+                    // percentage 钳制与 completed 状态保护，导致：
+                    //   · done 超 total 时百分比破 100%（主文件 120% 同类问题）
+                    //   · 安装器库已完成（100%）后被迟到的 installerLibsFileProgress
+                    //     把 detail 覆盖成"剩余 X 个文件"（自相矛盾显示）
+                    // 这里通过 updateStep 更新百分比（钳制 0-100；已完成步骤不被
+                    // active 降级），detail 用 StepNode 的 setDetail——但仅在步骤
+                    // 未完成时允许覆盖，已完成步骤保留空 detail。
+                    int pct = (total > 0) ? qBound(0, done * 100 / total, 100) : 0;
+                    // 更新百分比（updateStep 内部会钳制 + 状态保护）
+                    updateStep(installId, i, QStringLiteral("active"), pct, 0, 0);
+                    // detail：仅未完成时更新（已完成步骤不再显示"剩余 X"）
                     auto* node = ds->pipeline()->stepNode(i);
                     if (node) {
-                        node->setDetail(remain > 0
-                            ? QStringLiteral("剩余 %1 个文件").arg(remain)
-                            : QString());
-                        if (total > 0) node->setPercentage(done * 100 / total);
+                        QString curStatus = ds->steps[i].toMap()
+                                                .value(QStringLiteral("status")).toString();
+                        bool terminal = (curStatus == QStringLiteral("completed")
+                                      || curStatus == QStringLiteral("failed")
+                                      || curStatus == QStringLiteral("skipped"));
+                        if (!terminal) {
+                            node->setDetail(remain > 0
+                                ? QStringLiteral("剩余 %1 个文件").arg(remain)
+                                : QString());
+                        }
                     }
                     break;
                 }

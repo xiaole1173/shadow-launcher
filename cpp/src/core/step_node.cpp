@@ -44,7 +44,9 @@ void StepNode::setByteProgress(qint64 recv, qint64 total) {
     m_bytesRecv = recv;
     m_bytesTotal = total;
     if (total > 0) {
-        int pct = static_cast<int>(recv * 100 / total);
+        // 2026-08-14：钳制——驿道下载 recv 可超过 total（分片/206/合并场景），
+        // 直接 recv*100/total 会算出超 100% 的进度（实测主文件 120%）。
+        int pct = static_cast<int>(qMin<qint64>(recv * 100 / total, 100));
         if (pct != m_percentage) {
             m_percentage = pct;
         }
