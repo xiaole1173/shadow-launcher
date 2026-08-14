@@ -117,11 +117,13 @@ def cmd_manifest(args, cfg):
         return 1
 
     # 2. compat.json（pack.ps1 生成于 dist/ShadowLauncher/，full_sha256=zip 哈希）
+    # ⚠ pack.ps1 用 PowerShell Out-File -Encoding utf8 写文件，带 UTF-8 BOM →
+    #    必须 utf-8-sig 读取，否则 json.load 报 "Unexpected UTF-8 BOM"
     compat_path = args.compat or os.path.join(dist_dir, "ShadowLauncher", "compat.json")
     if not os.path.exists(compat_path):
         print(f"[manifest] 错误: 找不到 compat.json: {compat_path}")
         return 1
-    with open(compat_path, "r", encoding="utf-8") as f:
+    with open(compat_path, "r", encoding="utf-8-sig") as f:
         compat = json.load(f)
 
     # 3. 防呆校验：compat.full_sha256 必须等于 zip 实际哈希
@@ -162,11 +164,11 @@ def cmd_manifest(args, cfg):
     with open(latest_path, "w", encoding="utf-8") as f:
         json.dump(latest, f, ensure_ascii=False, indent=2)
 
-    # 6. 把 compat.json 拷到输出目录（方便一起上传）
+    # 6. 把 compat.json 拷到输出目录（去 BOM、utf-8 输出——Qt QJsonDocument
+    #    fromJson 对前导 BOM 会解析失败，上传给客户端的 compat.json 必须无 BOM）
     out_compat = os.path.join(out_dir, "compat.json")
-    with open(compat_path, "r", encoding="utf-8") as f:
-        with open(out_compat, "w", encoding="utf-8") as f2:
-            f2.write(f.read())
+    with open(out_compat, "w", encoding="utf-8") as f:
+        json.dump(compat, f, ensure_ascii=False, indent=2)
 
     print(f"[manifest] 版本        : {version}")
     print(f"[manifest] zip         : {zip_path} ({zip_size/1048576:.1f}MB)")
