@@ -250,7 +250,8 @@ void CfApi::fetchFilesAsVersions(const QString& modId, const QString& gameVersio
                     // 顶层便捷字段（与 Modrinth 详情结构对齐，QML 直接读取）
                     d.insert(QStringLiteral("version_number"), fileEntry.value(QStringLiteral("version_number")));
                     d.insert(QStringLiteral("date_published"), fileEntry.value(QStringLiteral("date_published")));
-                    d.insert(QStringLiteral("downloads"), 0);
+                    // ── 2026-08-15：CF 文件下载量字段是 downloadCount（原写死 0 → 详情卡全显 0）──
+                    d.insert(QStringLiteral("downloads"), static_cast<int>(f.value(QStringLiteral("downloadCount")).toDouble()));
                     d.insert(QStringLiteral("url"), fileEntry.value(QStringLiteral("url")));
                     d.insert(QStringLiteral("filename"), fileEntry.value(QStringLiteral("filename")));
                     d.insert(QStringLiteral("size"), fileEntry.value(QStringLiteral("size")));
