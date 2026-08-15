@@ -781,8 +781,8 @@ Rectangle {
                                 width: parent.width
                                 wrapMode: Text.WrapAtWordBoundaryOrAnywhere
                             }
-                            // 尺寸：宽 = 内容估算（上限360），高 = Text 渲染高 + padding
-                            width: Math.min(360, root._depsEstWidth)
+                            // 尺寸：宽 = 内容估算（上限500），高 = Text 渲染高 + padding
+                            width: Math.min(500, root._depsEstWidth)
                             height: depsTipContent.implicitHeight + 20
                         }
                 }
@@ -862,13 +862,13 @@ Rectangle {
                 root._hoverDepsLoading = false
                 root._hoverDepsList = root._versionDepsCache[versionId]
                 root._hoverDepsEmpty = root._hoverDepsList.length === 0
-                // 按最长前置名估算 Popup 宽度（内容自适应）
+                // 按最长前置名估算 Popup 宽度（名字 + 版本号~190 + 标签30 + 间距/内边距~40）
                 var maxLen = 0
                 for (var di = 0; di < root._hoverDepsList.length; di++) {
                     var t = root._hoverDepsList[di].title || root._hoverDepsList[di].project_id || ""
                     maxLen = Math.max(maxLen, t.length)
                 }
-                root._depsEstWidth = Math.max(220, Math.min(340, maxLen * 8 + 150))
+                root._depsEstWidth = Math.max(260, Math.min(480, maxLen * 8 + 260))
             }
         }
         function onModVersionsProgress(done, total) {
