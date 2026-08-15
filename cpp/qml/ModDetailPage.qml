@@ -55,7 +55,8 @@ Rectangle {
     property string _hoverDepsVersion: ""     // 当前悬停版本的 Modrinth versionId
     property bool _hoverDepsLoading: false
     property var _hoverDepsList: []
-    property bool _hoverDepsEmpty: false      // 该版本无前置 → 不显示黑框
+    // ⚠ 初始 true（无前置证据 → 不显示）：只有项目级确认有前置且请求发出后才置 false
+    property bool _hoverDepsEmpty: true
 
     signal goBack()
 
@@ -260,7 +261,8 @@ Rectangle {
     }
     // ── 2026-08-15：版本卡片悬停 → 显示/请求该版本的前置依赖 ──
     // 有缓存直接显示；无缓存先置 loading 再调后端（返回后 onVersionDependenciesResolved 回填）
-    // 项目级无任何前置（modDetailDependencies 空）→ 该 mod 版本不可能有前置 → 直接不显示
+    // 项目级无任何前置（modDetailDependencies 空）→ 该 mod 版本不可能有前置 → 不显示
+    //（_hoverDepsEmpty 保持 true）
     function _showVersionDeps(verStr) {
         if (modDetailDependencies.length === 0) return
         var d = getVersionDetail(verStr)
@@ -275,7 +277,7 @@ Rectangle {
         }
         _hoverDepsLoading = true
         _hoverDepsList = []
-        _hoverDepsEmpty = false
+        _hoverDepsEmpty = false   // 确认请求发出 → 显示 loading
         if (backend) backend.fetchVersionDependencies(modDetailSlug, vid)
     }
     function formatDate(isoStr) {
@@ -713,17 +715,20 @@ Rectangle {
                             x: {
                                 if (!verHover.hovered && !tipArea.containsMouse) return -10000
                                 var p = verRow.mapToItem(root, verHover.point.position.x, verHover.point.position.y)
-                                var gap = 14
+                                var gap = 12
                                 var tipW = depsTip.width > 0 ? depsTip.width : 280
                                 return (p.x + gap + tipW > root.width) ? p.x - gap - tipW : p.x + gap
                             }
                             y: {
                                 if (!verHover.hovered && !tipArea.containsMouse) return -10000
                                 var p = verRow.mapToItem(root, verHover.point.position.x, verHover.point.position.y)
-                                var gap = 14
+                                var gap = 12
                                 var tipH = depsTip.height > 0 ? depsTip.height : 120
-                                var upY = p.y - tipH - gap
-                                return (upY < 4) ? p.y + gap : upY   // 上方优先，溢出翻下方
+                                // 垂直居中鼠标（贴住）；上下溢出时翻到另一侧
+                                var midY = p.y - tipH / 2
+                                if (midY < 4) return p.y + gap
+                                if (midY + tipH > root.height) return p.y - tipH - gap
+                                return midY
                             }
 
                             // 鼠标在 Popup 上时保持显示（防 hover 抖动）
@@ -747,10 +752,13 @@ Rectangle {
                             }
                             contentItem: Column {
                                 id: depsCol
-                                width: 280
                                 spacing: 4
                                 leftPadding: 10; rightPadding: 10
                                 topPadding: 8; bottomPadding: 8
+                                // ⚠ 2026-08-15：宽度内容自适应（不固定 280）——
+                                // implicitWidth 由最长行撑开，Popup 宽度随文字变化；
+                                // 行内名字最大 200 防超宽
+                                implicitWidth: Math.max(160, depsCol.childrenRect.width + leftPadding + rightPadding)
 
                                 // ── 标题行 ──
                                 Text {
@@ -774,33 +782,33 @@ Rectangle {
                                 }
 
                                 // ── 依赖列表（无前置时 Popup 整体隐藏，见 visible 条件）──
-                                // ⚠ 2026-08-15 排版修复：delegate 用 RowLayout 且宽度绑定
-                                // depsCol（原 Row width:parent.width 中 parent=Repeater 宽度 0
-                                // → 文字全部重叠，名字被版本号盖住 → "只显示版本名称"）
+                                // ⚠ 排版：delegate RowLayout 宽度由名字 implicitWidth 撑开
+                                //（自适应），版本/标签固定宽；名字 elide 上限 200 防超宽
                                 Repeater {
                                     model: root._hoverDepsList
                                     delegate: RowLayout {
-                                        width: depsCol.width - depsCol.leftPadding - depsCol.rightPadding
+                                        width: Math.min(320, nameText.implicitWidth + 86 + 28 + 12)
                                         spacing: 6
                                         Text {
+                                            id: nameText
                                             text: modelData.title || modelData.project_id || ""
                                             font.pixelSize: StyleTokens.fontSizeSm
                                             color: StyleTokens.textSecondary
                                             elide: Text.ElideRight
-                                            Layout.fillWidth: true
+                                            Layout.maximumWidth: parent.width - 86 - 28 - 12
                                         }
                                         Text {
                                             text: modelData.version_number || qsTr("任意版本")
                                             font.pixelSize: StyleTokens.fontSizeXs
                                             color: StyleTokens.textTertiary
                                             elide: Text.ElideRight
-                                            Layout.preferredWidth: 86
+                                            width: 86
                                         }
                                         Text {
                                             text: modelData.dependency_type === "required" ? qsTr("必需") : qsTr("可选")
                                             font.pixelSize: StyleTokens.fontSizeXs
                                             color: modelData.dependency_type === "required" ? "#e0a050" : StyleTokens.textTertiary
-                                            Layout.preferredWidth: 28
+                                            width: 28
                                         }
                                     }
                                 }
