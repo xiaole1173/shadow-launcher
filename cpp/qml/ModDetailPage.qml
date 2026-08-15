@@ -55,6 +55,7 @@ Rectangle {
     property string _hoverDepsVersion: ""     // 当前悬停版本的 Modrinth versionId
     property bool _hoverDepsLoading: false
     property var _hoverDepsList: []
+    property bool _hoverDepsEmpty: false      // 该版本无前置 → 不显示黑框
 
     signal goBack()
 
@@ -259,7 +260,9 @@ Rectangle {
     }
     // ── 2026-08-15：版本卡片悬停 → 显示/请求该版本的前置依赖 ──
     // 有缓存直接显示；无缓存先置 loading 再调后端（返回后 onVersionDependenciesResolved 回填）
+    // 项目级无任何前置（modDetailDependencies 空）→ 该 mod 版本不可能有前置 → 直接不显示
     function _showVersionDeps(verStr) {
+        if (modDetailDependencies.length === 0) return
         var d = getVersionDetail(verStr)
         var vid = d ? (d.id || "") : ""
         if (!vid) return
@@ -267,10 +270,12 @@ Rectangle {
         if (_versionDepsCache[vid] !== undefined) {
             _hoverDepsLoading = false
             _hoverDepsList = _versionDepsCache[vid]
+            _hoverDepsEmpty = _hoverDepsList.length === 0
             return
         }
         _hoverDepsLoading = true
         _hoverDepsList = []
+        _hoverDepsEmpty = false
         if (backend) backend.fetchVersionDependencies(modDetailSlug, vid)
     }
     function formatDate(isoStr) {
@@ -622,7 +627,12 @@ Rectangle {
                             HoverHandler {
                                 id: verHover
                                 onHoveredChanged: {
-                                    if (verHover.hovered) root._showVersionDeps(modelData)
+                                    if (verHover.hovered) {
+                                        root._showVersionDeps(modelData)
+                                        // ⚠ 一次性定位（不持续绑定）：持续绑定 point.position
+                                        // + Popup 盖住鼠标会导致 hover 抖动 → 显隐循环卡死主线程
+                                        depsTip.positionAt(verHover.point.position.x, verHover.point.position.y)
+                                    }
                                 }
                             }
 
@@ -692,30 +702,38 @@ Rectangle {
                         }
 
                         // ── 2026-08-15：版本前置依赖 tooltip（仿 StatsPage 设计）──
-                        // Popup 挂页面根：Overlay 层渲染不被 clip 裁剪；
-                        // ⚠ mapToItem 首次求值时布局未就绪会得到 (0,0)，且绑定不随
-                        // 布局变化重算 → 必须让 verHover.hovered 参与绑定（悬停时重算）。
-                        // 位置跟随鼠标（point.position），x 左右翻转、y 上下翻转防溢出。
+                        // Popup 挂页面根：Overlay 层渲染不被 clip 裁剪。
+                        // ⚠ 稳定性设计（修复卡死）：
+                        //   1. 位置由 positionAt() 在 hover 上升沿一次性设置（不持续绑定，
+                        //      避免每帧重算 + Popup 盖鼠标 → hover 抖动 → 显隐循环卡死）
+                        //   2. tipArea 覆盖 Popup 自身：鼠标移入 Popup 时保持显示，
+                        //      移出 Popup 且移出卡片才隐藏（无抖动）
+                        //   3. 无前置（_hoverDepsEmpty）→ 不显示黑框
                         Popup {
                             id: depsTip
                             parent: root
-                            visible: verHover.hovered
+                            visible: (verHover.hovered || tipArea.containsMouse) && !root._hoverDepsEmpty
                             padding: 0
                             closePolicy: Popup.NoAutoClose
-                            x: {
-                                if (!verHover.hovered) return -10000
-                                var pos = verRow.mapToItem(root, verHover.point.position.x, verHover.point.position.y)
+
+                            // 一次性定位：鼠标位置 + 左右/上下翻转防溢出（在 hover 上升沿调用）
+                            function positionAt(px, py) {
+                                var pos = verRow.mapToItem(root, px, py)
                                 var gap = 14
                                 var tipW = depsTip.width > 0 ? depsTip.width : 280
-                                return (pos.x + gap + tipW > root.width) ? pos.x - gap - tipW : pos.x + gap
-                            }
-                            y: {
-                                if (!verHover.hovered) return -10000
-                                var pos = verRow.mapToItem(root, verHover.point.position.x, verHover.point.position.y)
-                                var gap = 14
                                 var tipH = depsTip.height > 0 ? depsTip.height : 120
-                                return (pos.y + gap + tipH > root.height) ? pos.y - tipH - gap : pos.y + gap
+                                depsTip.x = (pos.x + gap + tipW > root.width) ? pos.x - gap - tipW : pos.x + gap
+                                depsTip.y = (pos.y + gap + tipH > root.height) ? pos.y - tipH - gap : pos.y + gap
                             }
+
+                            // 鼠标在 Popup 上时保持显示（防 hover 抖动）
+                            MouseArea {
+                                id: tipArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                acceptedButtons: Qt.NoButton
+                            }
+
                             enter: Transition {
                                 NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 120; easing.type: Easing.OutCubic }
                             }
@@ -754,15 +772,7 @@ Rectangle {
                                     }
                                 }
 
-                                // ── 无前置 ──
-                                Text {
-                                    visible: !root._hoverDepsLoading && root._hoverDepsList.length === 0
-                                    text: qsTr("无前置模组")
-                                    font.pixelSize: StyleTokens.fontSizeXs
-                                    color: StyleTokens.textMuted
-                                }
-
-                                // ── 依赖列表 ──
+                                // ── 依赖列表（无前置时 Popup 整体隐藏，见 visible 条件）──
                                 Repeater {
                                     model: root._hoverDepsList
                                     delegate: Row {
@@ -867,6 +877,7 @@ Rectangle {
             if (versionId === root._hoverDepsVersion) {
                 root._hoverDepsLoading = false
                 root._hoverDepsList = root._versionDepsCache[versionId]
+                root._hoverDepsEmpty = root._hoverDepsList.length === 0
             }
         }
         function onModVersionsProgress(done, total) {
