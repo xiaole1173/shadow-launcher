@@ -50,6 +50,11 @@ Rectangle {
     property bool _versionListEnter: false
     // ── 版本数据缓存 (slug → {rawVersions, versionMap, grouped}) ──
     property var _versionCache: ({})
+    // ── 版本级前置依赖（悬停 tooltip，2026-08-15）──
+    property var _versionDepsCache: ({})      // versionId → deps
+    property string _hoverDepsVersion: ""     // 当前悬停版本的 Modrinth versionId
+    property bool _hoverDepsLoading: false
+    property var _hoverDepsList: []
 
     signal goBack()
 
@@ -251,6 +256,22 @@ Rectangle {
     }
     function getVersionDetail(verStr) {
         var map = modDetailVersionMap || {}; return map[verStr] || null
+    }
+    // ── 2026-08-15：版本卡片悬停 → 显示/请求该版本的前置依赖 ──
+    // 有缓存直接显示；无缓存先置 loading 再调后端（返回后 onVersionDependenciesResolved 回填）
+    function _showVersionDeps(verStr) {
+        var d = getVersionDetail(verStr)
+        var vid = d ? (d.id || "") : ""
+        if (!vid) return
+        _hoverDepsVersion = vid
+        if (_versionDepsCache[vid] !== undefined) {
+            _hoverDepsLoading = false
+            _hoverDepsList = _versionDepsCache[vid]
+            return
+        }
+        _hoverDepsLoading = true
+        _hoverDepsList = []
+        if (backend) backend.fetchVersionDependencies(modDetailSlug, vid)
     }
     function formatDate(isoStr) {
         if (!isoStr) return "-"; return isoStr.slice(0, 10)
@@ -587,9 +608,24 @@ Rectangle {
 
                     Repeater {
                         model: modelData.versions
-                        delegate: DetailVersionCard {
+                        // ── 2026-08-15：版本卡片外包悬停层（前置依赖 tooltip）──
+                        // 外包 Item 保持原布局（width/x），Popup 挂 root 防 clip 裁剪，
+                        // 翻转逻辑仿 StatsPage（右侧溢出时翻到左侧）
+                        delegate: Item {
+                            id: verRow
                             width: parent.width - 24
                             x: 24
+
+                            HoverHandler {
+                                id: verHover
+                                onHoveredChanged: {
+                                    if (verHover.hovered) root._showVersionDeps(modelData)
+                                }
+                            }
+
+                            DetailVersionCard {
+                                id: verCard
+                                width: parent.width
                                 versionLabel: {
                                     var d = getVersionDetail(modelData)
                                     return d ? d.versionNumber : modelData
@@ -650,8 +686,104 @@ Rectangle {
                                     modFileDialog.currentFile = "file:///" + defaultPath.replace(/\\/g, "/")
                                     modFileDialog.open()
                                 }
-                    }
+                        }
+
+                        // ── 2026-08-15：版本前置依赖 tooltip（仿 StatsPage 设计）──
+                        // Popup 挂页面根：Overlay 层渲染不被 clip 裁剪；
+                        // x 左右翻转防溢出；y 跟随卡片；内容先 loading 后依赖列表
+                        Popup {
+                            id: depsTip
+                            parent: root
+                            visible: verHover.hovered
+                            padding: 0
+                            closePolicy: Popup.NoAutoClose
+                            x: {
+                                var p = verCard.mapToItem(root, 0, 0)
+                                var gap = 12
+                                var tipW = depsTip.width > 0 ? depsTip.width : 280
+                                return (p.x + gap + tipW > root.width) ? p.x - gap - tipW : p.x + gap
+                            }
+                            y: {
+                                var p = verCard.mapToItem(root, 0, 0)
+                                return Math.max(4, p.y + 4)
+                            }
+                            enter: Transition {
+                                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 120; easing.type: Easing.OutCubic }
+                            }
+                            exit: Transition {
+                                NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 100; easing.type: Easing.InCubic }
+                            }
+                            background: Rectangle {
+                                radius: StyleTokens.radiusMd
+                                color: "#141a24"
+                                border.color: StyleTokens.bgInput; border.width: 1
+                            }
+                            contentItem: Column {
+                                width: 280
+                                spacing: 4
+                                leftPadding: 10; rightPadding: 10
+                                topPadding: 8; bottomPadding: 8
+
+                                // ── 标题行 ──
+                                Text {
+                                    text: qsTr("前置模组")
+                                    font.pixelSize: StyleTokens.fontSizeXs
+                                    font.weight: Font.DemiBold
+                                    color: StyleTokens.textTertiary
+                                }
+
+                                // ── 加载中 ──
+                                Row {
+                                    visible: root._hoverDepsLoading
+                                    spacing: 6
+                                    LoadingSpinner { width: 14; height: 14; running: true }
+                                    Text {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: qsTr("正在获取前置模组...")
+                                        font.pixelSize: StyleTokens.fontSizeXs
+                                        color: StyleTokens.textMuted
+                                    }
+                                }
+
+                                // ── 无前置 ──
+                                Text {
+                                    visible: !root._hoverDepsLoading && root._hoverDepsList.length === 0
+                                    text: qsTr("无前置模组")
+                                    font.pixelSize: StyleTokens.fontSizeXs
+                                    color: StyleTokens.textMuted
+                                }
+
+                                // ── 依赖列表 ──
+                                Repeater {
+                                    model: root._hoverDepsList
+                                    delegate: Row {
+                                        spacing: 6
+                                        width: parent.width
+                                        Text {
+                                            text: modelData.title || modelData.project_id || ""
+                                            font.pixelSize: StyleTokens.fontSizeSm
+                                            color: StyleTokens.textSecondary
+                                            elide: Text.ElideRight
+                                            width: parent.width - 150
+                                        }
+                                        Text {
+                                            text: modelData.version_number || qsTr("任意版本")
+                                            font.pixelSize: StyleTokens.fontSizeXs
+                                            color: StyleTokens.textTertiary
+                                            width: 90
+                                            elide: Text.ElideRight
+                                        }
+                                        Text {
+                                            text: modelData.dependency_type === "required" ? qsTr("必需") : qsTr("可选")
+                                            font.pixelSize: StyleTokens.fontSizeXs
+                                            color: modelData.dependency_type === "required" ? "#e0a050" : StyleTokens.textTertiary
+                                        }
+                                    }
+                                }
+                            }
+                        }
                 }
+            }
             }
             }
             }  // ColumnLayout
@@ -717,6 +849,15 @@ Rectangle {
             root.showDeps = (deps && deps.length > 0)
             // 写入缓存：返回上一级再进入时秒开（2026-08-07 修复）
             root._depsCache[modId] = root.modDetailDependencies
+        }
+        // ── 2026-08-15：版本级前置依赖（悬停 tooltip）──
+        // 结果总是缓存；仅当仍悬停该版本时更新 UI（快速悬停多个版本时旧结果不覆盖）
+        function onVersionDependenciesResolved(versionId, deps) {
+            root._versionDepsCache[versionId] = (deps || [])
+            if (versionId === root._hoverDepsVersion) {
+                root._hoverDepsLoading = false
+                root._hoverDepsList = root._versionDepsCache[versionId]
+            }
         }
         function onModVersionsProgress(done, total) {
             if (root.modDetailSlug === "") return

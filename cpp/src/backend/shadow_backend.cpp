@@ -696,6 +696,9 @@ ShadowBackend::ShadowBackend(QObject* parent)
                 }
                 emit modFileDownloadCancelled(dlId, displayName);
             });
+    // ── 2026-08-15：版本级前置依赖（悬停 tooltip）转发 ──
+    connect(m_resource, &ResourceBackend::versionDependenciesResolved,
+            this, &ShadowBackend::versionDependenciesResolved);
     // 整合包搜索完成透传（QML 回填列表）
     connect(m_resource, &ResourceBackend::modpackSearchResultsReady,
             this, &ShadowBackend::modpackSearchResultsReady);
@@ -2830,6 +2833,11 @@ void ShadowBackend::resumeModFileDownload(int downloadId) {
 
 void ShadowBackend::retryModFileDownload(int downloadId) {
     m_resource->retryModFileDownload(downloadId);
+}
+
+// ── 2026-08-15：版本级前置依赖（详情页悬停 tooltip）──
+void ShadowBackend::fetchVersionDependencies(const QString& slug, const QString& versionId) {
+    m_resource->fetchVersionDependencies(slug, versionId);
 }
 
 // ═══ Wardrobe (衣帽间) ═══

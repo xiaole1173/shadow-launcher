@@ -1298,6 +1298,137 @@ void ModManager::cancel()
 }
 
 // ============================================================
+// fetchVersionDependencies() — 单版本前置依赖（悬停 tooltip）
+// 流程: GET /version/{versionId} → dependencies[{project_id, version_id, type}]
+//       → GET /projects?ids=（名字/图标）+ GET /versions?ids=（版本号）
+//       → versionDependenciesResolved(versionId, [{title,slug,icon_url,
+//          version_number,dependency_type}])
+// ============================================================
+
+void ModManager::fetchVersionDependencies(const QString& slug, const QString& versionId)
+{
+    Q_UNUSED(slug);
+    if (versionId.isEmpty()) {
+        emit versionDependenciesResolved(versionId, QVariantList());
+        return;
+    }
+
+    fetchViaSinan(MODRINTH_API + QStringLiteral("/version/") + versionId, true,
+        [this, versionId](int status, const QByteArray& body) {
+            if (status != 200) {
+                qCWarning(logApp) << "[Modrinth] 获取版本依赖失败 HTTP" << status;
+                emit versionDependenciesResolved(versionId, QVariantList());
+                return;
+            }
+
+            QJsonObject ver = QJsonDocument::fromJson(body).object();
+            QJsonArray depsArr = ver.value(QStringLiteral("dependencies")).toArray();
+
+            QMap<QString, QString> depType;     // projectId → required/optional
+            QMap<QString, QString> depVerId;    // projectId → version_id
+            QStringList projIds, verIds;
+            for (const QJsonValue& dv : depsArr) {
+                QJsonObject dep = dv.toObject();
+                const QString t = dep.value(QStringLiteral("dependency_type")).toString();
+                if (t != QStringLiteral("required") && t != QStringLiteral("optional"))
+                    continue;
+                const QString pid = dep.value(QStringLiteral("project_id")).toString();
+                if (pid.isEmpty()) continue;
+                if (!depType.contains(pid)) depType[pid] = t;
+                const QString vid = dep.value(QStringLiteral("version_id")).toString();
+                if (!vid.isEmpty() && !depVerId.contains(pid)) depVerId[pid] = vid;
+                projIds.append(pid);
+                if (!vid.isEmpty() && !verIds.contains(vid)) verIds.append(vid);
+            }
+
+            if (projIds.isEmpty()) {
+                emit versionDependenciesResolved(versionId, QVariantList());
+                return;
+            }
+
+            auto results = std::make_shared<QMap<QString, QJsonObject>>();   // pid → {title,slug,icon_url}
+            auto verMap = std::make_shared<QMap<QString, QString>>();        // versionId → version_number
+            auto pending = std::make_shared<int>(2);
+
+            auto commonDone = [this, versionId, depType, depVerId, results, verMap, pending]() {
+                if (--(*pending) > 0) return;
+                QVariantList list;
+                for (auto it = depType.constBegin(); it != depType.constEnd(); ++it) {
+                    QVariantMap e;
+                    e[QStringLiteral("project_id")] = it.key();
+                    e[QStringLiteral("dependency_type")] = it.value();
+                    const QJsonObject info = results->value(it.key());
+                    const QString title = info.value(QStringLiteral("title")).toString();
+                    e[QStringLiteral("title")] = title.isEmpty() ? it.key() : title;
+                    e[QStringLiteral("slug")] = info.value(QStringLiteral("slug")).toString();
+                    e[QStringLiteral("icon_url")] = info.value(QStringLiteral("icon_url")).toString();
+                    e[QStringLiteral("version_number")] = verMap->value(depVerId.value(it.key()));
+                    list.append(e);
+                }
+                // 必须前置在前、可选在后（与项目级依赖一致）
+                std::stable_sort(list.begin(), list.end(),
+                    [](const QVariant& a, const QVariant& b) {
+                        const QString ta = a.toMap().value(QStringLiteral("dependency_type")).toString();
+                        const QString tb = b.toMap().value(QStringLiteral("dependency_type")).toString();
+                        if (ta == tb) return false;
+                        return ta == QStringLiteral("required");
+                    });
+                emit versionDependenciesResolved(versionId, list);
+            };
+
+            // ── 并行: projects(名字) + versions(版本号) ──
+            if (projIds.isEmpty()) { commonDone(); } else {
+                QUrl pu(MODRINTH_API + QStringLiteral("/projects"));
+                QUrlQuery pq;
+                pq.addQueryItem(QStringLiteral("ids"),
+                    QString::fromUtf8(QJsonDocument(QJsonArray::fromStringList(projIds)).toJson(QJsonDocument::Compact)));
+                pu.setQuery(pq);
+                fetchViaSinan(pu.toString(), true,
+                    [results, commonDone](int s, const QByteArray& b) {
+                        if (s == 200) {
+                            const QJsonArray arr = QJsonDocument::fromJson(b).array();
+                            for (const QJsonValue& pv : arr) {
+                                const QJsonObject p = pv.toObject();
+                                QJsonObject info;
+                                info[QStringLiteral("slug")] = p.value(QStringLiteral("slug"));
+                                info[QStringLiteral("title")] = p.value(QStringLiteral("title"));
+                                info[QStringLiteral("icon_url")] = p.value(QStringLiteral("icon_url"));
+                                (*results)[p.value(QStringLiteral("id")).toString()] = info;
+                            }
+                        }
+                        commonDone();
+                    },
+                    [commonDone](const QString&) { commonDone(); });
+            }
+            if (verIds.isEmpty()) { commonDone(); } else {
+                QUrl vu(MODRINTH_API + QStringLiteral("/versions"));
+                QUrlQuery vq;
+                vq.addQueryItem(QStringLiteral("ids"),
+                    QString::fromUtf8(QJsonDocument(QJsonArray::fromStringList(verIds)).toJson(QJsonDocument::Compact)));
+                vu.setQuery(vq);
+                fetchViaSinan(vu.toString(), true,
+                    [verMap, commonDone](int s, const QByteArray& b) {
+                        if (s == 200) {
+                            const QJsonArray arr = QJsonDocument::fromJson(b).array();
+                            for (const QJsonValue& vv : arr) {
+                                const QJsonObject vo = vv.toObject();
+                                (*verMap)[vo.value(QStringLiteral("id")).toString()]
+                                    = vo.value(QStringLiteral("version_number")).toString();
+                            }
+                        }
+                        commonDone();
+                    },
+                    [commonDone](const QString&) { commonDone(); });
+            }
+        },
+        [this, versionId](const QString& err) {
+            qCWarning(logApp) << "[Modrinth] 获取版本依赖失败:" << err;
+            emit versionDependenciesResolved(versionId, QVariantList());
+        }
+    );
+}
+
+// ============================================================
 // URL builder
 // ============================================================
 

@@ -501,6 +501,8 @@ public:
     Q_INVOKABLE void pauseModFileDownload(int downloadId);
     Q_INVOKABLE void resumeModFileDownload(int downloadId);
     Q_INVOKABLE void retryModFileDownload(int downloadId);
+    /// 2026-08-15：版本级前置依赖（详情页悬停 tooltip）
+    Q_INVOKABLE void fetchVersionDependencies(const QString& slug, const QString& versionId);
 
     // ═══ Wardrobe (衣帽间) ═══
     Q_INVOKABLE void browseSkin();  // File dialog
@@ -732,6 +734,8 @@ signals:
     void modFileDownloadFailed(int downloadId, const QString& errorDetail, const QString& displayName);
     /// 2026-08-15：用户主动取消文件下载（QML 弹"取消成功" toast）
     void modFileDownloadCancelled(int downloadId, const QString& displayName);
+    /// 2026-08-15：版本级前置依赖（悬停 tooltip）
+    void versionDependenciesResolved(const QString& versionId, const QVariantList& deps);
     /// 2026-08-15：MC/加载器安装取消（转发自 VersionBackend，QML 弹 toast）
     void cancelNotification(const QString& installId, const QString& message);
     /// 整合包搜索完成（池子全量，QML 按页切片）

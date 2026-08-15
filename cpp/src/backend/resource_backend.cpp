@@ -137,6 +137,8 @@ ResourceBackend::ResourceBackend(QObject* parent)
             this, &ResourceBackend::onModFileDownloadFailed);
     connect(m_modMgr, &ModManager::modFileDownloadCancelled,
             this, &ResourceBackend::modFileDownloadCancelled);
+    connect(m_modMgr, &ModManager::versionDependenciesResolved,
+            this, &ResourceBackend::versionDependenciesResolved);
 }
 
 ResourceBackend::~ResourceBackend() = default;
@@ -2088,6 +2090,11 @@ void ResourceBackend::resumeModFileDownload(int downloadId)
 void ResourceBackend::retryModFileDownload(int downloadId)
 {
     m_modMgr->retryModFileDownload(downloadId);
+}
+
+void ResourceBackend::fetchVersionDependencies(const QString& slug, const QString& versionId)
+{
+    m_modMgr->fetchVersionDependencies(slug, versionId);
 }
 
 void ResourceBackend::onModFileDownloadStarted(int downloadId, const QString& fileName,

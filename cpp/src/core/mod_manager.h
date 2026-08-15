@@ -153,6 +153,10 @@ public:
     void fetchModVersions(const QStringList& slugs);
     void fetchShaderVersions(const QStringList& slugs);
 
+    /// 2026-08-15：单版本前置依赖（悬停 tooltip）——/version/{id} → dependencies →
+    /// 批量 /projects(名字) + /versions(版本号) → versionDependenciesResolved
+    void fetchVersionDependencies(const QString& slug, const QString& versionId);
+
     // Popular mods (offline data)
     static QMap<QString, QJsonObject> getPopularMods(const QString& loader);
     static QMap<QString, QJsonObject> getShaderList();
@@ -196,6 +200,10 @@ signals:
     void modFileDownloadFailed(int downloadId, const QString& errorDetail, const QString& displayName);
     /// 2026-08-15：用户主动取消文件下载（QML 弹"取消成功" toast + 卡片标记取消态）
     void modFileDownloadCancelled(int downloadId, const QString& displayName);
+
+    /// 2026-08-15：版本级前置依赖（详情页版本卡片悬停 tooltip 用）
+    /// deps 每项: {project_id, dependency_type, title, slug, icon_url, version_number}
+    void versionDependenciesResolved(const QString& versionId, const QVariantList& deps);
 
     void shaderVersionsLoaded(const QVariantMap& slugToVersions);
     void shaderVersionsPartial(const QString& slug, const QStringList& versions, const QVariantMap& details);

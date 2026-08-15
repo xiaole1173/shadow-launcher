@@ -98,6 +98,8 @@ public:
     Q_INVOKABLE void pauseModFileDownload(int downloadId);
     Q_INVOKABLE void resumeModFileDownload(int downloadId);
     Q_INVOKABLE void retryModFileDownload(int downloadId);
+    /// 2026-08-15：版本级前置依赖（详情页悬停 tooltip）
+    Q_INVOKABLE void fetchVersionDependencies(const QString& slug, const QString& versionId);
 
     /// CF 详情页前置依赖解析：先取 CF 名称/图标，再按名称在 Modrinth 检索映射
     /// （命中 → Modrinth slug/title/icon，点击进 Modrinth 详情；未命中 → 保留 CF 数据）
@@ -116,6 +118,8 @@ signals:
     void modFileDownloadFailed(int downloadId, const QString& errorDetail, const QString& displayName);
     /// 2026-08-15：用户主动取消文件下载（转发自 ModManager）
     void modFileDownloadCancelled(int downloadId, const QString& displayName);
+    /// 2026-08-15：版本级前置依赖（悬停 tooltip）
+    void versionDependenciesResolved(const QString& versionId, const QVariantList& deps);
     /// 整合包搜索完成（池子全量，QML 按页切片）
     void modpackSearchResultsReady(const QVariantList& results);
     /// 数据包搜索完成（池子全量，QML 按页切片）
