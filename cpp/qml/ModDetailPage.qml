@@ -768,23 +768,23 @@ Rectangle {
                                 color: "#141a24"
                                 border.color: StyleTokens.bgInput; border.width: 1
                             }
-                            // ── 2026-08-15 终极简化：单个多行 Text 排版 ──
-                            // 弃用 Column/Repeater/ListView/RowLayout（多轮布局重叠的根源）。
-                            // Text 单组件自排版多行 richText，物理上不可能重叠；
-                            // Popup 尺寸 = Text 隐式测量（可靠自适应）。
+                            // ── 2026-08-15 单 Text 排版（最终版）──
+                            // Popup 显式宽（_depsEstWidth 按名字长度估算，无绑定循环）；
+                            // Text 填满 Popup 的 contentArea（padding 内）并 wrap 换行 →
+                            // 文字在框内留白排版，不贴边；高度 = Text 实际渲染高。
                             contentItem: Text {
                                 id: depsTipContent
                                 text: root._depsTipRichText()
                                 textFormat: Text.RichText
                                 font.pixelSize: StyleTokens.fontSizeSm
                                 color: StyleTokens.textSecondary
-                                // 宽度自适应（最长行），上限 340 防超宽（超出自动换行）
-                                width: Math.min(340, implicitWidth)
+                                width: parent.width
                                 wrapMode: Text.WrapAtWordBoundaryOrAnywhere
                             }
-                            // Popup 尺寸跟随 Text 隐式尺寸（+padding）
-                            width: depsTipContent.width + 20
-                            height: depsTipContent.implicitHeight + 16
+                            // 尺寸：宽 = 内容估算（上限360），高 = Text 渲染高 + padding
+                            width: Math.min(360, root._depsEstWidth)
+                            height: depsTipContent.implicitHeight + 20
+                            padding: 10   // 呼吸感：文字距黑框边缘 10px
                         }
                 }
             }
