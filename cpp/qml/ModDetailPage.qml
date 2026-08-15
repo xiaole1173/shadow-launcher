@@ -703,19 +703,20 @@ Rectangle {
                         }
 
                         // ── 2026-08-15：版本前置依赖 tooltip ──
-                        // 鼠标追踪完全复用 StatsPage 成熟方案：x/y 绑定
-                        // HoverHandler.point.position（持续跟随鼠标），左右/上下翻转防溢出。
-                        // 防卡死设计：
-                        //   1. y 优先放鼠标上方（upY）——Popup 不盖住鼠标 → hover 不抖动；
-                        //      上方溢出才翻下方（gap 14px 不盖鼠标）
-                        //   2. tipArea 覆盖 Popup：鼠标移入 Popup 保持显示
-                        //   3. 无前置（_hoverDepsEmpty）→ 不显示黑框
+                        // 鼠标追踪复用 StatsPage 成熟方案：x/y 绑定 point.position 跟随。
+                        // ⚠ 尺寸必须显式（width/height）：Popup 默认跟随 contentItem 的
+                        // implicitSize，而 Positioner(Column) 的 implicitWidth 不含
+                        // Repeater delegate → 背景塌成标题宽（"全透明"+文字溢出重叠）。
+                        // width=_depsEstWidth(按名字长度估算)，height=按行数估算。
                         Popup {
                             id: depsTip
                             parent: root
                             visible: (verHover.hovered || tipArea.containsMouse) && !root._hoverDepsEmpty
                             padding: 0
                             closePolicy: Popup.NoAutoClose
+                            width: root._depsEstWidth
+                            height: root._hoverDepsLoading ? 64
+                                : (root._hoverDepsList.length > 0 ? 40 + root._hoverDepsList.length * 22 : 0)
                             x: {
                                 if (!verHover.hovered && !tipArea.containsMouse) return -10000
                                 var p = verRow.mapToItem(root, verHover.point.position.x, verHover.point.position.y)
@@ -759,10 +760,9 @@ Rectangle {
                                 spacing: 4
                                 leftPadding: 10; rightPadding: 10
                                 topPadding: 8; bottomPadding: 8
-                                // ⚠ 显式动态宽（_depsEstWidth 按内容估算）：Positioner 的
-                                // implicitWidth 不含 Repeater delegate → 不设宽 Popup 塌成
-                                // 标题宽（背景透明 + 文字溢出重叠）。设宽后 Popup 背景正常。
-                                width: root._depsEstWidth
+                                // 填满 Popup（Popup width 显式 = _depsEstWidth）
+                                width: parent.width
+                                height: parent.height
 
                                 // ── 标题行 ──
                                 Text {
