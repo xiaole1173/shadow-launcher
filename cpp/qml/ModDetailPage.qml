@@ -57,9 +57,31 @@ Rectangle {
     property var _hoverDepsList: []
     // ⚠ 初始 true（无前置证据 → 不显示）
     property bool _hoverDepsEmpty: true
-    // ⚠ Popup 宽度估算（名字长度自适应）：不再用于布局容器（已弃用 Column/Repeater/
-    // ListView，改用单个多行 Text 排版），仅作 Popup 初始宽度参考
+    // ⚠ Popup 宽度估算（名字长度自适应）
     property int _depsEstWidth: 260
+    // ── 2026-08-15 单例 tooltip 状态（每卡片一个 Popup 会拖慢详情页：Popup 重量级）──
+    property bool _tipHovered: false      // 有卡片悬停
+    property real _tipX: -10000
+    property real _tipY: -10000
+
+    // ── tooltip 定位（hover 时调用一次；卡片右侧垂直居中 + 左右/上下翻转）──
+    function _positionDepsTip(anchor) {
+        var p = anchor.mapToItem(root, 0, 0)
+        var gap = 12
+        var tipW = Math.min(500, root._depsEstWidth)
+        var tipH = 120
+        // x: 右侧优先，右侧溢出翻左
+        _tipX = (p.x + gap + tipW > root.width) ? p.x - gap - tipW : p.x + gap
+        // y: 垂直居中卡片，上下溢出翻另一侧
+        var midY = p.y + anchor.height / 2 - tipH / 2
+        if (midY < 4) _tipY = p.y + gap
+        else if (midY + tipH > root.height) _tipY = p.y - tipH - gap
+        else _tipY = midY
+        _tipHovered = true
+    }
+    function _hideDepsTip() {
+        _tipHovered = false
+    }
 
     // ── tooltip 文本组装（richText 多行：Text 单组件排版，杜绝布局重叠）──
     function _depsTipRichText() {
@@ -649,7 +671,12 @@ Rectangle {
                             HoverHandler {
                                 id: verHover
                                 onHoveredChanged: {
-                                    if (verHover.hovered) root._showVersionDeps(modelData)
+                                    if (verHover.hovered) {
+                                        root._showVersionDeps(modelData)
+                                        root._positionDepsTip(verRow)
+                                    } else {
+                                        root._hideDepsTip()
+                                    }
                                 }
                             }
 
@@ -716,74 +743,6 @@ Rectangle {
                                     modFileDialog.currentFile = "file:///" + defaultPath.replace(/\\/g, "/")
                                     modFileDialog.open()
                                 }
-                        }
-
-                        // ── 2026-08-15：版本前置依赖 tooltip ──
-                        // 鼠标追踪复用 StatsPage 成熟方案：x/y 绑定 point.position 跟随。
-                        // ⚠ 尺寸必须显式（width/height）：Popup 默认跟随 contentItem 的
-                        // implicitSize，而 Positioner(Column) 的 implicitWidth 不含
-                        // Repeater delegate → 背景塌成标题宽（"全透明"+文字溢出重叠）。
-                        // width=_depsEstWidth(按名字长度估算)，height=按行数估算。
-                        Popup {
-                            id: depsTip
-                            parent: root
-                            visible: (verHover.hovered || tipArea.containsMouse) && !root._hoverDepsEmpty
-                            padding: 10   // 呼吸感：文字距黑框边缘留白（原 0 贴边）
-                            closePolicy: Popup.NoAutoClose
-                            x: {
-                                if (!verHover.hovered && !tipArea.containsMouse) return -10000
-                                var p = verRow.mapToItem(root, verHover.point.position.x, verHover.point.position.y)
-                                var gap = 12
-                                var tipW = depsTip.width > 0 ? depsTip.width : 280
-                                return (p.x + gap + tipW > root.width) ? p.x - gap - tipW : p.x + gap
-                            }
-                            y: {
-                                if (!verHover.hovered && !tipArea.containsMouse) return -10000
-                                var p = verRow.mapToItem(root, verHover.point.position.x, verHover.point.position.y)
-                                var gap = 12
-                                var tipH = depsTip.height > 0 ? depsTip.height : 120
-                                // 垂直居中鼠标（贴住）；上下溢出时翻到另一侧
-                                var midY = p.y - tipH / 2
-                                if (midY < 4) return p.y + gap
-                                if (midY + tipH > root.height) return p.y - tipH - gap
-                                return midY
-                            }
-
-                            // 鼠标在 Popup 上时保持显示（防 hover 抖动）
-                            MouseArea {
-                                id: tipArea
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                acceptedButtons: Qt.NoButton
-                            }
-
-                            enter: Transition {
-                                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 120; easing.type: Easing.OutCubic }
-                            }
-                            exit: Transition {
-                                NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 100; easing.type: Easing.InCubic }
-                            }
-                            background: Rectangle {
-                                radius: StyleTokens.radiusMd
-                                color: "#141a24"
-                                border.color: StyleTokens.bgInput; border.width: 1
-                            }
-                            // ── 2026-08-15 单 Text 排版（最终版）──
-                            // Popup 显式宽（_depsEstWidth 按名字长度估算，无绑定循环）；
-                            // Text 填满 Popup 的 contentArea（padding 内）并 wrap 换行 →
-                            // 文字在框内留白排版，不贴边；高度 = Text 实际渲染高。
-                            contentItem: Text {
-                                id: depsTipContent
-                                text: root._depsTipRichText()
-                                textFormat: Text.RichText
-                                font.pixelSize: StyleTokens.fontSizeSm
-                                color: StyleTokens.textSecondary
-                                width: parent.width
-                                wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-                            }
-                            // 尺寸：宽 = 内容估算（上限500），高 = Text 渲染高 + padding
-                            width: Math.min(500, root._depsEstWidth)
-                            height: depsTipContent.implicitHeight + 20
                         }
                 }
             }
@@ -900,5 +859,49 @@ Rectangle {
             pendingModDownload = {}
         }
         onRejected: { pendingModDownload = {} }
+    }
+
+    // ── 2026-08-15：单例前置依赖 tooltip（整个页面共享一个，杜绝每卡片一个 Popup 拖慢）──
+    // 位置由 _positionDepsTip 在 hover 时设置；内容单 Text richText 排版；
+    // 无前置（_hoverDepsEmpty）→ 不显示；鼠标移入 Popup 保持显示（tipArea）。
+    Popup {
+        id: depsTip
+        parent: root
+        visible: (root._tipHovered || tipArea.containsMouse) && !root._hoverDepsEmpty
+        x: root._tipX
+        y: root._tipY
+        padding: 10
+        closePolicy: Popup.NoAutoClose
+        z: 100
+
+        MouseArea {
+            id: tipArea
+            anchors.fill: parent
+            hoverEnabled: true
+            acceptedButtons: Qt.NoButton
+        }
+
+        enter: Transition {
+            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 120; easing.type: Easing.OutCubic }
+        }
+        exit: Transition {
+            NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 100; easing.type: Easing.InCubic }
+        }
+        background: Rectangle {
+            radius: StyleTokens.radiusMd
+            color: "#141a24"
+            border.color: StyleTokens.bgInput; border.width: 1
+        }
+        contentItem: Text {
+            id: depsTipContent
+            text: root._depsTipRichText()
+            textFormat: Text.RichText
+            font.pixelSize: StyleTokens.fontSizeSm
+            color: StyleTokens.textSecondary
+            width: parent.width
+            wrapMode: Text.WrapAtWordBoundaryOrAnywhere
+        }
+        width: Math.min(500, root._depsEstWidth)
+        height: depsTipContent.implicitHeight + 20
     }
 }
