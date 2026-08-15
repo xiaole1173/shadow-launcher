@@ -627,12 +627,7 @@ Rectangle {
                             HoverHandler {
                                 id: verHover
                                 onHoveredChanged: {
-                                    if (verHover.hovered) {
-                                        root._showVersionDeps(modelData)
-                                        // ⚠ 一次性定位（不持续绑定）：持续绑定 point.position
-                                        // + Popup 盖住鼠标会导致 hover 抖动 → 显隐循环卡死主线程
-                                        depsTip.positionAt(verHover.point.position.x, verHover.point.position.y)
-                                    }
+                                    if (verHover.hovered) root._showVersionDeps(modelData)
                                 }
                             }
 
@@ -701,13 +696,13 @@ Rectangle {
                                 }
                         }
 
-                        // ── 2026-08-15：版本前置依赖 tooltip（仿 StatsPage 设计）──
-                        // Popup 挂页面根：Overlay 层渲染不被 clip 裁剪。
-                        // ⚠ 稳定性设计（修复卡死）：
-                        //   1. 位置由 positionAt() 在 hover 上升沿一次性设置（不持续绑定，
-                        //      避免每帧重算 + Popup 盖鼠标 → hover 抖动 → 显隐循环卡死）
-                        //   2. tipArea 覆盖 Popup 自身：鼠标移入 Popup 时保持显示，
-                        //      移出 Popup 且移出卡片才隐藏（无抖动）
+                        // ── 2026-08-15：版本前置依赖 tooltip ──
+                        // 鼠标追踪完全复用 StatsPage 成熟方案：x/y 绑定
+                        // HoverHandler.point.position（持续跟随鼠标），左右/上下翻转防溢出。
+                        // 防卡死设计：
+                        //   1. y 优先放鼠标上方（upY）——Popup 不盖住鼠标 → hover 不抖动；
+                        //      上方溢出才翻下方（gap 14px 不盖鼠标）
+                        //   2. tipArea 覆盖 Popup：鼠标移入 Popup 保持显示
                         //   3. 无前置（_hoverDepsEmpty）→ 不显示黑框
                         Popup {
                             id: depsTip
@@ -715,15 +710,20 @@ Rectangle {
                             visible: (verHover.hovered || tipArea.containsMouse) && !root._hoverDepsEmpty
                             padding: 0
                             closePolicy: Popup.NoAutoClose
-
-                            // 一次性定位：鼠标位置 + 左右/上下翻转防溢出（在 hover 上升沿调用）
-                            function positionAt(px, py) {
-                                var pos = verRow.mapToItem(root, px, py)
+                            x: {
+                                if (!verHover.hovered && !tipArea.containsMouse) return -10000
+                                var p = verRow.mapToItem(root, verHover.point.position.x, verHover.point.position.y)
                                 var gap = 14
                                 var tipW = depsTip.width > 0 ? depsTip.width : 280
+                                return (p.x + gap + tipW > root.width) ? p.x - gap - tipW : p.x + gap
+                            }
+                            y: {
+                                if (!verHover.hovered && !tipArea.containsMouse) return -10000
+                                var p = verRow.mapToItem(root, verHover.point.position.x, verHover.point.position.y)
+                                var gap = 14
                                 var tipH = depsTip.height > 0 ? depsTip.height : 120
-                                depsTip.x = (pos.x + gap + tipW > root.width) ? pos.x - gap - tipW : pos.x + gap
-                                depsTip.y = (pos.y + gap + tipH > root.height) ? pos.y - tipH - gap : pos.y + gap
+                                var upY = p.y - tipH - gap
+                                return (upY < 4) ? p.y + gap : upY   // 上方优先，溢出翻下方
                             }
 
                             // 鼠标在 Popup 上时保持显示（防 hover 抖动）
@@ -746,6 +746,7 @@ Rectangle {
                                 border.color: StyleTokens.bgInput; border.width: 1
                             }
                             contentItem: Column {
+                                id: depsCol
                                 width: 280
                                 spacing: 4
                                 leftPadding: 10; rightPadding: 10
@@ -773,29 +774,33 @@ Rectangle {
                                 }
 
                                 // ── 依赖列表（无前置时 Popup 整体隐藏，见 visible 条件）──
+                                // ⚠ 2026-08-15 排版修复：delegate 用 RowLayout 且宽度绑定
+                                // depsCol（原 Row width:parent.width 中 parent=Repeater 宽度 0
+                                // → 文字全部重叠，名字被版本号盖住 → "只显示版本名称"）
                                 Repeater {
                                     model: root._hoverDepsList
-                                    delegate: Row {
+                                    delegate: RowLayout {
+                                        width: depsCol.width - depsCol.leftPadding - depsCol.rightPadding
                                         spacing: 6
-                                        width: parent.width
                                         Text {
                                             text: modelData.title || modelData.project_id || ""
                                             font.pixelSize: StyleTokens.fontSizeSm
                                             color: StyleTokens.textSecondary
                                             elide: Text.ElideRight
-                                            width: parent.width - 150
+                                            Layout.fillWidth: true
                                         }
                                         Text {
                                             text: modelData.version_number || qsTr("任意版本")
                                             font.pixelSize: StyleTokens.fontSizeXs
                                             color: StyleTokens.textTertiary
-                                            width: 90
                                             elide: Text.ElideRight
+                                            Layout.preferredWidth: 86
                                         }
                                         Text {
                                             text: modelData.dependency_type === "required" ? qsTr("必需") : qsTr("可选")
                                             font.pixelSize: StyleTokens.fontSizeXs
                                             color: modelData.dependency_type === "required" ? "#e0a050" : StyleTokens.textTertiary
+                                            Layout.preferredWidth: 28
                                         }
                                     }
                                 }
