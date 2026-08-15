@@ -900,19 +900,15 @@ void ModManager::fetchResourcepackVersions(const QStringList& slugs)
                             return parse(a) > parse(b);
                         });
 
-                    // Build detailMap: for each game_version, find the newest pack version that supports it
-                    // ── 2026-08-15：选最稳定版本（release>beta>alpha）──
-                    // 原"第一个匹配"：API 按 date_published 降序 → alpha/beta 先到顶掉
-                    // release（与 Mod 详情同根因，全仓同步修）。
-                    auto typeRank = [](const QString& t) -> int {
-                        if (t == QStringLiteral("release")) return 2;
-                        if (t == QStringLiteral("beta")) return 1;
-                        return 0;
-                    };
+                    // Build detailMap: all versions preserved (2026-08-15)
+                    // 全部版本保留：对每个 game_version，所有支持它的版本都发出
+                    // （key = gv|version_number 唯一）。QML 已按 MC 主版本分组+折叠，
+                    // 多行渲染天然支持。原"每 gv 一个版本"（先到先得/最稳定优先）
+                    // 都会丢失可用版本（如 alpha 顶掉 release）。
                     QVariantMap detailMap;
+                    QStringList compositeVersions;
+                    QSet<QString> dedupComposite;
                     for (const QString& gv : allGameVersions) {
-                        int bestRank = -1;
-                        QJsonObject bestVer;
                         for (const QJsonValue& vv : verObjs) {
                             QJsonObject ver = vv.toObject();
                             QJsonArray gvs = ver["game_versions"].toArray();
@@ -920,21 +916,21 @@ void ModManager::fetchResourcepackVersions(const QStringList& slugs)
                             for (const QJsonValue& g : gvs) {
                                 if (g.toString() == gv) { found = true; break; }
                             }
-                            if (found) {
-                                const int rank = typeRank(ver["version_type"].toString());
-                                if (rank > bestRank) { bestRank = rank; bestVer = ver; }
-                            }
-                        }
-                        if (bestVer.isEmpty()) continue;
-                        {
+                            if (!found) continue;
+                            const QString uniqueKey = gv + QStringLiteral("|")
+                                + ver["version_number"].toString();
+                            if (dedupComposite.contains(uniqueKey)) continue;
+                            dedupComposite.insert(uniqueKey);
+                            compositeVersions.append(uniqueKey);
                             QVariantMap detail;
-                            detail["version_number"] = bestVer["version_number"].toString();
-                            detail["name"] = bestVer["name"].toString();
-                            detail["downloads"] = bestVer["downloads"].toInt();
-                            detail["date_published"] = bestVer["date_published"].toString();
-                            detail["version_type"] = bestVer["version_type"].toString();
+                            detail["version_number"] = ver["version_number"].toString();
+                            detail["name"] = ver["name"].toString();
+                            detail["downloads"] = ver["downloads"].toInt();
+                            detail["date_published"] = ver["date_published"].toString();
+                            detail["version_type"] = ver["version_type"].toString();
+                            detail["game_version"] = gv;
                             // Download file info (first primary file)
-                            QJsonArray files = bestVer["files"].toArray();
+                            QJsonArray files = ver["files"].toArray();
                             for (const QJsonValue& fv : files) {
                                 QJsonObject f = fv.toObject();
                                 if (f["primary"].toBool()) {
@@ -952,12 +948,12 @@ void ModManager::fetchResourcepackVersions(const QStringList& slugs)
                                 detail["size"] = qint64(f["size"].toDouble());
                                 detail["sha1"] = f["hashes"].toObject()["sha1"].toString();
                             }
-                            detailMap[gv] = detail;
+                            detailMap[uniqueKey] = detail;
                         }
                     }
 
-                    (*results)[slug] = allGameVersions;
-                    emit resourcepackVersionsPartial(slug, allGameVersions, detailMap);
+                    (*results)[slug] = compositeVersions;
+                    emit resourcepackVersionsPartial(slug, compositeVersions, detailMap);
                     processOne();
                 },
                 [this, slug, processOne](const QString& err) {
@@ -1075,33 +1071,19 @@ void ModManager::fetchModVersions(const QStringList& slugs)
                                 QStringList loaderList;
                                 for (const QJsonValue& l : loaders) loaderList << l.toString();
                                 QString primaryLoader = loaderList.isEmpty() ? QString() : loaderList.first();
-                                QString compositeKey = gv + QStringLiteral("|") + primaryLoader;
 
-                                // ── 2026-08-15：同 (gameVersion, loader) 多版本时优先稳定版 ──
-                                // 原逻辑"先遇到即保留"：API 按 date_published 降序 → alpha/beta
-                                // 先到并占用槽位，release 版被 dedup 顶掉（实测 Sodium 26.1.2|fabric
-                                // 显示 0.9.2-alpha.4，而 0.9.1-release 缺失）。
-                                // 现在 release > beta > alpha：更稳定的新版本覆盖已有槽位。
-                                auto typeRank = [](const QString& t) -> int {
-                                    if (t == QStringLiteral("release")) return 2;
-                                    if (t == QStringLiteral("beta")) return 1;
-                                    return 0;   // alpha 及其它
-                                };
-                                const QString newType = ver["version_type"].toString();
-                                const auto existingIt = detailMap.constFind(compositeKey);
-                                if (existingIt != detailMap.constEnd()) {
-                                    // existingIt.value() = detail QVariantMap（iterator 方法，非 ->value）
-                                    const QString oldType = existingIt.value().toMap()
-                                        .value(QStringLiteral("version_type")).toString();
-                                    if (typeRank(newType) <= typeRank(oldType))
-                                        continue;   // 现有槽位更稳定或同级，跳过
-                                    // 新版本更稳定（如 release 覆盖 alpha）：更新 detailMap，不重复 append
-                                } else if (dedupComposite.contains(compositeKey)) {
-                                    continue;
-                                } else {
-                                    dedupComposite.insert(compositeKey);
-                                    compositeVersions.append(compositeKey);
-                                }
+                                // ── 2026-08-15：全部版本保留（不再按 gv|loader 去重）──
+                                // 用户质疑：同一 MC 版本同 loader 的多个版本（如 26.1.2|fabric
+                                // 的 0.9.1-release / 0.9.2-alpha.4）都该可选。QML 端已按 MC 主
+                                // 版本分组+折叠渲染，天然支持多行。key 用 gv|loader|version_number
+                                // 保证唯一；原始"先到先得去重"曾把 release 顶掉（0.9.1 缺失）。
+                                const QString versionNumber = ver["version_number"].toString();
+                                const QString uniqueKey = gv + QStringLiteral("|")
+                                    + primaryLoader + QStringLiteral("|") + versionNumber;
+                                if (dedupComposite.contains(uniqueKey))
+                                    continue;   // 防御：同一 (gv, ver) 只发一次
+                                dedupComposite.insert(uniqueKey);
+                                compositeVersions.append(uniqueKey);
 
                                 QVariantMap detail;
                                 detail["version_number"] = ver["version_number"].toString();
@@ -1133,8 +1115,7 @@ void ModManager::fetchModVersions(const QStringList& slugs)
                                     detail["sha1"] = hashes["sha1"].toString();
                                 }
                                 detail["loaders"] = loaderList;
-                                detailMap[compositeKey] = detail;
-                                compositeVersions.append(compositeKey);
+                                detailMap[uniqueKey] = detail;
                                 // Continue iterating — don't break, collect all loader
                                 // variants for this game version
                             }
@@ -1239,15 +1220,11 @@ void ModManager::fetchShaderVersions(const QStringList& slugs)
                         });
 
                     QVariantMap detailMap;
-                    // ── 2026-08-15：选最稳定版本（release>beta>alpha），原"第一个匹配"被 alpha 顶掉 ──
-                    auto typeRank = [](const QString& t) -> int {
-                        if (t == QStringLiteral("release")) return 2;
-                        if (t == QStringLiteral("beta")) return 1;
-                        return 0;
-                    };
+                    QStringList compositeVersions;
+                    QSet<QString> dedupComposite;
+                    // ── 2026-08-15：全部版本保留（key = gv|version_number 唯一）──
+                    // 原"每 gv 一个版本（第一个匹配/最稳定）"会丢失可用版本。
                     for (const QString& gv : allGameVersions) {
-                        int bestRank = -1;
-                        QJsonObject bestVer;
                         for (const QJsonValue& vv : verObjs) {
                             QJsonObject ver = vv.toObject();
                             QJsonArray gvs = ver["game_versions"].toArray();
@@ -1255,27 +1232,27 @@ void ModManager::fetchShaderVersions(const QStringList& slugs)
                             for (const QJsonValue& g : gvs) {
                                 if (g.toString() == gv) { found = true; break; }
                             }
-                            if (found) {
-                                const int rank = typeRank(ver["version_type"].toString());
-                                if (rank > bestRank) { bestRank = rank; bestVer = ver; }
-                            }
-                        }
-                        if (bestVer.isEmpty()) continue;
-                        {
+                            if (!found) continue;
+                            const QString uniqueKey = gv + QStringLiteral("|")
+                                + ver["version_number"].toString();
+                            if (dedupComposite.contains(uniqueKey)) continue;
+                            dedupComposite.insert(uniqueKey);
+                            compositeVersions.append(uniqueKey);
                             QVariantMap detail;
-                            detail["version_number"] = bestVer["version_number"].toString();
-                            detail["name"] = bestVer["name"].toString();
-                            detail["downloads"] = bestVer["downloads"].toInt();
-                            detail["date_published"] = bestVer["date_published"].toString();
-                            detail["version_type"] = bestVer["version_type"].toString();
+                            detail["version_number"] = ver["version_number"].toString();
+                            detail["name"] = ver["name"].toString();
+                            detail["downloads"] = ver["downloads"].toInt();
+                            detail["date_published"] = ver["date_published"].toString();
+                            detail["version_type"] = ver["version_type"].toString();
+                            detail["game_version"] = gv;
                             // Loaders
-                            QJsonArray loadersArr = bestVer["loaders"].toArray();
+                            QJsonArray loadersArr = ver["loaders"].toArray();
                             QStringList loadersList;
                             for (const QJsonValue& l : loadersArr)
                                 loadersList.append(l.toString());
                             detail["loaders"] = loadersList;
                             // Primary file (download URL)
-                            QJsonArray filesArr = bestVer["files"].toArray();
+                            QJsonArray filesArr = ver["files"].toArray();
                             for (const QJsonValue& fv : filesArr) {
                                 QJsonObject fobj = fv.toObject();
                                 if (fobj.value("primary").toBool(false)) {
@@ -1286,12 +1263,12 @@ void ModManager::fetchShaderVersions(const QStringList& slugs)
                                     break;
                                 }
                             }
-                            detailMap[gv] = detail;
+                            detailMap[uniqueKey] = detail;
                         }
                     }
 
-                    (*results)[slug] = allGameVersions;
-                    emit shaderVersionsPartial(slug, allGameVersions, detailMap);
+                    (*results)[slug] = compositeVersions;
+                    emit shaderVersionsPartial(slug, compositeVersions, detailMap);
                     processOne();
                 },
                 [this, slug, processOne](const QString& err) {
