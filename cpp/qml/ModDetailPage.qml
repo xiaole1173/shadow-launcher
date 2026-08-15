@@ -728,7 +728,7 @@ Rectangle {
                             id: depsTip
                             parent: root
                             visible: (verHover.hovered || tipArea.containsMouse) && !root._hoverDepsEmpty
-                            padding: 0
+                            padding: 10   // 呼吸感：文字距黑框边缘留白（原 0 贴边）
                             closePolicy: Popup.NoAutoClose
                             x: {
                                 if (!verHover.hovered && !tipArea.containsMouse) return -10000
@@ -784,7 +784,6 @@ Rectangle {
                             // 尺寸：宽 = 内容估算（上限360），高 = Text 渲染高 + padding
                             width: Math.min(360, root._depsEstWidth)
                             height: depsTipContent.implicitHeight + 20
-                            padding: 10   // 呼吸感：文字距黑框边缘 10px
                         }
                 }
             }
