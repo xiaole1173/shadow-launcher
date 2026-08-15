@@ -57,6 +57,10 @@ Rectangle {
     property var _hoverDepsList: []
     // ⚠ 初始 true（无前置证据 → 不显示）：只有项目级确认有前置且请求发出后才置 false
     property bool _hoverDepsEmpty: true
+    // ⚠ Popup 内容动态宽度：Positioner(Column) 的 implicitWidth 不含 Repeater
+    // delegate 宽度 → 不显式设宽 Popup 会塌成标题宽（背景透明+文字溢出重叠）。
+    // 按最长前置名估算宽度（8px/字符 + 版本/标签/间距/内边距 ≈ 150）
+    property int _depsEstWidth: 260
 
     signal goBack()
 
@@ -755,9 +759,10 @@ Rectangle {
                                 spacing: 4
                                 leftPadding: 10; rightPadding: 10
                                 topPadding: 8; bottomPadding: 8
-                                // ⚠ 2026-08-15：不设显式 implicitWidth/childrenRect 绑定——
-                                // 引用自身 childrenRect 会形成布局循环（详情页无法加载）。
-                                // Column 默认 implicitWidth = 内容撑开 + padding，Popup 自动自适应。
+                                // ⚠ 显式动态宽（_depsEstWidth 按内容估算）：Positioner 的
+                                // implicitWidth 不含 Repeater delegate → 不设宽 Popup 塌成
+                                // 标题宽（背景透明 + 文字溢出重叠）。设宽后 Popup 背景正常。
+                                width: root._depsEstWidth
 
                                 // ── 标题行 ──
                                 Text {
@@ -780,33 +785,39 @@ Rectangle {
                                     }
                                 }
 
-                                // ── 依赖列表（无前置时 Popup 整体隐藏，见 visible 条件）──
-                                // ⚠ 排版：RowLayout 不设显式 width（implicitWidth 自动撑开）；
-                                // 名字 Layout.maximumWidth 固定 200 防超宽；版本/标签固定宽。
-                                // 无 parent.width 引用（parent=Repeater 宽 0 → 负值异常）
-                                Repeater {
-                                    model: root._hoverDepsList
-                                    delegate: RowLayout {
-                                        spacing: 6
-                                        Text {
-                                            text: modelData.title || modelData.project_id || ""
-                                            font.pixelSize: StyleTokens.fontSizeSm
-                                            color: StyleTokens.textSecondary
-                                            elide: Text.ElideRight
-                                            Layout.maximumWidth: 200
-                                        }
-                                        Text {
-                                            text: modelData.version_number || qsTr("任意版本")
-                                            font.pixelSize: StyleTokens.fontSizeXs
-                                            color: StyleTokens.textTertiary
-                                            elide: Text.ElideRight
-                                            width: 86
-                                        }
-                                        Text {
-                                            text: modelData.dependency_type === "required" ? qsTr("必需") : qsTr("可选")
-                                            font.pixelSize: StyleTokens.fontSizeXs
-                                            color: modelData.dependency_type === "required" ? "#e0a050" : StyleTokens.textTertiary
-                                            width: 28
+                                // ── 依赖列表（无前置时 Popup 整体隐藏）──
+                                // ⚠ 内层 Column 包装 Repeater：外层 Column 只布局直接子项，
+                                // Repeater items 由内层 Column（Positioner+Repeater 标准组合）
+                                // 垂直排列，杜绝重叠。
+                                Column {
+                                    width: parent.width
+                                    spacing: 4
+                                    Repeater {
+                                        model: root._hoverDepsList
+                                        delegate: RowLayout {
+                                            width: parent.width
+                                            spacing: 6
+                                            Text {
+                                                text: modelData.title || modelData.project_id || ""
+                                                font.pixelSize: StyleTokens.fontSizeSm
+                                                color: StyleTokens.textSecondary
+                                                elide: Text.ElideRight
+                                                Layout.fillWidth: true
+                                                Layout.maximumWidth: 200
+                                            }
+                                            Text {
+                                                text: modelData.version_number || qsTr("任意版本")
+                                                font.pixelSize: StyleTokens.fontSizeXs
+                                                color: StyleTokens.textTertiary
+                                                elide: Text.ElideRight
+                                                width: 86
+                                            }
+                                            Text {
+                                                text: modelData.dependency_type === "required" ? qsTr("必需") : qsTr("可选")
+                                                font.pixelSize: StyleTokens.fontSizeXs
+                                                color: modelData.dependency_type === "required" ? "#e0a050" : StyleTokens.textTertiary
+                                                width: 28
+                                            }
                                         }
                                     }
                                 }
@@ -889,6 +900,13 @@ Rectangle {
                 root._hoverDepsLoading = false
                 root._hoverDepsList = root._versionDepsCache[versionId]
                 root._hoverDepsEmpty = root._hoverDepsList.length === 0
+                // 按最长前置名估算 Popup 宽度（内容自适应）
+                var maxLen = 0
+                for (var di = 0; di < root._hoverDepsList.length; di++) {
+                    var t = root._hoverDepsList[di].title || root._hoverDepsList[di].project_id || ""
+                    maxLen = Math.max(maxLen, t.length)
+                }
+                root._depsEstWidth = Math.max(220, Math.min(340, maxLen * 8 + 150))
             }
         }
         function onModVersionsProgress(done, total) {
