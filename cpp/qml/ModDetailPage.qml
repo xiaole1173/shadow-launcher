@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 import QtQuick
 import QtQuick.Controls
@@ -29,6 +29,8 @@ Rectangle {
     property var mainWindow: null
 
     property string modDetailSlug: ""
+    // CF 详情（slug 为纯数字 modId）：下载量数据不可靠 → 卡片不显示（2026-08-15）
+    property bool _isCfDetail: /^\d+$/.test(modDetailSlug)
     property string modDetailTitle: ""
     property string modDetailDesc: ""
     property string modDetailIcon: ""
@@ -727,7 +729,11 @@ Rectangle {
                                     var gvClean = d ? (d.gameVersion || "") : ""
                                     return [
                                         { label: "MC:", value: d ? (d.gameVersions || [gvClean || modelData]).join(", ") : (gvClean || modelData) },
-                                        { label: "", value: formatDate(d ? d.date : "") + "  |  下载量 " + formatDL(d ? d.downloads : 0) }
+                                        // CF 源下载量数据不可靠（镜像 downloadCount 恒 0），
+                                        // CF 详情卡片不显示下载量（2026-08-15）
+                                        { label: "", value: (root._isCfDetail
+                                            ? formatDate(d ? d.date : "")
+                                            : formatDate(d ? d.date : "") + "  |  下载量 " + formatDL(d ? d.downloads : 0)) }
                                     ]
                                 }
 
