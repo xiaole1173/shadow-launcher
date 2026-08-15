@@ -64,6 +64,13 @@ Rectangle {
 
     signal goBack()
 
+    // ── 2026-08-15 加载源诊断标记 ──
+    // 连续多轮 QML 改动用户都看不到变化 → 怀疑运行时加载的不是本文件。
+    // 启动时打印唯一标记，查日志确认实际加载来源。
+    Component.onCompleted: {
+        console.log("[ModDetail-LOAD] v10-ListView 版已加载 " + modDetailSlug)
+    }
+
     // ── Listen for dependency resolution ──
     Connections {
         target: backend && backend.modManager ? backend.modManager : null
