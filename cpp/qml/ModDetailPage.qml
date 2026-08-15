@@ -615,6 +615,9 @@ Rectangle {
                             id: verRow
                             width: parent.width - 24
                             x: 24
+                            // ⚠ 2026-08-15：必须显式行高！Item 默认 implicitHeight=0，
+                            // 外包后版本卡片行塌陷 → 分组展开后内容不可见（"下拉框展不开"）。
+                            implicitHeight: verCard.implicitHeight
 
                             HoverHandler {
                                 id: verHover
