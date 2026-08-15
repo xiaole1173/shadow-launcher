@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 褰?/ Shadow
 #include "local_mod_manager.h"
 #include "utils/logger.h"
@@ -260,14 +260,13 @@ LocalModEntry LocalModManager::parseJar(const QString& jarPath)
     if (!buf.open(QIODevice::ReadOnly)) return entry;
     QZipReader reader(&buf);
 
-    // 1. Try fabric.mod.json
-    QByteArray fabricData = reader.fileData(QStringLiteral("fabric.mod.json"));
-    if (!fabricData.isEmpty()) {
-        reader.close();
-        return parseFabricJson(fabricData, jarPath, entry.fileName, entry.fileSize);
-    }
+    // ── 2026-08-15：检测顺序调整（neoforge/forge 优先于 fabric）──
+    // 跨平台 mod（如 Iris Shaders）的 jar 同时含 fabric.mod.json 和
+    // META-INF/neoforge.mods.toml（实测 Iris_Shaders-1.11.2+26.2-neoforge
+    // 两个文件都在）。原顺序 fabric 优先 → NeoForge 版误判为 Fabric。
+    // 现在 neoforge → forge(mods.toml) → fabric 优先匹配。
 
-    // 2. Try neoforge.mods.toml (NeoForge 20.4+)
+    // 1. Try neoforge.mods.toml (NeoForge 20.4+)
     QByteArray nfToml = reader.fileData(QStringLiteral("META-INF/neoforge.mods.toml"));
     if (!nfToml.isEmpty()) {
         entry = parseNeoForgeToml(nfToml, jarPath, entry.fileName, entry.fileSize);
@@ -277,7 +276,7 @@ LocalModEntry LocalModManager::parseJar(const QString& jarPath)
         return entry;
     }
 
-    // 3. Try mods.toml (Forge 1.13+)
+    // 2. Try mods.toml (Forge 1.13+)
     QByteArray fToml = reader.fileData(QStringLiteral("META-INF/mods.toml"));
     if (!fToml.isEmpty()) {
         entry = parseNeoForgeToml(fToml, jarPath, entry.fileName, entry.fileSize);
@@ -285,6 +284,13 @@ LocalModEntry LocalModManager::parseJar(const QString& jarPath)
         entry.loader = QStringLiteral("forge");
         reader.close();
         return entry;
+    }
+
+    // 3. Try fabric.mod.json (纯 Fabric mod / 或跨平台 jar 中 Fabric 专属)
+    QByteArray fabricData = reader.fileData(QStringLiteral("fabric.mod.json"));
+    if (!fabricData.isEmpty()) {
+        reader.close();
+        return parseFabricJson(fabricData, jarPath, entry.fileName, entry.fileSize);
     }
 
     // 4. Try mcmod.info (legacy Forge)
