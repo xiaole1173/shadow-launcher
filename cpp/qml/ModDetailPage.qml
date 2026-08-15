@@ -693,7 +693,9 @@ Rectangle {
 
                         // ── 2026-08-15：版本前置依赖 tooltip（仿 StatsPage 设计）──
                         // Popup 挂页面根：Overlay 层渲染不被 clip 裁剪；
-                        // x 左右翻转防溢出；y 跟随卡片；内容先 loading 后依赖列表
+                        // ⚠ mapToItem 首次求值时布局未就绪会得到 (0,0)，且绑定不随
+                        // 布局变化重算 → 必须让 verHover.hovered 参与绑定（悬停时重算）。
+                        // 位置跟随鼠标（point.position），x 左右翻转、y 上下翻转防溢出。
                         Popup {
                             id: depsTip
                             parent: root
@@ -701,14 +703,18 @@ Rectangle {
                             padding: 0
                             closePolicy: Popup.NoAutoClose
                             x: {
-                                var p = verCard.mapToItem(root, 0, 0)
-                                var gap = 12
+                                if (!verHover.hovered) return -10000
+                                var pos = verRow.mapToItem(root, verHover.point.position.x, verHover.point.position.y)
+                                var gap = 14
                                 var tipW = depsTip.width > 0 ? depsTip.width : 280
-                                return (p.x + gap + tipW > root.width) ? p.x - gap - tipW : p.x + gap
+                                return (pos.x + gap + tipW > root.width) ? pos.x - gap - tipW : pos.x + gap
                             }
                             y: {
-                                var p = verCard.mapToItem(root, 0, 0)
-                                return Math.max(4, p.y + 4)
+                                if (!verHover.hovered) return -10000
+                                var pos = verRow.mapToItem(root, verHover.point.position.x, verHover.point.position.y)
+                                var gap = 14
+                                var tipH = depsTip.height > 0 ? depsTip.height : 120
+                                return (pos.y + gap + tipH > root.height) ? pos.y - tipH - gap : pos.y + gap
                             }
                             enter: Transition {
                                 NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 120; easing.type: Easing.OutCubic }
@@ -823,6 +829,7 @@ Rectangle {
                     }
                     map[v] = {
                         versionNumber: d ? (d.version_number || v) : v,
+                        id: d ? (d.id || "") : "",   // 2026-08-15：Modrinth versionId（悬停前置依赖用）
                         gameVersion: gameVer,
                         gameVersions: gvs.length > 0 ? gvs : [gameVer],
                         loaders: d ? (d.loaders || []) : [],
