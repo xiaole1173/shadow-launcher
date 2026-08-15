@@ -123,6 +123,7 @@ void SettingsBackend::loadSettings()
     m_maxMemoryMB = s.value(QStringLiteral("memory/maxMB"), 2048).toInt();
     m_autoMemory = s.value(QStringLiteral("memory/autoMemory"), true).toBool();
     m_embeddedLoginEnabled = s.value(QStringLiteral("general/embeddedLogin"), false).toBool();
+    m_modDepsTooltipEnabled = s.value(QStringLiteral("general/modDepsTooltip"), false).toBool();   // 实验性，默认关
     m_languageIndex = s.value(QStringLiteral("general/languageIndex"), 0).toInt();
     m_launchLanguageIndex = m_languageIndex;  // snapshot for restart detection
     m_lastLaunchedVersion = s.value(QStringLiteral("general/lastVersion"), QString()).toString();
@@ -177,6 +178,7 @@ void SettingsBackend::saveSettings()
     s.setValue(QStringLiteral("memory/maxMB"), m_maxMemoryMB);
     s.setValue(QStringLiteral("memory/autoMemory"), m_autoMemory);
     s.setValue(QStringLiteral("general/embeddedLogin"), m_embeddedLoginEnabled);
+    s.setValue(QStringLiteral("general/modDepsTooltip"), m_modDepsTooltipEnabled);
     s.setValue(QStringLiteral("general/languageIndex"), m_languageIndex);
     s.setValue(QStringLiteral("general/lastVersion"), m_lastLaunchedVersion);
     s.setValue(QStringLiteral("general/lastSelectedVersion"), m_lastSelectedVersion);
@@ -887,6 +889,16 @@ void SettingsBackend::setEmbeddedLoginEnabled(bool v)
         m_embeddedLoginEnabled = v;
         saveSettings();
         emit embeddedLoginChanged();
+    }
+}
+
+// ── 2026-08-15：版本悬停前置依赖 tooltip（实验性）──
+void SettingsBackend::setModDepsTooltipEnabled(bool v)
+{
+    if (m_modDepsTooltipEnabled != v) {
+        m_modDepsTooltipEnabled = v;
+        saveSettings();
+        emit modDepsTooltipEnabledChanged();
     }
 }
 

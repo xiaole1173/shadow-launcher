@@ -308,6 +308,8 @@ ShadowBackend::ShadowBackend(QObject* parent)
             this, &ShadowBackend::isolationChanged);
     connect(m_settings, &SettingsBackend::embeddedLoginChanged,
             this, &ShadowBackend::embeddedLoginChanged);
+    connect(m_settings, &SettingsBackend::modDepsTooltipEnabledChanged,
+            this, &ShadowBackend::modDepsTooltipEnabledChanged);   // 2026-08-15：实验性 tooltip
     connect(m_settings, &SettingsBackend::customBgChanged,
             this, &ShadowBackend::customBgChanged);
     connect(m_settings, &SettingsBackend::logMessage,
@@ -852,6 +854,15 @@ bool ShadowBackend::embeddedLoginEnabled() const {
 
 void ShadowBackend::setEmbeddedLoginEnabled(bool v) {
     m_settings->setEmbeddedLoginEnabled(v);
+}
+
+// ── 2026-08-15：实验性 tooltip 开关 ──
+bool ShadowBackend::modDepsTooltipEnabled() const {
+    return m_settings->modDepsTooltipEnabled();
+}
+
+void ShadowBackend::setModDepsTooltipEnabled(bool v) {
+    m_settings->setModDepsTooltipEnabled(v);
 }
 
 // ── Custom background ──

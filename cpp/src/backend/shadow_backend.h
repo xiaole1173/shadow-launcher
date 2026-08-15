@@ -69,6 +69,8 @@ class ShadowBackend : public QObject {
     Q_PROPERTY(int maxMemoryMb READ maxMemoryMb NOTIFY memorySettingsChanged)
     Q_PROPERTY(bool isolationEnabled READ isolationEnabled NOTIFY isolationChanged)
     Q_PROPERTY(bool embeddedLoginEnabled READ embeddedLoginEnabled WRITE setEmbeddedLoginEnabled NOTIFY embeddedLoginChanged)
+    // 2026-08-15：实验性——版本悬停前置依赖 tooltip（可能卡顿/信息有误）
+    Q_PROPERTY(bool modDepsTooltipEnabled READ modDepsTooltipEnabled WRITE setModDepsTooltipEnabled NOTIFY modDepsTooltipEnabledChanged)
     Q_PROPERTY(QVariantList availableJavaList READ availableJavaList NOTIFY javaPathChanged)
 
     // ── Version ──
@@ -216,6 +218,9 @@ public:
     void setDownloadSpeedLimitMB(double v);
     bool embeddedLoginEnabled() const;
     Q_INVOKABLE void setEmbeddedLoginEnabled(bool v);
+    // 2026-08-15：实验性 tooltip 开关
+    bool modDepsTooltipEnabled() const;
+    Q_INVOKABLE void setModDepsTooltipEnabled(bool v);
 
     // ── Custom background ──
     QString customBgPath() const;
@@ -684,6 +689,7 @@ signals:
     void downloadSettingsChanged();
     void isolationChanged();
     void embeddedLoginChanged();
+    void modDepsTooltipEnabledChanged();   // 2026-08-15：实验性 tooltip 开关
     void versionListReady();
     void versionDetailsReady();
     void scanningChanged();

@@ -63,6 +63,8 @@ Rectangle {
     property bool _tipHovered: false      // 有卡片悬停
     property real _tipX: -10000
     property real _tipY: -10000
+    // 实验性开关（设置-实验性功能）：关闭时悬停不显示任何前置信息
+    property bool _tipEnabled: backend ? !!backend.modDepsTooltipEnabled : false
 
     // ── tooltip 位置计算（绑定当前悬停卡片的鼠标位置，持续跟随 + 翻转防溢出）──
     function _computeTipX(anchor, px, py) {
@@ -672,7 +674,7 @@ Rectangle {
                             HoverHandler {
                                 id: verHover
                                 onHoveredChanged: {
-                                    if (verHover.hovered) {
+                                    if (verHover.hovered && root._tipEnabled) {
                                         root._showVersionDeps(modelData)
                                         root._tipHovered = true
                                     } else {
@@ -685,12 +687,12 @@ Rectangle {
                             Binding {
                                 target: root; property: "_tipX"
                                 value: root._computeTipX(verRow, verHover.point.position.x, verHover.point.position.y)
-                                when: verHover.hovered
+                                when: verHover.hovered && root._tipEnabled
                             }
                             Binding {
                                 target: root; property: "_tipY"
                                 value: root._computeTipY(verRow, verHover.point.position.x, verHover.point.position.y)
-                                when: verHover.hovered
+                                when: verHover.hovered && root._tipEnabled
                             }
 
                             DetailVersionCard {

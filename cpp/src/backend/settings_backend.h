@@ -153,6 +153,9 @@ public:
     Q_INVOKABLE void deleteVersion(const QString& versionId);
     bool embeddedLoginEnabled() const { return m_embeddedLoginEnabled; }
     Q_INVOKABLE void setEmbeddedLoginEnabled(bool v);
+    // ── 2026-08-15：版本悬停前置依赖 tooltip（实验性，可能卡顿/信息有误）──
+    bool modDepsTooltipEnabled() const { return m_modDepsTooltipEnabled; }
+    Q_INVOKABLE void setModDepsTooltipEnabled(bool v);
     int languageIndex() const { return m_languageIndex; }
     Q_INVOKABLE void setLanguageIndex(int idx);
     bool isLanguageChanged() const { return m_languageIndex != m_launchLanguageIndex; }
@@ -226,6 +229,7 @@ signals:
     void generalSettingsChanged();
     void isolationChanged();
     void embeddedLoginChanged();
+    void modDepsTooltipEnabledChanged();   // 2026-08-15：实验性 tooltip 开关
     void languageChanged();
     void customBgChanged();
     void downloadSettingsChanged();
@@ -272,6 +276,7 @@ private:
     bool m_javaReady = false;
     QString m_gameDir;
     bool m_embeddedLoginEnabled = false;
+    bool m_modDepsTooltipEnabled = false;   // 2026-08-15：实验性 tooltip 开关
     int m_languageIndex = 0;
     int m_launchLanguageIndex = 0;
     VersionIsolation* m_isolation = nullptr;

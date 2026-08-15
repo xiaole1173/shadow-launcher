@@ -42,6 +42,32 @@ Flickable {
             }
         }
 
+        // ── 2026-08-15：版本悬停前置依赖 tooltip（实验性）──
+        Rectangle {
+            Layout.fillWidth: true; Layout.preferredHeight: 120; radius: StyleTokens.radiusLg; color: StyleTokens.bgSecondary; border.color: StyleTokens.bgInput; clip: true
+            ColumnLayout {
+                anchors.fill: parent; anchors.margins: 14; spacing: 8
+                RowLayout {
+                    Layout.fillWidth: true; spacing: 6
+                    Text { text: qsTr("版本悬停显示前置模组"); font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold; color: StyleTokens.textPrimary }
+                    Rectangle { radius: StyleTokens.radiusSm; height: 18; width: depsTag.implicitWidth + 10; color: StyleTokens.bgHover
+                        Text { id: depsTag; anchors.centerIn: parent; text: qsTr("实验性"); font.pixelSize: StyleTokens.fontSizeXs; color: "#a098e0" }
+                    }
+                    Item { Layout.fillWidth: true }
+                    Text { text: depsSwitch.checked ? qsTr("已开启") : qsTr("已关闭"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary }
+                    ShadowSwitch {
+                        id: depsSwitch; Layout.alignment: Qt.AlignVCenter
+                        checked: backend ? backend.modDepsTooltipEnabled : false
+                        onToggled: { if (backend) backend.setModDepsTooltipEnabled(checked) }
+                    }
+                }
+                Text {
+                    text: qsTr("在模组详情页将鼠标悬停在版本卡片上时，显示该版本的前置模组信息。\n⚠ 显示信息可能有误，且开启时可能造成卡顿。")
+                    font.pixelSize: StyleTokens.fontSizeSm; color: "#707888"; wrapMode: Text.WordWrap; Layout.fillWidth: true
+                }
+            }
+        }
+
         // ── Language selector ──
         Rectangle {
             Layout.fillWidth: true; Layout.preferredHeight: 110; radius: StyleTokens.radiusLg; color: StyleTokens.bgSecondary; border.color: StyleTokens.bgInput; clip: true
