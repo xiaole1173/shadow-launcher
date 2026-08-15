@@ -675,9 +675,13 @@ Item {
                 spacing: 8
                 Image {
                     source: "icons/lucide/alert-triangle.svg"
-                    // 图标大小跟随文字字号（自适应）
-                    width: StyleTokens.fontSizeXs
-                    height: StyleTokens.fontSizeXs
+                    // ⚠ RowLayout 里必须用 Layout.preferredWidth/Height（width/height
+                    // 会被布局忽略 → 回退 SVG 固有 24px → 图标"很大一块"）
+                    Layout.preferredWidth: StyleTokens.fontSizeXs
+                    Layout.preferredHeight: StyleTokens.fontSizeXs
+                    Layout.maximumWidth: StyleTokens.fontSizeXs
+                    Layout.maximumHeight: StyleTokens.fontSizeXs
+                    sourceSize.width: 24; sourceSize.height: 24
                     fillMode: Image.PreserveAspectFit
                     Layout.alignment: Qt.AlignVCenter
                 }

@@ -44,8 +44,12 @@ Flickable {
 
         // ── 2026-08-15：版本悬停前置依赖 tooltip（实验性）──
         Rectangle {
-            Layout.fillWidth: true; Layout.preferredHeight: 120; radius: StyleTokens.radiusLg; color: StyleTokens.bgSecondary; border.color: StyleTokens.bgInput; clip: true
+            Layout.fillWidth: true
+            // 高度内容自适应（原固定 120 太大）
+            Layout.preferredHeight: depsCard.implicitHeight + 28
+            radius: StyleTokens.radiusLg; color: StyleTokens.bgSecondary; border.color: StyleTokens.bgInput; clip: true
             ColumnLayout {
+                id: depsCard
                 anchors.fill: parent; anchors.margins: 14; spacing: 8
                 RowLayout {
                     Layout.fillWidth: true; spacing: 6
@@ -69,9 +73,13 @@ Flickable {
                     Layout.fillWidth: true; spacing: 6
                     Image {
                         source: "icons/lucide/alert-triangle.svg"
-                        // 图标大小跟随文字字号（自适应）
-                        width: StyleTokens.fontSizeSm
-                        height: StyleTokens.fontSizeSm
+                        // ⚠ RowLayout 里必须用 Layout.preferredWidth/Height（width/height
+                        // 会被布局忽略 → 回退 SVG 固有 24px → 图标"很大一块"）
+                        Layout.preferredWidth: StyleTokens.fontSizeSm
+                        Layout.preferredHeight: StyleTokens.fontSizeSm
+                        Layout.maximumWidth: StyleTokens.fontSizeSm
+                        Layout.maximumHeight: StyleTokens.fontSizeSm
+                        sourceSize.width: 24; sourceSize.height: 24
                         fillMode: Image.PreserveAspectFit
                         Layout.alignment: Qt.AlignVCenter
                     }
