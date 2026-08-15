@@ -62,8 +62,20 @@ Flickable {
                     }
                 }
                 Text {
-                    text: qsTr("在模组详情页将鼠标悬停在版本卡片上时，显示该版本的前置模组信息。\n⚠ 显示信息可能有误，且开启时可能造成卡顿。")
+                    text: qsTr("在模组详情页将鼠标悬停在版本卡片上时，显示该版本的前置模组信息。")
                     font.pixelSize: StyleTokens.fontSizeSm; color: "#707888"; wrapMode: Text.WordWrap; Layout.fillWidth: true
+                }
+                RowLayout {
+                    Layout.fillWidth: true; spacing: 6
+                    Image {
+                        source: "icons/lucide/alert-triangle.svg"
+                        width: 14; height: 14
+                        Layout.alignment: Qt.AlignVCenter
+                    }
+                    Text {
+                        text: qsTr("显示信息可能有误，且开启时可能造成卡顿。")
+                        font.pixelSize: StyleTokens.fontSizeSm; color: "#e0a050"; wrapMode: Text.WordWrap; Layout.fillWidth: true
+                    }
                 }
             }
         }

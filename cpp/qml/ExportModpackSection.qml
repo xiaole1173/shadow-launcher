@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 import QtQuick
 import QtQuick.Controls
@@ -673,8 +673,13 @@ Item {
                 anchors.fill: parent
                 anchors.leftMargin: 12; anchors.rightMargin: 12
                 spacing: 8
+                Image {
+                    source: "icons/lucide/alert-triangle.svg"
+                    width: 14; height: 14
+                    Layout.alignment: Qt.AlignVCenter
+                }
                 Text {
-                    text: qsTr("⚠ 打包资源文件可能违反部分 Mod 的使用协议，请尽量不要公开分发包含资源文件的整合包！")
+                    text: qsTr("打包资源文件可能违反部分 Mod 的使用协议，请尽量不要公开分发包含资源文件的整合包！")
                     color: "#d9b45a"
                     font.pixelSize: StyleTokens.fontSizeXs
                     wrapMode: Text.WordWrap

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+﻿// SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 import QtQuick
 import QtQuick.Controls
@@ -55,9 +55,9 @@ Rectangle {
     property string _hoverDepsVersion: ""     // 当前悬停版本的 Modrinth versionId
     property bool _hoverDepsLoading: false
     property var _hoverDepsList: []
-    // ⚠ 初始 true（无前置证据 → 不显示）
+    // NOTE: 初始 true（无前置证据 → 不显示）
     property bool _hoverDepsEmpty: true
-    // ⚠ Popup 宽度估算（名字长度自适应）
+    // NOTE: Popup 宽度估算（名字长度自适应）
     property int _depsEstWidth: 260
     // ── 2026-08-15 单例 tooltip 状态（每卡片一个 Popup 会拖慢详情页：Popup 重量级）──
     property bool _tipHovered: false      // 有卡片悬停
@@ -667,7 +667,7 @@ Rectangle {
                             id: verRow
                             width: parent.width - 24
                             x: 24
-                            // ⚠ 2026-08-15：必须显式行高！Item 默认 implicitHeight=0，
+                            // NOTE: 2026-08-15 必须显式行高！Item 默认 implicitHeight=0，
                             // 外包后版本卡片行塌陷 → 分组展开后内容不可见（"下拉框展不开"）。
                             implicitHeight: verCard.implicitHeight
 

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+﻿// SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 import QtQuick
 import QtQuick.Controls
@@ -114,7 +114,7 @@ Item {
                         id: actionMouse
                         anchors.fill: parent
                         visible: model.isAction
-                        hoverEnabled: true   // ⚠ 必须！containsMouse 依赖它，否则 hover 高亮恒不触发
+                        hoverEnabled: true   // NOTE: 必须！containsMouse 依赖它，否则 hover 高亮恒不触发
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
                             var h = root._actionHandlers[model.toastId]
