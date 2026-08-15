@@ -755,10 +755,9 @@ Rectangle {
                                 spacing: 4
                                 leftPadding: 10; rightPadding: 10
                                 topPadding: 8; bottomPadding: 8
-                                // ⚠ 2026-08-15：宽度内容自适应（不固定 280）——
-                                // implicitWidth 由最长行撑开，Popup 宽度随文字变化；
-                                // 行内名字最大 200 防超宽
-                                implicitWidth: Math.max(160, depsCol.childrenRect.width + leftPadding + rightPadding)
+                                // ⚠ 2026-08-15：不设显式 implicitWidth/childrenRect 绑定——
+                                // 引用自身 childrenRect 会形成布局循环（详情页无法加载）。
+                                // Column 默认 implicitWidth = 内容撑开 + padding，Popup 自动自适应。
 
                                 // ── 标题行 ──
                                 Text {
@@ -782,20 +781,19 @@ Rectangle {
                                 }
 
                                 // ── 依赖列表（无前置时 Popup 整体隐藏，见 visible 条件）──
-                                // ⚠ 排版：delegate RowLayout 宽度由名字 implicitWidth 撑开
-                                //（自适应），版本/标签固定宽；名字 elide 上限 200 防超宽
+                                // ⚠ 排版：RowLayout 不设显式 width（implicitWidth 自动撑开）；
+                                // 名字 Layout.maximumWidth 固定 200 防超宽；版本/标签固定宽。
+                                // 无 parent.width 引用（parent=Repeater 宽 0 → 负值异常）
                                 Repeater {
                                     model: root._hoverDepsList
                                     delegate: RowLayout {
-                                        width: Math.min(320, nameText.implicitWidth + 86 + 28 + 12)
                                         spacing: 6
                                         Text {
-                                            id: nameText
                                             text: modelData.title || modelData.project_id || ""
                                             font.pixelSize: StyleTokens.fontSizeSm
                                             color: StyleTokens.textSecondary
                                             elide: Text.ElideRight
-                                            Layout.maximumWidth: parent.width - 86 - 28 - 12
+                                            Layout.maximumWidth: 200
                                         }
                                         Text {
                                             text: modelData.version_number || qsTr("任意版本")
