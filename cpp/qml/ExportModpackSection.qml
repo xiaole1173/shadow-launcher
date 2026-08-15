@@ -675,7 +675,10 @@ Item {
                 spacing: 8
                 Image {
                     source: "icons/lucide/alert-triangle.svg"
-                    width: 14; height: 14
+                    // 图标大小跟随文字字号（自适应）
+                    width: StyleTokens.fontSizeXs
+                    height: StyleTokens.fontSizeXs
+                    fillMode: Image.PreserveAspectFit
                     Layout.alignment: Qt.AlignVCenter
                 }
                 Text {
