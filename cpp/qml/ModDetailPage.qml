@@ -50,17 +50,33 @@ Rectangle {
     property bool _versionListEnter: false
     // ── 版本数据缓存 (slug → {rawVersions, versionMap, grouped}) ──
     property var _versionCache: ({})
-    // ── 版本级前置依赖（悬停 tooltip，2026-08-15）──
+    // ── 2026-08-15：版本级前置依赖（悬停 tooltip）──
     property var _versionDepsCache: ({})      // versionId → deps
     property string _hoverDepsVersion: ""     // 当前悬停版本的 Modrinth versionId
     property bool _hoverDepsLoading: false
     property var _hoverDepsList: []
-    // ⚠ 初始 true（无前置证据 → 不显示）：只有项目级确认有前置且请求发出后才置 false
+    // ⚠ 初始 true（无前置证据 → 不显示）
     property bool _hoverDepsEmpty: true
-    // ⚠ Popup 内容动态宽度：Positioner(Column) 的 implicitWidth 不含 Repeater
-    // delegate 宽度 → 不显式设宽 Popup 会塌成标题宽（背景透明+文字溢出重叠）。
-    // 按最长前置名估算宽度（8px/字符 + 版本/标签/间距/内边距 ≈ 150）
+    // ⚠ Popup 宽度估算（名字长度自适应）：不再用于布局容器（已弃用 Column/Repeater/
+    // ListView，改用单个多行 Text 排版），仅作 Popup 初始宽度参考
     property int _depsEstWidth: 260
+
+    // ── tooltip 文本组装（richText 多行：Text 单组件排版，杜绝布局重叠）──
+    function _depsTipRichText() {
+        if (_hoverDepsLoading)
+            return "<b>前置模组</b><br>&nbsp;&nbsp;正在获取前置模组..."
+        var lines = ["<b>前置模组</b>"]
+        for (var i = 0; i < _hoverDepsList.length; i++) {
+            var d = _hoverDepsList[i]
+            var t = d.dependency_type === "required" ? "必需" : "可选"
+            var v = d.version_number || "任意版本"
+            var tc = d.dependency_type === "required" ? "#e0a050" : "#8890a0"
+            lines.push("&nbsp;&nbsp;" + (d.title || d.project_id || "") +
+                       "&nbsp;&nbsp;<font color='#787c90'>" + v + "</font>" +
+                       "&nbsp;&nbsp;<font color='" + tc + "'>" + t + "</font>")
+        }
+        return lines.join("<br>")
+    }
 
     signal goBack()
 
@@ -714,9 +730,6 @@ Rectangle {
                             visible: (verHover.hovered || tipArea.containsMouse) && !root._hoverDepsEmpty
                             padding: 0
                             closePolicy: Popup.NoAutoClose
-                            width: root._depsEstWidth
-                            height: root._hoverDepsLoading ? 64
-                                : (root._hoverDepsList.length > 0 ? 36 + root._hoverDepsList.length * 24 : 0)
                             x: {
                                 if (!verHover.hovered && !tipArea.containsMouse) return -10000
                                 var p = verRow.mapToItem(root, verHover.point.position.x, verHover.point.position.y)
@@ -755,78 +768,23 @@ Rectangle {
                                 color: "#141a24"
                                 border.color: StyleTokens.bgInput; border.width: 1
                             }
-                            contentItem: Column {
-                                id: depsCol
-                                spacing: 4
-                                leftPadding: 10; rightPadding: 10
-                                topPadding: 8; bottomPadding: 8
-                                width: parent.width
-                                height: parent.height
-                                // ⚠ 2026-08-15：单一排列体系——标题/loading/每一行都是
-                                // 本 Column 的直接子项，由同一个 Positioner 从上到下依次排列
-                                // （此前"标题 Column + 列表 ListView"两个体系，视觉上各自
-                                // 排列互不整合）。行高固定 22 保证 Positioner 排列可靠。
-
-                                // ── 标题行 ──
-                                Text {
-                                    text: qsTr("前置模组")
-                                    font.pixelSize: StyleTokens.fontSizeXs
-                                    font.weight: Font.DemiBold
-                                    color: StyleTokens.textTertiary
-                                    height: 18
-                                }
-
-                                // ── 加载中 ──
-                                Row {
-                                    visible: root._hoverDepsLoading
-                                    height: 20
-                                    spacing: 6
-                                    LoadingSpinner { width: 14; height: 14; running: true; anchors.verticalCenter: parent.verticalCenter }
-                                    Text {
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        text: qsTr("正在获取前置模组...")
-                                        font.pixelSize: StyleTokens.fontSizeXs
-                                        color: StyleTokens.textMuted
-                                    }
-                                }
-
-                                // ── 依赖行（同一 Column 的直接子项，统一排列）──
-                                Repeater {
-                                    model: root._hoverDepsList
-                                    delegate: Row {
-                                        id: depRow
-                                        width: depsCol.width - depsCol.leftPadding - depsCol.rightPadding
-                                        height: 22
-                                        spacing: 6
-                                        Text {
-                                            width: depRow.width - 86 - 28 - 12
-                                            height: 22
-                                            text: modelData.title || modelData.project_id || ""
-                                            font.pixelSize: StyleTokens.fontSizeSm
-                                            color: StyleTokens.textSecondary
-                                            elide: Text.ElideRight
-                                            verticalAlignment: Text.AlignVCenter
-                                        }
-                                        Text {
-                                            width: 86
-                                            height: 22
-                                            text: modelData.version_number || qsTr("任意版本")
-                                            font.pixelSize: StyleTokens.fontSizeXs
-                                            color: StyleTokens.textTertiary
-                                            elide: Text.ElideRight
-                                            verticalAlignment: Text.AlignVCenter
-                                        }
-                                        Text {
-                                            width: 28
-                                            height: 22
-                                            text: modelData.dependency_type === "required" ? qsTr("必需") : qsTr("可选")
-                                            font.pixelSize: StyleTokens.fontSizeXs
-                                            color: modelData.dependency_type === "required" ? "#e0a050" : StyleTokens.textTertiary
-                                            verticalAlignment: Text.AlignVCenter
-                                        }
-                                    }
-                                }
+                            // ── 2026-08-15 终极简化：单个多行 Text 排版 ──
+                            // 弃用 Column/Repeater/ListView/RowLayout（多轮布局重叠的根源）。
+                            // Text 单组件自排版多行 richText，物理上不可能重叠；
+                            // Popup 尺寸 = Text 隐式测量（可靠自适应）。
+                            contentItem: Text {
+                                id: depsTipContent
+                                text: root._depsTipRichText()
+                                textFormat: Text.RichText
+                                font.pixelSize: StyleTokens.fontSizeSm
+                                color: StyleTokens.textSecondary
+                                // 宽度自适应（最长行），上限 340 防超宽（超出自动换行）
+                                width: Math.min(340, implicitWidth)
+                                wrapMode: Text.WrapAtWordBoundaryOrAnywhere
                             }
+                            // Popup 尺寸跟随 Text 隐式尺寸（+padding）
+                            width: depsTipContent.width + 20
+                            height: depsTipContent.implicitHeight + 16
                         }
                 }
             }
