@@ -64,20 +64,21 @@ Rectangle {
     property real _tipX: -10000
     property real _tipY: -10000
 
-    // ── tooltip 定位（hover 时调用一次；卡片右侧垂直居中 + 左右/上下翻转）──
-    function _positionDepsTip(anchor) {
-        var p = anchor.mapToItem(root, 0, 0)
+    // ── tooltip 位置计算（绑定当前悬停卡片的鼠标位置，持续跟随 + 翻转防溢出）──
+    function _computeTipX(anchor, px, py) {
+        var p = anchor.mapToItem(root, px, py)
         var gap = 12
         var tipW = Math.min(500, root._depsEstWidth)
+        return (p.x + gap + tipW > root.width) ? p.x - gap - tipW : p.x + gap
+    }
+    function _computeTipY(anchor, px, py) {
+        var p = anchor.mapToItem(root, px, py)
+        var gap = 12
         var tipH = 120
-        // x: 右侧优先，右侧溢出翻左
-        _tipX = (p.x + gap + tipW > root.width) ? p.x - gap - tipW : p.x + gap
-        // y: 垂直居中卡片，上下溢出翻另一侧
-        var midY = p.y + anchor.height / 2 - tipH / 2
-        if (midY < 4) _tipY = p.y + gap
-        else if (midY + tipH > root.height) _tipY = p.y - tipH - gap
-        else _tipY = midY
-        _tipHovered = true
+        var midY = p.y - tipH / 2
+        if (midY < 4) return p.y + gap
+        if (midY + tipH > root.height) return p.y - tipH - gap
+        return midY
     }
     function _hideDepsTip() {
         _tipHovered = false
@@ -673,11 +674,23 @@ Rectangle {
                                 onHoveredChanged: {
                                     if (verHover.hovered) {
                                         root._showVersionDeps(modelData)
-                                        root._positionDepsTip(verRow)
+                                        root._tipHovered = true
                                     } else {
                                         root._hideDepsTip()
                                     }
                                 }
+                            }
+                            // ── 鼠标跟随：hovered 时由本卡片的鼠标位置持续驱动单例
+                            // Popup 位置（只有 hovered 的这对 Binding 活跃，开销极小）──
+                            Binding {
+                                target: root; property: "_tipX"
+                                value: root._computeTipX(verRow, verHover.point.position.x, verHover.point.position.y)
+                                when: verHover.hovered
+                            }
+                            Binding {
+                                target: root; property: "_tipY"
+                                value: root._computeTipY(verRow, verHover.point.position.x, verHover.point.position.y)
+                                when: verHover.hovered
                             }
 
                             DetailVersionCard {
