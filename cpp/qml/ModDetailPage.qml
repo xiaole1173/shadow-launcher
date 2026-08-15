@@ -767,9 +767,12 @@ Rectangle {
                                 spacing: 4
                                 leftPadding: 10; rightPadding: 10
                                 topPadding: 8; bottomPadding: 8
-                                // 填满 Popup（Popup width/height 显式）
                                 width: parent.width
                                 height: parent.height
+                                // ⚠ 2026-08-15：单一排列体系——标题/loading/每一行都是
+                                // 本 Column 的直接子项，由同一个 Positioner 从上到下依次排列
+                                // （此前"标题 Column + 列表 ListView"两个体系，视觉上各自
+                                // 排列互不整合）。行高固定 22 保证 Positioner 排列可靠。
 
                                 // ── 标题行 ──
                                 Text {
@@ -777,13 +780,15 @@ Rectangle {
                                     font.pixelSize: StyleTokens.fontSizeXs
                                     font.weight: Font.DemiBold
                                     color: StyleTokens.textTertiary
+                                    height: 18
                                 }
 
                                 // ── 加载中 ──
                                 Row {
                                     visible: root._hoverDepsLoading
+                                    height: 20
                                     spacing: 6
-                                    LoadingSpinner { width: 14; height: 14; running: true }
+                                    LoadingSpinner { width: 14; height: 14; running: true; anchors.verticalCenter: parent.verticalCenter }
                                     Text {
                                         anchors.verticalCenter: parent.verticalCenter
                                         text: qsTr("正在获取前置模组...")
@@ -792,39 +797,39 @@ Rectangle {
                                     }
                                 }
 
-                                // ── 依赖列表 ──
-                                // ⚠ 2026-08-15：Positioner(Column)+Repeater 实测不排列
-                                // delegate items（叠在一起），且 implicitHeight 不含 →
-                                // 改 ListView（自带垂直排列，可靠），高度显式 = 行数*24。
-                                // Popup height 同步精确绑定（不再超模）。
-                                ListView {
-                                    width: parent.width
-                                    height: root._hoverDepsLoading ? 0 : root._hoverDepsList.length * 24
+                                // ── 依赖行（同一 Column 的直接子项，统一排列）──
+                                Repeater {
                                     model: root._hoverDepsList
-                                    interactive: false
-                                    delegate: RowLayout {
-                                        width: parent.width
+                                    delegate: Row {
+                                        id: depRow
+                                        width: depsCol.width - depsCol.leftPadding - depsCol.rightPadding
+                                        height: 22
                                         spacing: 6
                                         Text {
+                                            width: depRow.width - 86 - 28 - 12
+                                            height: 22
                                             text: modelData.title || modelData.project_id || ""
                                             font.pixelSize: StyleTokens.fontSizeSm
                                             color: StyleTokens.textSecondary
                                             elide: Text.ElideRight
-                                            Layout.fillWidth: true
-                                            Layout.maximumWidth: 200
+                                            verticalAlignment: Text.AlignVCenter
                                         }
                                         Text {
+                                            width: 86
+                                            height: 22
                                             text: modelData.version_number || qsTr("任意版本")
                                             font.pixelSize: StyleTokens.fontSizeXs
                                             color: StyleTokens.textTertiary
                                             elide: Text.ElideRight
-                                            width: 86
+                                            verticalAlignment: Text.AlignVCenter
                                         }
                                         Text {
+                                            width: 28
+                                            height: 22
                                             text: modelData.dependency_type === "required" ? qsTr("必需") : qsTr("可选")
                                             font.pixelSize: StyleTokens.fontSizeXs
                                             color: modelData.dependency_type === "required" ? "#e0a050" : StyleTokens.textTertiary
-                                            width: 28
+                                            verticalAlignment: Text.AlignVCenter
                                         }
                                     }
                                 }
