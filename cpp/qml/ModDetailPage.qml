@@ -716,7 +716,7 @@ Rectangle {
                             closePolicy: Popup.NoAutoClose
                             width: root._depsEstWidth
                             height: root._hoverDepsLoading ? 64
-                                : (root._hoverDepsList.length > 0 ? 40 + root._hoverDepsList.length * 22 : 0)
+                                : (root._hoverDepsList.length > 0 ? 36 + root._hoverDepsList.length * 24 : 0)
                             x: {
                                 if (!verHover.hovered && !tipArea.containsMouse) return -10000
                                 var p = verRow.mapToItem(root, verHover.point.position.x, verHover.point.position.y)
@@ -760,7 +760,7 @@ Rectangle {
                                 spacing: 4
                                 leftPadding: 10; rightPadding: 10
                                 topPadding: 8; bottomPadding: 8
-                                // 填满 Popup（Popup width 显式 = _depsEstWidth）
+                                // 填满 Popup（Popup width/height 显式）
                                 width: parent.width
                                 height: parent.height
 
@@ -785,39 +785,39 @@ Rectangle {
                                     }
                                 }
 
-                                // ── 依赖列表（无前置时 Popup 整体隐藏）──
-                                // ⚠ 内层 Column 包装 Repeater：外层 Column 只布局直接子项，
-                                // Repeater items 由内层 Column（Positioner+Repeater 标准组合）
-                                // 垂直排列，杜绝重叠。
-                                Column {
+                                // ── 依赖列表 ──
+                                // ⚠ 2026-08-15：Positioner(Column)+Repeater 实测不排列
+                                // delegate items（叠在一起），且 implicitHeight 不含 →
+                                // 改 ListView（自带垂直排列，可靠），高度显式 = 行数*24。
+                                // Popup height 同步精确绑定（不再超模）。
+                                ListView {
                                     width: parent.width
-                                    spacing: 4
-                                    Repeater {
-                                        model: root._hoverDepsList
-                                        delegate: RowLayout {
-                                            width: parent.width
-                                            spacing: 6
-                                            Text {
-                                                text: modelData.title || modelData.project_id || ""
-                                                font.pixelSize: StyleTokens.fontSizeSm
-                                                color: StyleTokens.textSecondary
-                                                elide: Text.ElideRight
-                                                Layout.fillWidth: true
-                                                Layout.maximumWidth: 200
-                                            }
-                                            Text {
-                                                text: modelData.version_number || qsTr("任意版本")
-                                                font.pixelSize: StyleTokens.fontSizeXs
-                                                color: StyleTokens.textTertiary
-                                                elide: Text.ElideRight
-                                                width: 86
-                                            }
-                                            Text {
-                                                text: modelData.dependency_type === "required" ? qsTr("必需") : qsTr("可选")
-                                                font.pixelSize: StyleTokens.fontSizeXs
-                                                color: modelData.dependency_type === "required" ? "#e0a050" : StyleTokens.textTertiary
-                                                width: 28
-                                            }
+                                    height: root._hoverDepsLoading ? 0 : root._hoverDepsList.length * 24
+                                    model: root._hoverDepsList
+                                    interactive: false
+                                    delegate: RowLayout {
+                                        width: parent.width
+                                        spacing: 6
+                                        Text {
+                                            text: modelData.title || modelData.project_id || ""
+                                            font.pixelSize: StyleTokens.fontSizeSm
+                                            color: StyleTokens.textSecondary
+                                            elide: Text.ElideRight
+                                            Layout.fillWidth: true
+                                            Layout.maximumWidth: 200
+                                        }
+                                        Text {
+                                            text: modelData.version_number || qsTr("任意版本")
+                                            font.pixelSize: StyleTokens.fontSizeXs
+                                            color: StyleTokens.textTertiary
+                                            elide: Text.ElideRight
+                                            width: 86
+                                        }
+                                        Text {
+                                            text: modelData.dependency_type === "required" ? qsTr("必需") : qsTr("可选")
+                                            font.pixelSize: StyleTokens.fontSizeXs
+                                            color: modelData.dependency_type === "required" ? "#e0a050" : StyleTokens.textTertiary
+                                            width: 28
                                         }
                                     }
                                 }
