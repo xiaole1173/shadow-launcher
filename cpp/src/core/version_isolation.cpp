@@ -134,6 +134,21 @@ void VersionIsolation::setEnabled(bool enabled)
 
 bool VersionIsolation::isVersionIsolated(const QString& versionId) const
 {
+    // 外部目录：按布局判断（2026-08-19）—— 不依赖本启动器全局隔离开关。
+    // 若用户全局开关为关 + 外部目录实际是隔离形态，此前会误判为"非隔离"，
+    // 导致加载器安装（OptiFine 等）把 mod 写到根目录 mods/ 而非
+    // versions/<id>/mods → 游戏（从版本目录运行）读不到该 mod。
+    // 规则：游戏数据目录位于版本目录内（含 legacy game/ 子目录）→ 视为隔离。
+    if (m_folderLayout != MinecraftLayout::Unknown) {
+        const QString gd = QDir::toNativeSeparators(QDir::cleanPath(getVersionGameDir(versionId)));
+        const QString verDir = QDir::toNativeSeparators(
+            QDir::cleanPath(m_gameDir + QStringLiteral("/versions/") + versionId));
+        const QString gameSub = QDir::toNativeSeparators(
+            QDir::cleanPath(verDir + QStringLiteral("/game")));
+        return !gd.isEmpty()
+            && (gd == verDir || gd == gameSub || gd.startsWith(verDir + QLatin1Char('\\')));
+    }
+
     // If global isolation is enabled, all versions are considered isolated
     if (m_enabled) return true;
 

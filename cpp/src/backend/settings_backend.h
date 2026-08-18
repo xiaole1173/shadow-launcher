@@ -151,9 +151,6 @@ public:
     Q_INVOKABLE void openGameDir();
     Q_INVOKABLE bool openVersionDir(const QString& versionId);
     Q_INVOKABLE void deleteVersion(const QString& versionId);
-    /// 外部 .minecraft 非隔离版本专用：只删精确 versions/<versionId>（描述文件），
-    /// 不做变体横扫、不碰共享 assets/indexes（不销毁任何游戏数据）
-    void deleteVersionFiles(const QString& versionId);
     bool embeddedLoginEnabled() const { return m_embeddedLoginEnabled; }
     Q_INVOKABLE void setEmbeddedLoginEnabled(bool v);
     // ── 2026-08-15：版本悬停前置依赖 tooltip（实验性，可能卡顿/信息有误）──

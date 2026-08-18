@@ -1047,22 +1047,6 @@ void SettingsBackend::deleteVersion(const QString& versionId)
     emit logMessage(QStringLiteral("\u5df2\u5220\u9664\u7248\u672c: %1 \uff08\u5171\u6e05\u7406 %2 \u4e2a\u6587\u4ef6\u5939\uff09").arg(versionId).arg(count));
 }
 
-// ── 外部 .minecraft 非隔离版本删除（2026-08-19）──
-// 只删除精确的 versions/<versionId>（版本描述文件 jar/json）：
-// - 不做"前缀变体横扫"（外部目录每个变体都是原启动器独立版本，不能连带删）
-// - 不碰 assets/indexes（共享资源索引，别的版本可能引用）
-// 共享形态下游戏数据（存档/模组/config）在根目录，删这里不影响任何游戏数据。
-void SettingsBackend::deleteVersionFiles(const QString& versionId)
-{
-    if (versionId.isEmpty()) return;
-    int count = 0;
-    const QString verDir = m_gameDir + QStringLiteral("/versions/") + versionId;
-    if (QDir(verDir).exists()) {
-        if (forceRemoveDir(verDir)) count++;
-    }
-    emit logMessage(QStringLiteral("已删除版本文件: %1（仅版本描述，共享游戏数据未受影响）").arg(versionId));
-}
-
 // ============================================================
 // Private: findAllJava
 // ============================================================
