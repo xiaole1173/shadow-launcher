@@ -90,7 +90,32 @@
 
 #include <QApplication>
 
+#ifndef NOMINMAX
+
+#define NOMINMAX
+
 #endif
+
+#include <windows.h>
+
+#endif
+
+
+
+// 版本目录条目是否应跳过：junction/符号链接（Qt 的 isSymLink() 在 Windows 对
+// junction(mount point) 返回 false，需直接查 reparse point——2026-08-19 实测）
+static bool isVersionEntryLink(const QFileInfo& fi)
+{
+#ifdef Q_OS_WIN
+    const QString p = fi.absoluteFilePath();
+    const DWORD attr = GetFileAttributesW(reinterpret_cast<LPCWSTR>(p.utf16()));
+    if (attr != INVALID_FILE_ATTRIBUTES && (attr & FILE_ATTRIBUTE_REPARSE_POINT) != 0)
+        return true;
+    return false;
+#else
+    return fi.isSymLink();
+#endif
+}
 
 
 
@@ -494,7 +519,7 @@ void VersionBackend::refreshInstalled()
                 // 否则会被误识别为独立版本条目（2026-08-19 用户报告）
                 const QFileInfoList subInfo = dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
                 for (const QFileInfo& subFi : subInfo) {
-                    if (subFi.isSymLink()) continue;
+                    if (isVersionEntryLink(subFi)) continue;
                     const QString subDir = subFi.fileName();
                     const QString verPath = versionsDir + QStringLiteral("/") + subDir;
                     const QString fastJar = verPath + QStringLiteral("/") + subDir + QStringLiteral(".jar");
@@ -2548,7 +2573,7 @@ void VersionBackend::updateInstalledList()
     QStringList subDirs;
 
     for (const QFileInfo& subFi : subInfos) {
-        if (subFi.isSymLink()) continue;
+        if (isVersionEntryLink(subFi)) continue;
         subDirs << subFi.fileName();
     }
 

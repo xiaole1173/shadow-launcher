@@ -92,6 +92,21 @@
 #include <dpapi.h>
 #endif
 
+// 版本目录条目是否应跳过：junction/符号链接（Qt 的 isSymLink() 在 Windows 对
+// junction(mount point) 返回 false，需直接查 reparse point——2026-08-19 实测）
+static bool isVersionEntryLink(const QFileInfo& fi)
+{
+#ifdef Q_OS_WIN
+    const QString p = fi.absoluteFilePath();
+    const DWORD attr = GetFileAttributesW(reinterpret_cast<LPCWSTR>(p.utf16()));
+    if (attr != INVALID_FILE_ATTRIBUTES && (attr & FILE_ATTRIBUTE_REPARSE_POINT) != 0)
+        return true;
+    return false;
+#else
+    return fi.isSymLink();
+#endif
+}
+
 namespace ShadowLauncher {
 
 ShadowBackend::ShadowBackend(QObject* parent)
@@ -1144,7 +1159,7 @@ void ShadowBackend::refreshVersionDetails()
     const QFileInfoList entryInfos = versionsDir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
     QStringList entries;
     for (const QFileInfo& fi : entryInfos) {
-        if (fi.isSymLink()) continue;  // 跳过 junction（pre-1.6 versions/.minecraft 误识别为版本）
+        if (isVersionEntryLink(fi)) continue;  // 跳过 junction（pre-1.6 versions/.minecraft 误识别为版本）
         entries << fi.fileName();
     }
     // Build a lookup for release times
