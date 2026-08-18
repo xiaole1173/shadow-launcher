@@ -1505,6 +1505,16 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
     if (isPre16 && !isFmlMain) {
         mainClass = QStringLiteral("net.minecraft.client.Minecraft");
     }
+    // 2026-08-19：pre-1.6 声音修复 —— 游戏资源线程(amx)会先请求
+    // http://s3.amazonaws.com/MinecraftResources/（已死），只有请求**失败**后
+    // 才 catch 扫描本地 resources/ 注册声音。s3 挂起时（尤其国内网络可能 20-30s）
+    // 声音被无限推迟。强制 http 走死代理(127.0.0.1:1) → 立即 ConnectException →
+    // 资源线程秒进 catch → 本地扫描 → 声音即时注册。pre-1.6 游戏的 http 仅用于
+    // s3 资源，不影响其他功能。
+    if (isPre16) {
+        args << QStringLiteral("-Dhttp.proxyHost=127.0.0.1")
+             << QStringLiteral("-Dhttp.proxyPort=1");
+    }
     args << mainClass;
 
     // ── Minecraft arguments ──
