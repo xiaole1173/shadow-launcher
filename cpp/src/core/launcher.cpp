@@ -81,6 +81,44 @@ static QString toShortPath(const QString& path)
 static QString toShortPath(const QString& path) { return path; }
 #endif
 
+// ── JVM 参数引号感知拆分（2026-08-17）──
+// 输入形如: -Xmx4G -javaagent:"D:\MC FAN\.minecraft\authlib-injector.jar"=https://...
+// 规则：
+//   - 空白（空格/制表）分隔参数
+//   - 双引号包裹的部分整体保留（内部空格不拆分），引号本身从参数中剥离
+//   - 转义：参数内 "" 表示一个字面双引号
+// 返回值是可直接交给 QProcess 的参数列表（QProcess 不再二次 shell 解析，
+// 因此剥离引号是正确行为；但 bat 导出脚本走 cmd /c 时由另一处再包引号）。
+static QStringList tokenizeJvmArgs(const QString& input)
+{
+    QStringList result;
+    QString cur;
+    bool inQuote = false;
+    const int n = input.size();
+    for (int i = 0; i < n; ++i) {
+        const QChar c = input.at(i);
+        if (c == QLatin1Char('"')) {
+            if (i + 1 < n && input.at(i + 1) == QLatin1Char('"')) {
+                // 转义引号 ""
+                cur += QLatin1Char('"');
+                ++i;
+            } else {
+                inQuote = !inQuote;
+            }
+        } else if (c.isSpace() && !inQuote) {
+            if (!cur.isEmpty()) {
+                result.append(cur);
+                cur.clear();
+            }
+        } else {
+            cur += c;
+        }
+    }
+    if (!cur.isEmpty())
+        result.append(cur);
+    return result;
+}
+
 // ── bat 命令行参数引用（2026-08-10）──
 // QProcess 数组传参会自动给含空格参数加引号；bat 字符串拼接不会 → 含空格参数
 // （如 Fabric 26.x 的 "-DFabricMcEmu= net.minecraft.client.main.Main "）会被 cmd 拆成
@@ -797,6 +835,9 @@ static bool shouldIncludeLibrary(const QJsonObject& lib)
 
 // Derive relative library path from Maven coordinate ("group:artifact:version")
 // e.g. "net.fabricmc:fabric-loader:0.19.3" → "net/fabricmc/fabric-loader/0.19.3/fabric-loader-0.19.3.jar"
+// 2026-08-19：支持 HMCL 式 4 段 classifier 名（downloads 为空的条目走此回退）。
+//   "net.minecraftforge:forge:26.2-65.1.1:client" → forge-26.2-65.1.1-client.jar。
+//   3 段名行为与原实现完全一致，不引入回归。
 static QString mavenNameToPath(const QString& mavenName)
 {
     const QStringList parts = mavenName.split(QLatin1Char(':'));
@@ -805,8 +846,11 @@ static QString mavenNameToPath(const QString& mavenName)
     QString artifact = parts[1];
     QString version = parts[2];
     QString groupPath = group.replace(QLatin1Char('.'), QLatin1Char('/'));
-    return groupPath + QLatin1Char('/') + artifact + QLatin1Char('/')
-           + version + QLatin1Char('/') + artifact + QLatin1Char('-') + version + QStringLiteral(".jar");
+    QString result = groupPath + QLatin1Char('/') + artifact + QLatin1Char('/')
+                     + version + QLatin1Char('/') + artifact + QLatin1Char('-') + version;
+    if (parts.size() >= 4)
+        result += QLatin1Char('-') + parts[3];
+    return result + QStringLiteral(".jar");
 }
 
 static QString resolveLibraryPath(const QJsonObject& lib, const QString& librariesDir)
@@ -1266,9 +1310,13 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
     }
 
     // Append user-provided custom JVM args (space-separated, may override defaults)
+    // ── 2026-08-17：引号感知拆分 ──
+    // 原实现按 \s+ 拆分，含空格的路径（如 -javaagent:"D:\MC FAN\...\authlib-injector.jar"=url）
+    // 会被劈裂成 -javaagent:"D:\MC + FAN\... → JVM 报 "Error opening zip file or JAR
+    // manifest missing"。改为引号感知 tokenizer："" 内部按字面量保留（含空格），
+    // 引号本身从参数中剥离（QProcess 直接收到正确参数，不再二次 shell 解析）。
     if (!m_jvmArgs.isEmpty()) {
-        const QStringList customArgs = m_jvmArgs.split(QRegularExpression(QStringLiteral("\\s+")),
-                                                       Qt::SkipEmptyParts);
+        const QStringList customArgs = tokenizeJvmArgs(m_jvmArgs);
         for (const auto& arg : customArgs) {
             args << arg;
         }

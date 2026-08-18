@@ -431,6 +431,14 @@ void LaunchBackend::abortCheck(const QString& phase, const QString& reason)
     qCCritical(logLaunch) << QStringLiteral("[启动] 启动前检查失败 阶段=%1 原因=%2").arg(phase, reason);
     emit logMessage(tr("启动失败: %1").arg(reason));
 
+    // 2026-08-19：预检失败时也记录启动器日志路径 —— 崩溃弹窗「导出全部日志」
+    // 才能打包启动器自身的 [启动] 日志。此前 m_launcherLogPath 只在游戏进程
+    // 启动失败后设置，预检失败导出为空（外部文件夹「无法导出日志」）。
+    m_launcherLogPath = QCoreApplication::applicationDirPath()
+                        + QStringLiteral("/logs/shadow_launcher_")
+                        + QDate::currentDate().toString(QStringLiteral("yyyy-MM-dd"))
+                        + QStringLiteral(".log");
+
     // ── 预检失败也弹崩溃诊断（主流启动器/同主流启动器：启动前失败直接弹错误框）──
     // 此时游戏未启动，无 JVM 输出/崩溃报告可分析，诊断结果 = 失败阶段 + 原因。
     QVariantMap report;
@@ -444,7 +452,12 @@ void LaunchBackend::abortCheck(const QString& phase, const QString& reason)
     };
     report[QStringLiteral("suspectedMods")] = QStringList{};
     report[QStringLiteral("timestamp")]   = QDateTime::currentDateTime().toString(Qt::ISODate);
-    report[QStringLiteral("collectedLogs")] = QStringList{};
+    {
+        QStringList collected;
+        if (QFileInfo::exists(m_launcherLogPath))
+            collected.append(m_launcherLogPath);
+        report[QStringLiteral("collectedLogs")] = collected;
+    }
     report[QStringLiteral("jvmOutput")]   = QStringList{};
     emit crashDetected(report);
 }
@@ -785,13 +798,19 @@ void LaunchBackend::runNextCheck()
             }
 
             QString jarPath = m_gameDir + QStringLiteral("/authlib-injector.jar");
-            QString agentArg = QStringLiteral("-javaagent:") + QDir::toNativeSeparators(jarPath)
-                              + QStringLiteral("=") + m_yggApiRoot;
+            // ── 2026-08-17：javaagent 路径加引号 ──
+            // 游戏目录含空格（如 "D:\MC FAN\.minecraft"）时，裸路径在按 \s+
+            // 拆分 JVM 参数时被劈成两段（-javaagent:D:\MC + FAN\...），JVM 报
+            // "Error opening zip file or JAR manifest missing : D:\MC"。引号包裹
+            // 后配合 launcher.cpp 的引号感知拆分可整体作为一个参数。
+            const QString nativeJar = QDir::toNativeSeparators(jarPath);
+            QString agentArg = QStringLiteral("-javaagent:\"") + nativeJar
+                              + QStringLiteral("\"=") + m_yggApiRoot;
             if (!m_pendingJvmArgs.isEmpty())
                 m_pendingJvmArgs += QStringLiteral(" ");
             m_pendingJvmArgs += agentArg;
             m_pendingJvmArgs += QStringLiteral(" -Dauthlibinjector.side=client");
-            qCInfo(logLaunch) << QStringLiteral("[启动] 已添加 authlib-injector 参数");
+            qCInfo(logLaunch) << QStringLiteral("[启动] 已添加 authlib-injector 参数: %1").arg(agentArg);
 
             if (!QFileInfo::exists(jarPath)) {
                 emit launchCheckWarning(tr("正在下载 authlib-injector.jar..."));
@@ -1307,13 +1326,19 @@ QStringList LaunchBackend::checkVersionLibraries(const QString& versionId)
         }
 
         // Fallback: derive path from Maven name (Fabric-style: "net.fabricmc:fabric-loader:0.19.3")
+        // 2026-08-19：支持 HMCL 式 4 段 classifier 名（downloads 为空时仍能正确解析）。
+        //   例如 "net.minecraftforge:forge:26.2-65.1.1:client" → forge-26.2-65.1.1-client.jar。
+        //   此前只取前 3 段 → 拼出 forge-26.2-65.1.1.jar（不存在）→ HMCL 目录误报库缺失。
         if (!hasArtifactCheck) {
             QString mavenName = lib.value(QStringLiteral("name")).toString();
             QStringList parts = mavenName.split(QLatin1Char(':'));
             if (parts.size() >= 3) {
                 QString groupPath = parts[0].replace(QLatin1Char('.'), QLatin1Char('/'));
                 QString relPath = groupPath + QLatin1Char('/') + parts[1] + QLatin1Char('/')
-                                 + parts[2] + QLatin1Char('/') + parts[1] + QLatin1Char('-') + parts[2] + QStringLiteral(".jar");
+                                 + parts[2] + QLatin1Char('/') + parts[1] + QLatin1Char('-') + parts[2];
+                if (parts.size() >= 4)
+                    relPath += QLatin1Char('-') + parts[3];
+                relPath += QStringLiteral(".jar");
                 QString fullPath = libsDir + QStringLiteral("/") + relPath;
                 if (!QFileInfo::exists(fullPath)) {
                     missing.append(relPath);
@@ -1606,7 +1631,11 @@ void LaunchBackend::runCrashAnalysis()
     // 分析是 CPU/IO 密集（读日志 + 51 条 DotMatchesEverything 正则跑全文本，
     // latest.log 数 MB 时会阻塞 UI 线程数秒）→ 必须放后台线程。
     // CrashDetector 是纯计算类（无 QObject 状态），analyzeCrash 线程安全。
-    const QString gameDir = m_gameDir;
+    // 2026-08-19：收集/分析用「游戏实际运行目录」（m_versionGameDir）。
+    //   共享/非隔离模式 m_versionGameDir==m_gameDir（行为与原实现完全一致，不回归）；
+    //   版本隔离时游戏把日志写到运行目录 versions/<id>，原实现只看根目录 → 导不出
+    //   （外部 HMCL 目录 + 隔离场景）。m_versionGameDir 为空时回退根目录。
+    const QString gameDir = m_versionGameDir.isEmpty() ? m_gameDir : m_versionGameDir;
     const QStringList pendingOutput = m_pendingOutput;
     const QString launcherLogPath = m_launcherLogPath;
 
@@ -1655,8 +1684,12 @@ QString LaunchBackend::exportCrashLogs(const QString& destDir)
     }
 
     CrashDetector detector;
+    // 2026-08-19：导出同样从「游戏实际运行目录」收集（隔离模式日志在运行目录）。
+    //   共享/非隔离模式 m_versionGameDir==m_gameDir，行为与原实现一致，不回归。
+    //   zip 落点仍用根目录 crash-analysis/（用户查找习惯不变）。
+    const QString runDir = m_versionGameDir.isEmpty() ? m_gameDir : m_versionGameDir;
     // 打包 JVM 全量输出 + 最近截取 + 诊断报告 + 崩溃报告/日志
-    QString result = detector.exportLogs(m_gameDir, zipPath, m_launcherLogPath,
+    QString result = detector.exportLogs(runDir, zipPath, m_launcherLogPath,
                                          m_pendingOutput, m_crashReportPath, m_jvmFullLogPath);
     if (!result.isEmpty()) {
         qCInfo(logLaunch) << "[崩溃分析] 日志已导出:" << result;
@@ -1684,30 +1717,43 @@ void LaunchBackend::cleanupCrashArtifacts()
     // - 保留 crash-analysis/ 根级 zip（用户导出的成果）
     // - 不碰启动器 logs/（自身日志）
     // - 不碰游戏侧日志（.minecraft/logs、crash-reports 等）
-    const QString base = m_gameDir + QStringLiteral("/crash-analysis");
-    QDir dir(base);
-    if (!dir.exists())
-        return;
+    // 2026-08-19：同时清理「根目录」与「运行目录」的 crash-analysis。
+    //   隔离模式的分析报告写到运行目录 versions/<id>/crash-analysis；根目录可能
+    //   残留历史产物。两者都清——根目录清理逻辑与原实现完全一致，不回归。
+    QStringList bases;
+    bases << (m_gameDir + QStringLiteral("/crash-analysis"));
+    const QString runDir = m_versionGameDir.isEmpty() ? m_gameDir : m_versionGameDir;
+    if (runDir != m_gameDir)
+        bases << (runDir + QStringLiteral("/crash-analysis"));
 
     int removed = 0;
-    const auto entries = dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
-    for (const QFileInfo& fi : entries) {
-        // 时间戳子目录（如 20260804-171523）是分析产物
-        if (QDir(fi.absoluteFilePath()).removeRecursively())
-            removed++;
-    }
+    QStringList cleanedDirs;
+    for (const QString& base : bases) {
+        QDir dir(base);
+        if (!dir.exists()) continue;
 
-    // 根级非 zip 文件也清掉（如历史遗留的散落日志），zip 保留
-    const auto files = dir.entryInfoList(QDir::Files | QDir::NoDotAndDotDot);
-    for (const QFileInfo& fi : files) {
-        if (fi.suffix().compare(QLatin1String("zip"), Qt::CaseInsensitive) != 0) {
-            QFile::remove(fi.absoluteFilePath());
-            removed++;
+        const auto entries = dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
+        for (const QFileInfo& fi : entries) {
+            // 时间戳子目录（如 20260804-171523）是分析产物
+            if (QDir(fi.absoluteFilePath()).removeRecursively())
+                removed++;
         }
+
+        // 根级非 zip 文件也清掉（如历史遗留的散落日志），zip 保留
+        const auto files = dir.entryInfoList(QDir::Files | QDir::NoDotAndDotDot);
+        for (const QFileInfo& fi : files) {
+            if (fi.suffix().compare(QLatin1String("zip"), Qt::CaseInsensitive) != 0) {
+                QFile::remove(fi.absoluteFilePath());
+                removed++;
+            }
+        }
+        if (!base.isEmpty())
+            cleanedDirs.append(base);
     }
 
     if (removed > 0)
-        qCInfo(logLaunch) << "[崩溃分析] 已清理分析产物 目录=" << base << "清理项=" << removed;
+        qCInfo(logLaunch) << "[崩溃分析] 已清理分析产物 目录=" << cleanedDirs.join(QLatin1Char(','))
+                          << "清理项=" << removed;
 
     // 全量 JVM 输出日志（启动器生成，每次启动覆盖）也一并清理
     if (!m_jvmFullLogPath.isEmpty() && QFile::exists(m_jvmFullLogPath)) {
@@ -1748,8 +1794,9 @@ QString LaunchBackend::exportLaunchScript(const QString& versionId, const QStrin
     if (m_yggdrasilMode && !m_yggApiRoot.isEmpty()) {
         const QString jarPath = QDir::toNativeSeparators(
             m_gameDir + QStringLiteral("/authlib-injector.jar"));
-        QString agentArg = QStringLiteral("-javaagent:") + jarPath
-                         + QStringLiteral("=") + m_yggApiRoot;
+        // 2026-08-17：路径加引号（含空格的游戏目录在脚本/拆分时不劈裂）
+        QString agentArg = QStringLiteral("-javaagent:\"") + jarPath
+                         + QStringLiteral("\"=") + m_yggApiRoot;
         effectiveJvmArgs = agentArg + QStringLiteral(" -Dauthlibinjector.side=client");
         if (!jvmArgs.isEmpty()) effectiveJvmArgs += QStringLiteral(" ") + jvmArgs;
         qCInfo(logLaunch) << QStringLiteral("[导出脚本] 已注入 authlib-injector 参数: %1").arg(agentArg);
