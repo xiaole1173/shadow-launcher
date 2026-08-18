@@ -205,6 +205,12 @@ QString resolveVersionGameDir(const QString& root, const QString& versionId,
     if (hasVersionGameData(verDir))
         return QDir::toNativeSeparators(verDir);
 
+    // 2.5) 本启动器新装版本标记（2026-08-19）：外部共享目录内新装的版本带
+    //      .isolated 标记 → 强制隔离（游戏数据落版本目录，不污染共享根目录）。
+    //      已有共享版本无此标记，走规则 3 保持共享。
+    if (QFileInfo::exists(verDir + QStringLiteral("/.isolated")))
+        return QDir::toNativeSeparators(verDir);
+
     // 3) 版本目录为空：按文件夹整体形态决定
     if (layout == MinecraftLayout::Shared || layout == MinecraftLayout::Mixed)
         return QDir::toNativeSeparators(QDir::cleanPath(root));  // 非隔离 → 共享根目录

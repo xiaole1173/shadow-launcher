@@ -24,6 +24,11 @@ public:
 
     bool isVersionIsolated(const QString& versionId) const;
 
+    /// 外部目录：为本启动器新装的版本打 .isolated 标记（强制隔离）。
+    /// 共享形态的外部文件夹里，已有版本保持共享，新装版本走隔离。
+    /// 仅外部模式调用（m_folderLayout != Unknown），否则 no-op。
+    void markForeignIsolated(const QString& versionId);
+
     QString getVersionGameDir(const QString& versionId) const;
     bool migrateToIsolated(const QString& versionId);
 

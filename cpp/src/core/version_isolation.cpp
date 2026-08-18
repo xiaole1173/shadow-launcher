@@ -158,6 +158,25 @@ bool VersionIsolation::isVersionIsolated(const QString& versionId) const
     return QFileInfo::exists(marker);
 }
 
+void VersionIsolation::markForeignIsolated(const QString& versionId)
+{
+    // 仅外部模式：共享目录内新装版本打 .isolated 标记 → resolveVersionGameDir
+    // 优先识别为隔离（游戏数据落 versions/<id>，不污染共享根目录）。
+    // 该标记是本启动器的辅助文件，不影响原启动器对目录的解析。
+    if (m_folderLayout == MinecraftLayout::Unknown || versionId.isEmpty()) return;
+
+    const QString verDir = m_gameDir + QStringLiteral("/versions/") + versionId;
+    QDir().mkpath(verDir);
+    const QString marker = verDir + QStringLiteral("/.isolated");
+    QFile f(marker);
+    if (!QFileInfo::exists(marker)) {
+        if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            f.write("isolated");
+            f.close();
+        }
+    }
+}
+
 // ── 检查目录是否非空（排除旧代码 mkpath 产物）──
 static bool isDirNonEmpty(const QString& path)
 {

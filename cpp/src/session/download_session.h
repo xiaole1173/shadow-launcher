@@ -74,6 +74,9 @@ public:
 
     // ── MC 下载状态 ──
     bool mcDownloadDone = false;
+    /// 2026-08-19：本安装会话开始前该版本是否已存在（versions/<id>/<id>.json）。
+    /// 外部共享目录"新装版本强制隔离"判定用（已有共享版本保持共享）。
+    bool versionExistedBeforeInstall = false;
     qint64 mcStepDone[3] = {};
     qint64 mcStepTotal[3] = {};
     QSet<QString> mcFileAdded;

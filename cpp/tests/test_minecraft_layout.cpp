@@ -116,6 +116,13 @@ int main(int argc, char** argv)
         // vC 目录无数据 → 共享根目录
         CHECK(norm(resolveVersionGameDir(root, "vC", info.layout)) == QStringLiteral("t_layout/shared"),
               "vC(空)→共享根目录");
+        // 新装版本带 .isolated 标记 → 强制隔离（共享目录内新装走隔离，已有共享不受影响）
+        mk(root + "/versions/vI");
+        writeFile(root + "/versions/vI/vI.json");
+        writeFile(root + "/versions/vI/vI.jar");
+        writeFile(root + "/versions/vI/.isolated");
+        CHECK(norm(resolveVersionGameDir(root, "vI", info.layout)).endsWith("/versions/vI"),
+              "vI(.isolated标记)→版本目录(强制隔离)");
     }
 
     // ════════════════════════════════════════════════════════════

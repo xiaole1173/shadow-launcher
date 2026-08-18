@@ -53,6 +53,11 @@ QString LocalModManager::modsDir(const QString& versionId) const
     if (hasContent(gameDir))
         return gameDir + QStringLiteral("/mods");
 
+    // 本启动器新装版本标记（2026-08-19）：外部共享目录内新装的隔离版本，
+    // 即使 versions/<id>/mods 尚未创建也定位到版本目录（游戏从那里运行）
+    if (QFileInfo::exists(verDir + QStringLiteral("/.isolated")))
+        return verDir + QStringLiteral("/mods");
+
     // 方案 C：无 game/ 或为空 → 检查版本根目录（散乱文件结构）
     const QString scatteredDir = verDir + QStringLiteral("/mods");
     if (QDir(scatteredDir).exists())
@@ -582,6 +587,10 @@ QString LocalModManager::resourcePacksDir(const QString& versionId) const
     // 隔离模式：game/ 存在且有内容 → 用 game/resourcepacks/
     if (hasContent(gameDir))
         return gameDir + QStringLiteral("/resourcepacks");
+
+    // 本启动器新装版本标记（2026-08-19）：外部共享目录内新装的隔离版本
+    if (QFileInfo::exists(verDir + QStringLiteral("/.isolated")))
+        return verDir + QStringLiteral("/resourcepacks");
 
     // 方案 C：无 game/ 或为空 → 检查版本根目录（散乱文件结构）
     const QString scatteredDir = verDir + QStringLiteral("/resourcepacks");

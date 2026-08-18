@@ -2215,6 +2215,14 @@ void VersionBackend::onVersionDownloadFinished(bool success,
 
         }
 
+        // 2026-08-19：外部目录新装版本 → 强制隔离（纯 MC 下载路径，非 merged 不走
+        // finishInstall）。已有共享版本（安装前 json 已存在）保持共享，不标记。
+        if (m_isolation && m_isolation->isForeignFolder()) {
+            auto* pds = dlSession(finishedId);
+            if (pds && !pds->versionExistedBeforeInstall)
+                m_isolation->markForeignIsolated(finishedId);
+        }
+
         emit installComplete(finishedId);
 
     }
@@ -2735,6 +2743,15 @@ void VersionBackend::finishInstall(const QString& installName)
     }
 
     // Emit complete BEFORE setInstalling(false) so QML can show final state
+
+    // 2026-08-19：外部目录新装版本 → 强制隔离（用户设计：共享形态的外部文件夹里，
+    // 已有共享版本保持共享；从本启动器新下载/安装的版本一律走隔离）。
+    // 用 ensureSession 时快照的 versionExistedBeforeInstall 区分"新建"与"重装已有"，
+    // 避免把已有共享版本（如给它装加载器）误翻成隔离。
+    if (m_isolation && m_isolation->isForeignFolder()
+        && ds && !ds->versionExistedBeforeInstall) {
+        m_isolation->markForeignIsolated(installName);
+    }
 
     qCInfo(logVersion) << QStringLiteral("[追踪] finishInstall 发射 installComplete/installFinished, receivers=%1")
         .arg(receivers(SIGNAL(installFinished(bool))));
@@ -5540,7 +5557,7 @@ void VersionBackend::installOptifine(const QString& mcVersion, const QString& op
         tr("下载 OptiFine 主文件"),
         tr("安装 OptiFine")
     }, {1.0, 8.0, 5.0, 3.0, 1.0},
-     {true, true, true, true, false});
+     {true, true, true, true, true});
 
     updateStep(installName, 0, QStringLiteral("active"), 0);
     ds->loadedStep = 1;
@@ -6216,6 +6233,9 @@ ModLoaderInstaller* VersionBackend::createLoaderInstaller(const QString& install
     // --- toastMessage (e.g. auto Java download during loader install) ---
     connect(ml, &ModLoaderInstaller::toastMessage, this, &VersionBackend::toastMessage);
 
+    // --- javaAutoInstalled: forward (Java 列表刷新用，不弹 toast) ---
+    connect(ml, &ModLoaderInstaller::javaAutoInstalled, this, &VersionBackend::javaAutoInstalled);
+
     return ml;
 }
 
@@ -6269,6 +6289,11 @@ DownloadSession* VersionBackend::ensureSession(const QString& installId) {
     if (m_downloadSessions.contains(installId))
         return m_downloadSessions[installId];
     auto* ds = new DownloadSession(installId, this);
+    // 2026-08-19：快照"安装前该版本是否已存在"——外部共享目录新装版本强制隔离判定用。
+    // 版本 JSON 尚不存在 = 本次是新建版本 → finishInstall 时打 .isolated 标记。
+    ds->versionExistedBeforeInstall = QFileInfo::exists(
+        m_gameDir + QStringLiteral("/versions/") + installId
+        + QStringLiteral("/") + installId + QStringLiteral(".json"));
     m_downloadSessions[installId] = ds;
     QObject::connect(ds, &DownloadSession::progressUpdated, this, [this, installId]() {
         // Deferred update via throttle to avoid hammering QML at 60+ updates/sec
@@ -8848,6 +8873,9 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
 
     // toastMessage: forward (e.g. auto Java download during loader install)
     connect(ctx->installer, &ModLoaderInstaller::toastMessage, this, &VersionBackend::toastMessage);
+
+    // javaAutoInstalled: forward (Java 列表刷新用，不弹 toast)
+    connect(ctx->installer, &ModLoaderInstaller::javaAutoInstalled, this, &VersionBackend::javaAutoInstalled);
 
     m_mergedContexts[installId] = ctx;
     return ctx;
