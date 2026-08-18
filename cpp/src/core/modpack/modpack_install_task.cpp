@@ -189,6 +189,11 @@ void ModpackInstallTask::runParse()
                     marker.close();
                 }
             }
+            // 2026-08-19：外部共享目录导入整合包 → 强制隔离（与下载/安装一致：
+            // 新装版本一律隔离，不污染共享根）。必须在本函数 getVersionGameDir
+            // 计算资源目录（下方）之前打标记，否则共享布局会返回根目录。
+            if (m_iso && m_iso->isForeignFolder())
+                m_iso->markForeignIsolated(m_targetName);
             // 图标本地化：有图标 URL 则后台拉取→解码(webp/PNG)→存版本目录（版本选择优先读本地）
             if (!m_packIcon.isEmpty()) {
                 QMetaObject::invokeMethod(this, &ModpackInstallTask::downloadPackIconToVersionDir,
