@@ -242,7 +242,9 @@
 
 | 文件 | 行数 | 功能 |
 |---|---|---|
-| `MainWindow.qml` | 1456 | **主窗口**：全 UI 骨架、侧边导航（navIndicator 光条）、页面路由（Loader 加载各页面，0=启动 1=下载 2=联机 3=统计 4=设置 5=安装进度）、全局 DropArea（整合包/Mod/资源包拖拽导入路由）、子浮层（版本选择/版本设置/设置等 Overlay）、ToastManager 挂载、协议同意闸门；崩溃分析接线（`onCrashAnalysisStarted`→Toast「启动失败，正在分析日志信息…」+弹窗分析态，`onCrashAnalysisReady`→结果态）；`--navigate settings:xxx` 支持设置页 section 切换。**浮层互斥（2026-08-13）**：`onShowVersionSettingsChanged` 联动——showVersionSettings 变 true 时强制 showVersionSelect=false（版本选择/设置同时显示时，自定义背景透明下会视觉叠加，鼠标点击只到上层浮层）；openVersionSettingsSection 也显式先关版本选择。 |
+| `UsefulWebsitesPage.qml` | 296 | **实用网站页（2026-08-19）**：两级界面——①大类卡片页（10 大类：md 清单 9 大类 +「本启动器」；双列自适应 GridView）；②网站卡片页（favicon + 主标题=站点名 + 副标题=网址+简介，点击 Qt.openUrlExternally 直达）。数据源 `websites_data.js`（pragma library，由 `websites_data.json` 经 `tools/gen_websites_js.py` 生成；**不用 XHR**——同步 XHR 对 qrc 在 Loader 页内抛 Invalid state，踩坑）。含 BackButton 返回、入场动画。 |
+| `websites_data.json` / `websites_data.js` | 135 / 446 | **实用网站数据**：10 大类 61 站（排除 md #2/#3 及基岩版专属，保留 Java/基岩混合如 Chunker）；每站 name/url/desc/icon(→`icons/sites/<key>.png`)。 |
+| `MainWindow.qml` | 1640 | **主窗口**：全 UI 骨架、侧边导航（navIndicator 光条）、页面路由（Loader 加载各页面，0=启动 1=下载 2=联机 3=统计 4=设置 5=安装进度）、全局 DropArea（整合包/Mod/资源包拖拽导入路由）、子浮层（版本选择/版本设置/设置等 Overlay）、ToastManager 挂载、协议同意闸门；崩溃分析接线（`onCrashAnalysisStarted`→Toast「启动失败，正在分析日志信息…」+弹窗分析态，`onCrashAnalysisReady`→结果态）；`--navigate settings:xxx` 支持设置页 section 切换。**浮层互斥（2026-08-13）**：`onShowVersionSettingsChanged` 联动——showVersionSettings 变 true 时强制 showVersionSelect=false（版本选择/设置同时显示时，自定义背景透明下会视觉叠加，鼠标点击只到上层浮层）；openVersionSettingsSection 也显式先关版本选择。**2026-08-19 侧边栏扩项**：navModel 在「下载进度」后加「帮助文档」（pageKey help_docs，external-link 图标，onClicked 直接 `Qt.openUrlExternally` 开浏览器不切换页）+「实用网站」（pageKey useful_sites，compass 图标，navListIndex 7 → UsefulWebsitesPage）；navLabel 补两 case；switchPage 增 `_usFadeOut` 淡出。 |
 | `SplashWindow.qml` | 50 | 启动画面。 |
 | `StyleTokens.qml` | 133 | **设计令牌**：颜色（bg/accent/text 系列）、字号、圆角、间距常量。 |
 | `AnimationTokens.qml` | 187 | **动画令牌**：时长/缓动曲线常量。 |
@@ -437,3 +439,5 @@
 | 2026-08-11 | 修版本JSON三源竞速重试崩溃（内测 0xc0000005 @ 0x1b9712）：fetchVersionJson 的 startRound/launchRequest 原为栈上 std::function 且被闭包按引用捕获（&startRound/&launchRequest），函数返回后悬空；三源全失败（网络差）触发重试时 use-after-free 崩。改堆上 shared_ptr + launchRequest 侧 weak_ptr 防环（version_backend.cpp fetchVersionJson） |
 
 > 之后每次代码变更后在此追加一行：日期 + 变更文件 + 一句话说明。
+
+| 2026-08-19 | **侧边栏新增「帮助文档」链接 + 「实用网站」两级页面（commit d90bbc6）**：MainWindow navModel 在「下载进度」下加 help_docs（external-link 图标，点击直接开浏览器跳 shadowlauncher.cn/docs，不切页）+ useful_sites（compass 图标，navListIndex 7）；新增 UsefulWebsitesPage.qml（大类卡片双列 GridView → 网站卡片 favicon+主副标题，点击 Qt.openUrlExternally）；数据 qml/websites_data.json → gen_websites_js.py 生成 websites_data.js（pragma library 直接 import，规避 Loader 内同步 XHR 对 qrc 抛 Invalid state——踩坑）；排除 md #2/#3 及基岩版专属网址（保留 Java/基岩混合 Chunker），共 10 大类 61 站含「本启动器」（官网+帮助文档两卡）；favicon 用 tools/fetch_site_favicons.py 抓 60 站（favicon.ico / icon.horse 双策略）→ icons/sites/*.png（64px，PIL 居中裁剪）；新增 lucide 图标 external-link/compass/book-open/users/chevron-right；CMakeLists 注册 QML/JS/JSON + 60 favicon + 5 lucide；main_release --navigate 支持 sites。验证：qmlcachegen 编译过、截图 ASCII 检测无重叠、favicon 渲染确认（mcmod.cn 绿块）。 |
