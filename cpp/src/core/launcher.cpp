@@ -6,7 +6,9 @@
 
 #include <QDir>
 #include <QDirIterator>
+#include <QFile>
 #include <QFileInfo>
+#include <QByteArray>
 #include <QHash>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -271,6 +273,59 @@ Launcher::~Launcher()
 // Public API
 // ============================================================
 
+// ── pre-1.6 启动前确保 servers.dat 存在（2026-08-19）──
+// 1.3.2 等版本的 ServerList 缺少 null 检查：servers.dat 缺失时
+// CompressedStreamTools.read(File) 返回 null → 后续 getTag("servers")
+// NPE → 游戏启动即崩溃（表现为"没有声音"：OpenAL 初始化后崩溃）。
+// 写入合法空 NBT（root Compound { "servers" = 空 List }），gzip 封装
+// （Java GZIPInputStream 读取），作为启动器辅助文件。
+static void ensureServersDat(const QString& gameDir)
+{
+    if (gameDir.isEmpty()) return;
+    const QString path = gameDir + QStringLiteral("/servers.dat");
+    if (QFileInfo::exists(path)) return;
+
+    // NBT 二进制：0A 00 00 | 09 00 07 "servers" | 0A 00 00 00 00 | 00
+    QByteArray nbt;
+    nbt.append(char(0x0A)); nbt.append(char(0x00)); nbt.append(char(0x00)); // root Compound, 空名
+    nbt.append(char(0x09)); nbt.append(char(0x00)); nbt.append(char(0x07)); // TAG_List "servers"
+    nbt.append(QByteArrayLiteral("servers"));
+    nbt.append(char(0x0A)); nbt.append(char(0x00)); nbt.append(char(0x00));
+    nbt.append(char(0x00)); nbt.append(char(0x00)); // 元素类型=Compound, 长度 0
+    nbt.append(char(0x00)); // TAG_End
+
+    // QCompress → zlib 格式；剥 2 字节 zlib 头 + 4 字节 adler 得 raw deflate
+    const QByteArray z = qCompress(nbt);
+    const QByteArray deflate = z.mid(2, z.size() - 2 - 4);
+
+    // CRC32（zlib crc32）
+    quint32 crc = 0xFFFFFFFFu;
+    for (int i = 0; i < nbt.size(); ++i) {
+        crc ^= quint8(nbt.at(i));
+        for (int k = 0; k < 8; ++k)
+            crc = (crc >> 1) ^ (0xEDB88320u & quint32(0u - (crc & 1u)));
+    }
+    crc = ~crc;
+
+    QByteArray gz;
+    gz.append(char(0x1F)); gz.append(char(0x8B)); gz.append(char(0x08)); gz.append(char(0x00));
+    gz.append(char(0x00)); gz.append(char(0x00)); gz.append(char(0x00)); gz.append(char(0x00));
+    gz.append(char(0x00)); gz.append(char(0xFF)); // gzip 头：magic, deflate, mtime=0, xfl=0, os=255
+    gz.append(deflate);
+    gz.append(char(crc & 0xFF)); gz.append(char((crc >> 8) & 0xFF));
+    gz.append(char((crc >> 16) & 0xFF)); gz.append(char((crc >> 24) & 0xFF));
+    const quint32 isize = quint32(nbt.size());
+    gz.append(char(isize & 0xFF)); gz.append(char((isize >> 8) & 0xFF));
+    gz.append(char((isize >> 16) & 0xFF)); gz.append(char((isize >> 24) & 0xFF));
+
+    QDir().mkpath(gameDir);
+    QFile f(path);
+    if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        f.write(gz);
+        f.close();
+    }
+}
+
 void Launcher::start(const QString& versionId, const QString& javaPath, int maxMemoryMB,
                      const QString& jvmArgs, const QString& gameArgs, bool highPerfGpu,
                      const QString& resolvedJsonPath, const QString& resolvedJarPath)
@@ -443,6 +498,9 @@ void Launcher::start(const QString& versionId, const QString& javaPath, int maxM
                 }
                 env.insert(QStringLiteral("APPDATA"), versionDir);
             }
+            // 2026-08-19：pre-1.6 启动前确保 servers.dat 存在（游戏读 appDir/servers.dat，
+            // 缺失即 NPE 崩溃——1.3.2 等版本 ServerList 无 null 检查）。
+            ensureServersDat(m_versionGameDir);
             m_process->setProcessEnvironment(env);
         }
     }
