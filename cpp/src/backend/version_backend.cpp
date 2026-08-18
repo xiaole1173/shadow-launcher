@@ -490,8 +490,12 @@ void VersionBackend::refreshInstalled()
             const QString versionsDir = gameDir + QStringLiteral("/versions");
             QDir dir(versionsDir);
             if (dir.exists()) {
-                const QStringList subDirs = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
-                for (const QString& subDir : subDirs) {
+                // 跳过 symlink/junction（如 pre-1.6 APPDATA 辅助 junction versions/.minecraft），
+                // 否则会被误识别为独立版本条目（2026-08-19 用户报告）
+                const QFileInfoList subInfo = dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
+                for (const QFileInfo& subFi : subInfo) {
+                    if (subFi.isSymLink()) continue;
+                    const QString subDir = subFi.fileName();
                     const QString verPath = versionsDir + QStringLiteral("/") + subDir;
                     const QString fastJar = verPath + QStringLiteral("/") + subDir + QStringLiteral(".jar");
                     const QString fastJson = verPath + QStringLiteral("/") + subDir + QStringLiteral(".json");
@@ -2538,7 +2542,15 @@ void VersionBackend::updateInstalledList()
 
 
 
-    const QStringList subDirs = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    // 跳过 symlink/junction（pre-1.6 versions/.minecraft 辅助 junction 误识别为版本条目）
+    const QFileInfoList subInfos = dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
+
+    QStringList subDirs;
+
+    for (const QFileInfo& subFi : subInfos) {
+        if (subFi.isSymLink()) continue;
+        subDirs << subFi.fileName();
+    }
 
 
 

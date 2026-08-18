@@ -1141,7 +1141,12 @@ void ShadowBackend::refreshVersionDetails()
         knownTypes[v.id] = v.type;
     }
 
-    const QStringList entries = versionsDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    const QFileInfoList entryInfos = versionsDir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
+    QStringList entries;
+    for (const QFileInfo& fi : entryInfos) {
+        if (fi.isSymLink()) continue;  // 跳过 junction（pre-1.6 versions/.minecraft 误识别为版本）
+        entries << fi.fileName();
+    }
     // Build a lookup for release times
     QMap<QString, QDateTime> releaseTimes;
     for (const auto& v : cached) {
