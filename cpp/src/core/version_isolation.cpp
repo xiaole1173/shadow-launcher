@@ -223,7 +223,7 @@ QString VersionIsolation::getVersionGameDir(const QString& versionId) const
 
 bool VersionIsolation::migrateToIsolated(const QString& versionId)
 {
-    // 外部目录只读模式：不允许迁移（会创建 game/ 与 .isolated 标记，破坏原结构）
+    // 外部目录只读模式：不允许迁移（会创建 .isolated 标记，破坏原结构）
     if (m_folderLayout != MinecraftLayout::Unknown) {
         return false;
     }
@@ -235,9 +235,9 @@ bool VersionIsolation::migrateToIsolated(const QString& versionId)
         return false;
     }
 
-    // Create the game/ subdirectory
-    const QString gameDir = verDir + QStringLiteral("/game");
-    QDir().mkpath(gameDir);
+    // 2026-08-19：彻底废除 game/ 子目录 —— 迁移走散装布局（游戏数据留在版本目录根，
+    // 与 2026-08-07 改版后的下载安装形态一致），仅打 .isolated 标记。
+    QDir().mkpath(verDir);
 
     // Create .isolated marker
     const QString marker = verDir + QStringLiteral("/.isolated");

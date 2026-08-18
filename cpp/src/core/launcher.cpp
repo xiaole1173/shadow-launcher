@@ -1596,7 +1596,11 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
 
         // Also populate game resources/ for pre-1.6 (s3.amazonaws.com is dead)
         if (assetIndexId == QStringLiteral("pre-1.6")) {
-            QString gameResDir = m_gameDir + QStringLiteral("/versions/") + versionId + QStringLiteral("/game/resources");
+            // 2026-08-19 修复（声音缺失）：资源必须复制到游戏实际读取的位置 =
+            // m_versionGameDir（散装布局=versions/<id>；legacy game/ 布局=versions/<id>/game）。
+            // 旧代码写死 versions/<id>/game/resources → 散装布局下游戏从
+            // versions/<id>/resources 读取 → 复制过去的声音/音乐找不到 → 无声。
+            QString gameResDir = m_versionGameDir + QStringLiteral("/resources");
             QString virtualDir = m_gameDir + QStringLiteral("/assets/virtual/") + assetIndexId;
             QDir().mkpath(gameResDir);
             // Copy sound/music/newsound/sound3 from virtual assets to game resources

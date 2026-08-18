@@ -2165,7 +2165,11 @@ void VersionBackend::onVersionDownloadFinished(bool success,
 
             if (zip.status() == QZipReader::NoError) {
 
-                QString targetGame = m_gameDir + "/versions/" + finishedId + "/game";
+                // 2026-08-19：目标 = 版本实际游戏目录（布局感知，散装=versions/<id>）。
+                // 旧代码写死 versions/<id>/game → 散装布局下游戏读版本目录根 → 数据错位。
+                QString targetGame = m_isolation
+                    ? m_isolation->getVersionGameDir(finishedId)
+                    : (m_gameDir + QStringLiteral("/versions/") + finishedId);
 
                 QDir().mkpath(targetGame);
 
@@ -8279,7 +8283,11 @@ void VersionBackend::startUserDataImport(const QString& installId)
 
         } else {
 
-            QString targetGame = gameDir + "/versions/" + versionId + "/game";
+            // 2026-08-19：目标 = 版本实际游戏目录（布局感知，散装=versions/<id>）。
+            // 旧代码写死 versions/<id>/game → 散装布局下游戏读版本目录根 → 数据错位。
+            QString targetGame = m_isolation
+                ? m_isolation->getVersionGameDir(versionId)
+                : (gameDir + QStringLiteral("/versions/") + versionId);
 
             QDir().mkpath(targetGame);
 
