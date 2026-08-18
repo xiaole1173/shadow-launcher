@@ -437,9 +437,23 @@ void Launcher::start(const QString& versionId, const QString& javaPath, int maxM
 
     m_process->setWorkingDirectory(m_versionGameDir);
 
+    // ── 进程环境：统一增量构建，启动前一次性应用 ──
+    // ⚠ 严禁各块各自 setProcessEnvironment(systemEnvironment() + 自己的修改)：
+    // 后执行的块会把前一块的修改整个覆盖。实测 2026-08-19：pre-1.6 的 APPDATA
+    // 覆盖被“高性能 GPU”块（systemEnvironment()+SHIM_MCCOMPAT）冲掉 → 游戏
+    // getAppDir 落到真实 %APPDATA%\.minecraft → 1.3.2 资源扫错目录 → 无声，
+    // 且世界/存档写到真实 AppData 污染用户数据。
+    // 必须基于完整父进程环境做增量修改：QProcess::processEnvironment() 在从未
+    // setProcessEnvironment 时返回空对象，直接用它会导致子进程环境被清空
+    // （PATH/APPDATA/USERPROFILE 全部丢失 → 依赖 %APPDATA% 的 mod 如
+    //  ModernFix readGlobalProperties 会因 getenv("APPDATA")=null 而 NPE 崩溃）
+    QProcessEnvironment procEnv = QProcessEnvironment::systemEnvironment();
+    bool procEnvModified = false;
+
     // Pre-1.6: override APPDATA env var so getAppDir("minecraft") returns our game dir.
     // Old Minecraft (net.minecraft.client.Minecraft) never reads --gameDir;
-    // its getAppDir("minecraft") constructs the path as %APPDATA%\.minecraft.
+    // its getAppDir("minecraft") constructs the path as %APPDATA%\.minecraft
+    // （对齐 HMCL DefaultLauncher：APPDATA = 游戏 .minecraft 的父目录）。
     // Shared mode:  m_versionGameDir ends in ".minecraft" → set APPDATA to its parent.
     // Isolated mode: m_versionGameDir = versions/{id}/game →
     //   create a junction .minecraft→game inside the version dir,
@@ -449,11 +463,6 @@ void Launcher::start(const QString& versionId, const QString& javaPath, int maxM
         auto pre16M = pre16Rgx.match(m_currentVersionId);
         bool isPre16 = pre16M.hasMatch() && pre16M.captured(1).toInt() < 6;
         if (isPre16) {
-            // 必须基于完整父进程环境做增量修改：QProcess::processEnvironment() 在从未
-            // setProcessEnvironment 时返回空对象，直接用它会导致子进程环境被清空
-            // （PATH/APPDATA/USERPROFILE 全部丢失 → 依赖 %APPDATA% 的 mod 如
-            //  ModernFix readGlobalProperties 会因 getenv("APPDATA")=null 而 NPE 崩溃）
-            auto env = QProcessEnvironment::systemEnvironment();
             QString versionGameDir = QDir::toNativeSeparators(
                 QDir(m_versionGameDir).absolutePath());
 
@@ -461,8 +470,8 @@ void Launcher::start(const QString& versionId, const QString& javaPath, int maxM
                 // Shared mode: set APPDATA to parent so getAppDir → m_versionGameDir
                 QDir parentDir(m_versionGameDir);
                 parentDir.cdUp();
-                env.insert(QStringLiteral("APPDATA"),
-                           QDir::toNativeSeparators(parentDir.absolutePath()));
+                procEnv.insert(QStringLiteral("APPDATA"),
+                               QDir::toNativeSeparators(parentDir.absolutePath()));
             } else {
                 // Isolated mode: version game dir is either versions/{id}/game
                 // (standard) or versions/{id} (scattered layout, no game/ subdir —
@@ -495,26 +504,30 @@ void Launcher::start(const QString& versionId, const QString& javaPath, int maxM
                                   QDir::toNativeSeparators(junction),
                                   QDir::toNativeSeparators(m_versionGameDir)});
                     mklink.waitForFinished(5000);
+                    if (QFileInfo::exists(junction))
+                        qCInfo(logLaunch) << QStringLiteral("[启动] pre-1.6 junction 已创建: %1 → %2")
+                            .arg(junction).arg(QDir::toNativeSeparators(m_versionGameDir));
+                    else
+                        qCWarning(logLaunch) << QStringLiteral("[启动] pre-1.6 junction 创建失败: %1")
+                            .arg(junction);
                 }
-                env.insert(QStringLiteral("APPDATA"), versionDir);
+                procEnv.insert(QStringLiteral("APPDATA"), versionDir);
             }
             // 2026-08-19：pre-1.6 启动前确保 servers.dat 存在（游戏读 appDir/servers.dat，
             // 缺失即 NPE 崩溃——1.3.2 等版本 ServerList 无 null 检查）。
             ensureServersDat(m_versionGameDir);
-            m_process->setProcessEnvironment(env);
+            qCInfo(logLaunch) << QStringLiteral("[启动] pre-1.6 APPDATA 覆盖: %1")
+                .arg(procEnv.value(QStringLiteral("APPDATA")));
+            procEnvModified = true;
         }
     }
 
     // High-performance GPU: set env vars for NVIDIA Optimus / AMD Switchable Graphics
     if (m_highPerfGpu) {
-        // 必须基于完整父进程环境做增量修改：QProcess::processEnvironment() 在从未
-        // setProcessEnvironment 时返回空对象，直接用它会把子进程环境清空成只剩
-        // SHIM_MCCOMPAT（PATH/APPDATA/USERPROFILE 全丢）。%APPDATA% 缺失会导致
-        // ModernFix 等 mod 的 System.getenv("APPDATA") 返回 null → Paths.get(null, ...) NPE，
-        // 游戏在 Mixin 阶段直接崩溃。
-        auto env = QProcessEnvironment::systemEnvironment();
-        env.insert(QStringLiteral("SHIM_MCCOMPAT"), QStringLiteral("0x800000001"));
-        m_process->setProcessEnvironment(env);
+        // 只往统一 procEnv 里增量插入，绝不再 setProcessEnvironment——否则会覆盖
+        // pre-1.6 的 APPDATA 覆盖（2026-08-19 实测导致游戏目录错位、无声）。
+        procEnv.insert(QStringLiteral("SHIM_MCCOMPAT"), QStringLiteral("0x800000001"));
+        procEnvModified = true;
 
         // ── 注册表 GPU 偏好（对齐主流启动器实现 SetGPUPreference）：HKCU\Software\Microsoft\DirectX\UserGpuPreferences
         //    GpuPreference=2 让 NVIDIA/AMD 驱动优先使用独显（对 Optimus 双显卡更通用）
@@ -528,6 +541,10 @@ void Launcher::start(const QString& versionId, const QString& javaPath, int maxM
         }
 #endif
     }
+
+    // 统一应用进程环境（若有修改）
+    if (procEnvModified)
+        m_process->setProcessEnvironment(procEnv);
 
     qCInfo(logLaunch) << QStringLiteral("[启动] 启动参数: %1").arg(sanitizeLaunchLog(args.join(QLatin1Char(' '))));
     qCInfo(logLaunch) << QStringLiteral("[启动] 启动参数共 %1 个").arg(args.size());
@@ -2076,6 +2093,43 @@ QString Launcher::buildLaunchScript(const QString& versionId, const QString& jav
         javaExecLine = QStringLiteral("\"%1\" %2").arg(javaNative, argStr.join(QLatin1Char(' ')));
     }
 
+    // ── pre-1.6：.bat 也要覆盖 APPDATA（游戏 getAppDir 只认 %APPDATA%\.minecraft，
+    //    与 start() 的 APPDATA 逻辑保持一致；隔离布局先建 junction 再指向版本目录）──
+    QString pre16EnvBlock;
+    {
+        static const QRegularExpression pre16Rgx(QStringLiteral(R"(^1\.(\d+))"));
+        auto pre16M = pre16Rgx.match(versionId);
+        bool isPre16 = pre16M.hasMatch() && pre16M.captured(1).toInt() < 6;
+        if (isPre16) {
+            const QString workDirNative = QDir::toNativeSeparators(workDir);
+            if (workDirNative.endsWith(QStringLiteral("\.minecraft"))) {
+                // Shared: APPDATA = 父目录 → %APPDATA%\.minecraft = 版本目录
+                QDir parentDir(workDir);
+                parentDir.cdUp();
+                pre16EnvBlock += QStringLiteral("set \"APPDATA=%1\"\r\n")
+                    .arg(QDir::toNativeSeparators(parentDir.absolutePath()));
+            } else {
+                // Isolated: junction <versions>\.minecraft → <版本目录>，APPDATA = <versions>
+                const bool isGameSubdir = workDirNative.endsWith(QStringLiteral("\\game"));
+                QString versionDir;
+                if (isGameSubdir) {
+                    QDir gd(workDir);
+                    gd.cdUp();
+                    versionDir = QDir::toNativeSeparators(gd.absolutePath());
+                } else {
+                    QDir vd(workDir);
+                    vd.cdUp();
+                    versionDir = QDir::toNativeSeparators(vd.absolutePath());
+                }
+                const QString junction = versionDir + QStringLiteral("\\.minecraft");
+                pre16EnvBlock += QStringLiteral("if not exist \"%1\" mklink /J \"%1\" \"%2\"\r\n")
+                    .arg(QDir::toNativeSeparators(junction),
+                         QDir::toNativeSeparators(workDir));
+                pre16EnvBlock += QStringLiteral("set \"APPDATA=%1\"\r\n").arg(versionDir);
+            }
+        }
+    }
+
     // 组装 .bat（UTF-8 输出 + 主流启动器 式结构 + 完整命令行 + 错误暂停）
     QString script;
     script += QStringLiteral("@echo off\r\n");
@@ -2086,6 +2140,7 @@ QString Launcher::buildLaunchScript(const QString& versionId, const QString& jav
     script += QStringLiteral("echo 游戏正在启动，请稍候。\r\n");
     script += QStringLiteral("cd /d \"%1\"\r\n").arg(workDir);
     script += gpuBlock;
+    script += pre16EnvBlock;
     script += preBlock;
     script += javaExecLine + QStringLiteral("\r\n");
     script += postBlock;
