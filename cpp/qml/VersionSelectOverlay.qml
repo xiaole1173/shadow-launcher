@@ -32,8 +32,14 @@ Rectangle {
     }
 
     // 进入文件夹页：确保列表最新（用户可能外部改动过）
+    // 返回版本选择页：切换可能已改变活动目录，刷新版本详情以反映新文件夹
     onFoldersModeChanged: {
-        if (foldersMode && mcFolder) mcFolder.refreshFolders()
+        if (foldersMode) {
+            if (mcFolder) mcFolder.refreshFolders()
+        } else if (backend) {
+            backend.refreshVersionDetails()
+            backend.refreshInstalledList()
+        }
     }
 
     // 延迟刷新定时器 — 先更新UI再扫描文件避免卡顿
