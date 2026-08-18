@@ -26,6 +26,8 @@ Item {
     property bool opened: false
     property int cardWidth: 360
     property string closeIcon: "icons/lucide/x.svg"
+    // 内容区左右/上内边距（2026-08-18：内容不贴卡片边框；默认 0 向后兼容）
+    property int contentPadding: 0
 
     // ── 信号 ──
     /// 关闭弹窗（点遮罩、按 Esc、点 X）
@@ -154,7 +156,9 @@ Item {
 
                 Item {
                     id: contentContainer
-                    width: scrollView.availableWidth
+                    x: root.contentPadding
+                    y: root.contentPadding
+                    width: scrollView.availableWidth - root.contentPadding * 2
                     height: childrenRect.height
                 }
             }
