@@ -539,7 +539,7 @@ Rectangle {
                             // 隐式注入的 index（导致 "index is not defined"）。用隐式 model 访问
                             // model.isAddCard 等角色（与版本列表 delegate 同模式）。
                             width: folderList.width - 4
-                            height: model.isAddCard ? 50 : 72
+                            height: model.isAddCard ? 50 : 68
                             radius: StyleTokens.radiusMd
                             color: model.isAddCard ? "transparent"
                                  : ((fCardBody.containsMouse || model.active) ? "#191e2a" : "transparent")
@@ -592,98 +592,104 @@ Rectangle {
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: versionRightPanel.onFolderCardClicked(model.path, model.isDefault)
                             }
-                            // 主行：图标 + 标题 + 标签 + 齿轮，整体垂直居中。
-                            // 齿轮=卡片垂直中心（用户要求保持居中），标签与齿轮同排对齐（2026-08-18）
-                            RowLayout {
+                            // 内容列：主行（图标+标题+标签+齿轮）+ 说明行（路径+信息）。
+                            // 上下 10px 对称边距、间距均衡（不头轻脚重，2026-08-18 第三轮修正）；
+                            // 齿轮与标签同排对齐。
+                            ColumnLayout {
                                 visible: !model.isAddCard
-                                anchors.left: parent.left; anchors.right: parent.right
+                                anchors.fill: parent
                                 anchors.leftMargin: 12; anchors.rightMargin: 8
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: 10
-                                Image {
-                                    source: model.active ? "icons/lucide/folder-open.svg" : "icons/lucide/folder.svg"
-                                    Layout.preferredWidth: 20; Layout.preferredHeight: 20
-                                    Layout.alignment: Qt.AlignVCenter
-                                    opacity: model.exists ? 1 : 0.45
-                                }
-                                Text {
-                                    text: model.name || ""
-                                    font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold
-                                    color: model.exists ? StyleTokens.textSecondary : StyleTokens.textTertiary
-                                    Layout.fillWidth: true; elide: Text.ElideRight
-                                    Layout.alignment: Qt.AlignVCenter
-                                }
-                                // 固有文件夹特殊标签
-                                Rectangle {
-                                    visible: model.isDefault
-                                    Layout.preferredHeight: 20
-                                    Layout.preferredWidth: 40
-                                    Layout.alignment: Qt.AlignVCenter
-                                    radius: StyleTokens.radiusSm
-                                    color: StyleTokens.accentSubtle; border.color: StyleTokens.accent; border.width: 1
+                                anchors.topMargin: 10; anchors.bottomMargin: 10
+                                spacing: 6
+
+                                // ── 主行 ──
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 10
+                                    Image {
+                                        source: model.active ? "icons/lucide/folder-open.svg" : "icons/lucide/folder.svg"
+                                        Layout.preferredWidth: 20; Layout.preferredHeight: 20
+                                        Layout.alignment: Qt.AlignVCenter
+                                        opacity: model.exists ? 1 : 0.45
+                                    }
                                     Text {
-                                        anchors.centerIn: parent
-                                        text: qsTr("固有")
-                                        font.pixelSize: 11; font.weight: Font.Medium; color: StyleTokens.accentLink
-                                        horizontalAlignment: Text.AlignHCenter
+                                        text: model.name || ""
+                                        font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold
+                                        color: model.exists ? StyleTokens.textSecondary : StyleTokens.textTertiary
+                                        Layout.fillWidth: true; elide: Text.ElideRight
+                                        Layout.alignment: Qt.AlignVCenter
+                                    }
+                                    // 固有文件夹特殊标签
+                                    Rectangle {
+                                        visible: model.isDefault
+                                        Layout.preferredHeight: 20
+                                        Layout.preferredWidth: 40
+                                        Layout.alignment: Qt.AlignVCenter
+                                        radius: StyleTokens.radiusSm
+                                        color: StyleTokens.accentSubtle; border.color: StyleTokens.accent; border.width: 1
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: qsTr("固有")
+                                            font.pixelSize: 11; font.weight: Font.Medium; color: StyleTokens.accentLink
+                                            horizontalAlignment: Text.AlignHCenter
+                                        }
+                                    }
+                                    // 使用中标签
+                                    Rectangle {
+                                        visible: model.active && !model.isDefault
+                                        Layout.preferredHeight: 20
+                                        Layout.preferredWidth: 46
+                                        Layout.alignment: Qt.AlignVCenter
+                                        radius: StyleTokens.radiusSm
+                                        color: "#123a22"; border.color: StyleTokens.success; border.width: 1
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: qsTr("使用中")
+                                            font.pixelSize: 11; font.weight: Font.Medium; color: StyleTokens.success
+                                            horizontalAlignment: Text.AlignHCenter
+                                        }
+                                    }
+                                    // 不存在标签
+                                    Rectangle {
+                                        visible: !model.exists
+                                        Layout.preferredHeight: 20
+                                        Layout.preferredWidth: 50
+                                        Layout.alignment: Qt.AlignVCenter
+                                        radius: StyleTokens.radiusSm
+                                        color: StyleTokens.errorBg; border.color: StyleTokens.error; border.width: 1
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: qsTr("不存在")
+                                            font.pixelSize: 11; font.weight: Font.Medium; color: StyleTokens.errorLight
+                                            horizontalAlignment: Text.AlignHCenter
+                                        }
+                                    }
+                                    // 设置按钮（删除条目/打开/重命名）——与标题/标签同排对齐
+                                    ShadowIconButton {
+                                        source: "icons/lucide/settings.svg"
+                                        sourceWidth: 15; sourceHeight: 15
+                                        type: "normal"
+                                        Layout.alignment: Qt.AlignVCenter
+                                        onClicked: versionRightPanel.openFolderMenu(this, model.path, model.name, model.isDefault)
+                                        // 不挂 ToolTip：默认框风格不符（2026-08-18），点击即弹样式化菜单
                                     }
                                 }
-                                // 使用中标签
-                                Rectangle {
-                                    visible: model.active && !model.isDefault
-                                    Layout.preferredHeight: 20
-                                    Layout.preferredWidth: 46
-                                    Layout.alignment: Qt.AlignVCenter
-                                    radius: StyleTokens.radiusSm
-                                    color: "#123a22"; border.color: StyleTokens.success; border.width: 1
+
+                                // ── 说明行：路径 + 信息 ──
+                                RowLayout {
+                                    visible: model.exists
+                                    Layout.fillWidth: true
+                                    spacing: 8
                                     Text {
-                                        anchors.centerIn: parent
-                                        text: qsTr("使用中")
-                                        font.pixelSize: 11; font.weight: Font.Medium; color: StyleTokens.success
-                                        horizontalAlignment: Text.AlignHCenter
+                                        text: model.path || ""
+                                        font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textTertiary
+                                        Layout.fillWidth: true; elide: Text.ElideMiddle
                                     }
-                                }
-                                // 不存在标签
-                                Rectangle {
-                                    visible: !model.exists
-                                    Layout.preferredHeight: 20
-                                    Layout.preferredWidth: 50
-                                    Layout.alignment: Qt.AlignVCenter
-                                    radius: StyleTokens.radiusSm
-                                    color: StyleTokens.errorBg; border.color: StyleTokens.error; border.width: 1
                                     Text {
-                                        anchors.centerIn: parent
-                                        text: qsTr("不存在")
-                                        font.pixelSize: 11; font.weight: Font.Medium; color: StyleTokens.errorLight
-                                        horizontalAlignment: Text.AlignHCenter
+                                        text: model.layoutName + (model.launcherName && model.launcherName !== "未知"
+                                              ? " · " + model.launcherName : "") + " · " + model.versionCount + " 个版本"
+                                        font.pixelSize: 10; color: StyleTokens.textSubtle
                                     }
-                                }
-                                // 设置按钮（删除条目/打开/重命名）——与标题/标签同排、与标签对齐
-                                ShadowIconButton {
-                                    source: "icons/lucide/settings.svg"
-                                    sourceWidth: 15; sourceHeight: 15
-                                    type: "normal"
-                                    Layout.alignment: Qt.AlignVCenter
-                                    onClicked: versionRightPanel.openFolderMenu(this, model.path, model.name, model.isDefault)
-                                    // 不挂 ToolTip：默认框风格不符（2026-08-18），点击即弹样式化菜单
-                                }
-                            }
-                            // 底部说明：路径 + 信息（留出底部边距，不贴卡片边缘）
-                            RowLayout {
-                                visible: !model.isAddCard && model.exists
-                                anchors.left: parent.left; anchors.right: parent.right
-                                anchors.leftMargin: 12; anchors.rightMargin: 8
-                                anchors.bottom: parent.bottom; anchors.bottomMargin: 8
-                                spacing: 8
-                                Text {
-                                    text: model.path || ""
-                                    font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textTertiary
-                                    Layout.fillWidth: true; elide: Text.ElideMiddle
-                                }
-                                Text {
-                                    text: model.layoutName + (model.launcherName && model.launcherName !== "未知"
-                                          ? " · " + model.launcherName : "") + " · " + model.versionCount + " 个版本"
-                                    font.pixelSize: 10; color: StyleTokens.textSubtle
                                 }
                             }
                         }
@@ -795,15 +801,15 @@ Rectangle {
         title: qsTr("命名游戏文件夹")
         cardWidth: 400
         opened: false
-        contentPadding: 16  // 内容区统一 16px 内边距（不贴边框）
+        contentPadding: 16  // 内容区 16px 对称内边距（不贴边框、不挤压）
         property string mode: "add"       // add | rename
         property string targetPath: ""
         onClosed: opened = false
         onRejected: opened = false
 
         ColumnLayout {
-            // 显式宽度（跟随容器）而非 anchors：GenericPopup 内容容器由 childrenRect
-            // 撑高，部分 anchors 会塌缩重叠（2026-08-18 实测）
+            // 填满带内边距的内容容器（width: parent.width）；不用 anchors 避免与
+            // childrenRect 撑高冲突（2026-08-18）
             width: parent.width
             spacing: 12
 

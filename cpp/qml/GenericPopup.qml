@@ -26,7 +26,7 @@ Item {
     property bool opened: false
     property int cardWidth: 360
     property string closeIcon: "icons/lucide/x.svg"
-    // 内容区左右/上内边距（2026-08-18：内容不贴卡片边框；默认 0 向后兼容）
+    // 内容区左右/上内边距（2026-08-18：内容不贴卡片边框、不挤压；默认 0 向后兼容）
     property int contentPadding: 0
 
     // ── 信号 ──
@@ -75,7 +75,13 @@ Item {
     Rectangle {
         id: card
         width: root.cardWidth
-        height: Math.min(Math.max(contentColumn.implicitHeight + 16, 200), parent ? parent.height - 80 : 600)
+        // 2026-08-18 修复：原用 contentColumn.implicitHeight，但 ScrollView 的
+        // implicitHeight 不反映内容高度（低估）→ 卡片过矮、内容被裁。
+        // 改按实际内容高度计算：contentPadding(顶) + 内容 + 头部48 + 分割线1 +
+        // 滚动区边距8 + 底部留白(contentPadding) ≈ +72。
+        height: Math.min(
+            Math.max(root.contentPadding + contentContainer.childrenRect.height + 72, 200),
+            parent ? parent.height - 80 : 600)
         anchors.centerIn: parent
 
         radius: StyleTokens.radiusLg
@@ -147,6 +153,7 @@ Item {
 
             // ── 可滚动内容区 ──
             ScrollView {
+                id: scrollView   // 2026-08-18 修复：contentContainer 引用它但此前缺 id，容器宽度恒 NaN
                 Layout.fillWidth: true; Layout.fillHeight: true
                 Layout.topMargin: 4; Layout.bottomMargin: 4
                 clip: true
