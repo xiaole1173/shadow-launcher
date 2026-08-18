@@ -43,6 +43,7 @@
 #include "userdata_backend.h"
 #include "launch_backend.h"
 #include "resource_backend.h"
+#include "minecraft_folder_backend.h"
 #include "settings_backend.h"
 #include "version_backend.h"
 #include "../utils/temp_tracker.h"
@@ -228,6 +229,19 @@ ShadowBackend::ShadowBackend(QObject* parent)
             importer->setIsolation(m_settings->isolation());
         }
     }
+
+    // ── 外部 .minecraft 文件夹（选择/识别/读取，2026-08-18）──
+    // 应用/回退通过信号驱动本类的 onApplyForeignFolder/onRevertForeignFolder，
+    // 由本类完成全部子后端的目录切换接线。
+    m_mcFolder = new MinecraftFolderBackend(this);
+    m_mcFolder->setDataDir(m_app->dataDir());  // 游戏文件夹注册表存放目录
+    connect(m_mcFolder, &MinecraftFolderBackend::applyRequested,
+            this, &ShadowBackend::onApplyForeignFolder);
+    connect(m_mcFolder, &MinecraftFolderBackend::revertRequested,
+            this, &ShadowBackend::onRevertForeignFolder);
+    connect(m_mcFolder, &MinecraftFolderBackend::foreignChanged,
+            this, &ShadowBackend::isolationChanged);  // 外部形态变化 → UI 隔离开关刷新
+
     syncPlayerName();
     bp("IconCache");
 
@@ -431,6 +445,15 @@ ShadowBackend::ShadowBackend(QObject* parent)
             this, &ShadowBackend::logMessage);
     connect(m_version, &VersionBackend::toastMessage,
             this, &ShadowBackend::toastMessage);
+    // ── 2026-08-15：加载器安装期间自动下载的便携 Java → 刷新 Java 列表（不弹 toast）──
+    // findAllJava 含 java_cache 扫描；scanJavaInstallations 只 emit logMessage/javaScanFinished，
+    // 用户可见的"正在扫描 Java 环境"toast 由 SettingsJavaPage 自行弹出，此处静默刷新。
+    connect(m_version, &VersionBackend::javaAutoInstalled,
+            this, [this](int) {
+                m_settings->scanJavaInstallations();
+                m_java->scanSystemJavas();
+                qCInfo(logJava) << QStringLiteral("[Java安装] 加载器自动下载的 Java 已就绪，已触发 Java 列表刷新");
+            });
     // ── 2026-08-15：MC/加载器安装取消 → QML toast（此前 cancelNotification
     //    发射后无人转发，取消毫无用户反馈）──
     connect(m_version, &VersionBackend::cancelNotification,
@@ -836,6 +859,9 @@ int ShadowBackend::maxMemoryMb() const {
 
 
 bool ShadowBackend::isolationEnabled() const {
+    // 外部 .minecraft 目录：报告实际解析形态（版本隔离→true，共享/混合→false）
+    if (m_mcFolder && m_mcFolder->isForeignActive())
+        return m_mcFolder->effectiveIsolation();
     return m_isolationEnabled;
 }
 
@@ -1714,6 +1740,12 @@ void ShadowBackend::setMaxMemory(int mb) {
 }
 
 void ShadowBackend::setIsolationEnabled(bool enabled) {
+    // 外部目录：版本隔离状态由原布局决定，不允许切换（避免破坏导入目录）
+    if (m_mcFolder && m_mcFolder->isForeignActive()) {
+        emit logMessage(tr("外部 .minecraft 遵循原布局，不可切换版本隔离"));
+        emit isolationChanged();
+        return;
+    }
     m_isolationEnabled = enabled;
     m_settings->setIsolationEnabled(enabled);
 }
@@ -1726,9 +1758,71 @@ void ShadowBackend::migrateVersionToIsolated(const QString& versionId) {
     m_settings->migrateVersionToIsolated(versionId);
 }
 
+// ════════════════════════════════════════════════════════════════
+// 外部 .minecraft 目录应用/回退（MinecraftFolderBackend 信号驱动）
+// ════════════════════════════════════════════════════════════════
+
+void ShadowBackend::onApplyForeignFolder(const QString& root, int layout)
+{
+    if (root.isEmpty()) return;
+    const auto mcLayout = static_cast<MinecraftLayout>(layout);
+
+    // 1) 版本隔离解析切换到外部目录形态（只读尊重原布局，不写配置）
+    m_settings->isolation()->setFolderLayout(mcLayout);
+
+    // 2) 同步所有子后端的游戏目录（与构造函数装配一致）。
+    //    setMinecraftDir 内含 mkpath(versions/libraries/assets)——对有效
+    //    .minecraft 均已存在，无副作用；无效目录不会走到这里（probe 已校验）。
+    m_app->setGameDir(root);
+    m_settings->setMinecraftDir(root);
+    m_settings->setIsolationGameDir(root);
+    m_version->setGameDir(root);
+    m_launch->setGameDir(root);
+    m_localMods->setGameDir(root);
+    if (m_stats) m_stats->setGameDir(root);
+    if (m_modpackExporter)
+        qobject_cast<ModpackExporter*>(m_modpackExporter)->setGameDir(root);
+    if (m_modpackImporter)
+        qobject_cast<ModpackImporter*>(m_modpackImporter)->setGameDir(root);
+
+    emit gameDirChanged();
+    emit isolationChanged();
+    emit logMessage(tr("已切换到外部 .minecraft: %1").arg(root));
+}
+
+void ShadowBackend::onRevertForeignFolder()
+{
+    const QString defaultDir = QCoreApplication::applicationDirPath()
+                               + QStringLiteral("/.minecraft");
+
+    // 回到传统行为（由版本隔离开关控制，默认隔离）
+    m_settings->isolation()->setFolderLayout(MinecraftLayout::Unknown);
+
+    m_app->setGameDir(defaultDir);
+    m_settings->setMinecraftDir(defaultDir);
+    m_settings->setIsolationGameDir(defaultDir);
+    m_version->setGameDir(defaultDir);
+    m_launch->setGameDir(defaultDir);
+    m_localMods->setGameDir(defaultDir);
+    if (m_stats) m_stats->setGameDir(defaultDir);
+    if (m_modpackExporter)
+        qobject_cast<ModpackExporter*>(m_modpackExporter)->setGameDir(defaultDir);
+    if (m_modpackImporter)
+        qobject_cast<ModpackImporter*>(m_modpackImporter)->setGameDir(defaultDir);
+
+    emit gameDirChanged();
+    emit isolationChanged();
+    emit logMessage(tr("已恢复默认游戏目录: %1").arg(defaultDir));
+}
+
 QObject* ShadowBackend::modManager() const
 {
     return m_resource ? m_resource->modManager() : nullptr;
+}
+
+QObject* ShadowBackend::mcFolder() const
+{
+    return m_mcFolder;
 }
 
 QObject* ShadowBackend::multiplayer() const
@@ -3984,13 +4078,21 @@ void ShadowBackend::queryOptifineVersions(const QString& mcVersion) {
             QJsonObject obj = v.toObject();
             QString fn = obj.value(QStringLiteral("filename")).toString();
             if (fn.isEmpty()) continue;
+            // 剥掉可选的 "preview_" 前缀（BMCLAPI preview 文件名形如
+            // "preview_OptiFine_1.16.5_HD_U_G7_pre10.jar"）
+            QString stripped = fn;
+            if (stripped.startsWith(QStringLiteral("preview_")))
+                stripped = stripped.mid(8);
             QString prefix = QStringLiteral("OptiFine_") + mcVersion + QStringLiteral("_");
-            QString ver = fn;
-            if (fn.startsWith(prefix)) ver = fn.mid(prefix.length());
+            QString ver = stripped;
+            if (stripped.startsWith(prefix)) ver = stripped.mid(prefix.length());
             if (ver.endsWith(QStringLiteral(".jar"))) ver = ver.left(ver.length() - 4);
             QVariantMap m;
             m[QStringLiteral("version")] = ver;
-            m[QStringLiteral("type")] = QStringLiteral("release");
+            // preview 文件 → preview 类型（前端按类型排后，不抢占"最新"）
+            m[QStringLiteral("type")] = fn.startsWith(QStringLiteral("preview_"))
+                ? QStringLiteral("preview")
+                : QStringLiteral("release");
             m[QStringLiteral("date")] = QString();
             m[QStringLiteral("bmclType")] = obj.value(QStringLiteral("type")).toString();
             m[QStringLiteral("bmclPatch")] = obj.value(QStringLiteral("patch")).toString();

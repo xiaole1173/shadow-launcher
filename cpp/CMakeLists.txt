@@ -76,6 +76,7 @@ set(SOURCES
     src/core/microsoft_auth.cpp
     src/core/yggdrasil_auth.cpp
     src/core/version_isolation.cpp
+    src/core/minecraft_layout.cpp
     src/core/mod_loader_installer.cpp
     src/core/java_runtime_installer.cpp
     src/core/local_mod_manager.cpp
@@ -109,6 +110,7 @@ set(SOURCES
     src/backend/check_backend.cpp
     src/backend/userdata_backend.cpp
     src/backend/debug_logger.cpp
+    src/backend/minecraft_folder_backend.cpp
 
     # Unified backend wrapper (Phase 4)
     src/backend/shadow_backend.cpp
@@ -143,6 +145,7 @@ set(HEADERS
     src/core/modpack/modpack_exporter.h
     src/core/update_manager.h
     src/core/version_isolation.h
+    src/core/minecraft_layout.h
     src/core/yggdrasil_auth.h
     src/core/crash_detector.h
     src/core/screenshot_server.h
@@ -158,6 +161,7 @@ set(HEADERS
     src/backend/check_backend.h
     src/backend/userdata_backend.h
     src/backend/debug_logger.h
+    src/backend/minecraft_folder_backend.h
 
     # Unified backend wrapper (Phase 4)
     src/backend/shadow_backend.h
@@ -704,6 +708,27 @@ if(SHADOW_BUILD_MODPACK_SELFTEST)
     )
     target_include_directories(IsoGdTest PRIVATE src)
     target_link_libraries(IsoGdTest PRIVATE Qt6::Core)
+
+    # 外部 .minecraft 布局识别/游戏目录解析验证（版本隔离/非隔离/混合/game子目录 +
+    # 真实 PCL2/HMCL 目录探测，仅读取不写盘）
+    add_executable(MinecraftLayoutTest
+        tests/test_minecraft_layout.cpp
+        src/core/minecraft_layout.cpp
+        src/core/version_isolation.cpp
+        src/utils/logger.cpp
+    )
+    target_include_directories(MinecraftLayoutTest PRIVATE src)
+    target_link_libraries(MinecraftLayoutTest PRIVATE Qt6::Core)
+
+    # 游戏文件夹注册表验证（命名文件/注册表/增删改/活动切换，异步刷新）
+    add_executable(GameFolderTest
+        tests/test_game_folder.cpp
+        src/backend/minecraft_folder_backend.cpp
+        src/core/minecraft_layout.cpp
+        src/utils/logger.cpp
+    )
+    target_include_directories(GameFolderTest PRIVATE src)
+    target_link_libraries(GameFolderTest PRIVATE Qt6::Core Qt6::Widgets Qt6::Concurrent)
 
     # 启动自动安装 Java 组件验证（真实网络 Tuna，worker 下载/解压 + 主线程回调）
     # 用法: JavaAutoInstallTest <major>（默认 8；已缓存直接完成）

@@ -39,6 +39,7 @@ class IconCache;
 class ResourceFetchEngine;
 class MultiplayerManager;
 class UpdateManager;
+class MinecraftFolderBackend;
 
 class ShadowBackend : public QObject {
     Q_OBJECT
@@ -116,6 +117,9 @@ class ShadowBackend : public QObject {
     // ── Modpack Import ──
     Q_PROPERTY(QObject* modpackImporter READ modpackImporter CONSTANT)
     Q_PROPERTY(QObject* modpackExporter READ modpackExporter CONSTANT)
+
+    // ── 外部 .minecraft 文件夹（选择/识别/读取，2026-08-18）──
+    Q_PROPERTY(QObject* mcFolder READ mcFolder CONSTANT)
 
     // ── Update ──
     Q_PROPERTY(bool updateChecking READ updateChecking NOTIFY updateCheckingChanged)
@@ -853,6 +857,7 @@ public:
     bool statsEmpty() const;
     QObject* modManager() const;  // QML exposed (returns m_resource->modManager())
     QObject* multiplayer() const;
+    QObject* mcFolder() const;  // 外部 .minecraft 选择/识别/读取（实现见 cpp，需完整类型转换）
     // 资源拉取引擎访问器（ResourceBackend 搜索接入用）
     ResourceFetchEngine* fetchEngine() const { return m_fetchEngine; }
 
@@ -877,6 +882,10 @@ private:
     void saveGameArgs();
     void saveHighPerfGpu();
 
+    // ── 外部 .minecraft 目录应用/回退（MinecraftFolderBackend 信号驱动）──
+    void onApplyForeignFolder(const QString& root, int layout);
+    void onRevertForeignFolder();
+
     AppBackend* m_app = nullptr;
     AccountBackend* m_account = nullptr;
     SettingsBackend* m_settings = nullptr;
@@ -897,6 +906,7 @@ private:
     class GeoIpService* m_geoIp = nullptr;
     QObject* m_modpackImporter = nullptr;
     QObject* m_modpackExporter = nullptr;
+    MinecraftFolderBackend* m_mcFolder = nullptr;
 
     bool m_isolationEnabled = true;
     int m_lastLoginMode = 1;

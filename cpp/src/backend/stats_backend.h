@@ -28,6 +28,8 @@ public:
 
     Q_INVOKABLE void refresh();
     QString gameDir() const { return m_gameDir; }
+    // 外部 .minecraft 目录切换时同步（2026-08-18）
+    void setGameDir(const QString& dir) { m_gameDir = dir; }
 
 signals:
     void statsChanged();

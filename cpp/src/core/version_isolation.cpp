@@ -88,6 +88,8 @@ void VersionIsolation::loadConfig()
 void VersionIsolation::saveConfig()
 {
     if (m_gameDir.isEmpty()) return;
+    // 外部目录只读模式：绝不向导入的 .minecraft 写入版本隔离配置（不破坏原结构）
+    if (m_folderLayout != MinecraftLayout::Unknown) return;
 
     QDir().mkpath(m_gameDir + QStringLiteral("/config"));
 
@@ -157,6 +159,11 @@ QString VersionIsolation::getVersionGameDir(const QString& versionId) const
 {
     if (m_gameDir.isEmpty()) return {};
 
+    // 外部目录：布局感知解析（版本隔离/非隔离均正确），不强制本启动器的隔离形态
+    if (m_folderLayout != MinecraftLayout::Unknown) {
+        return resolveVersionGameDir(m_gameDir, versionId, m_folderLayout);
+    }
+
     if (m_enabled) {
         const QString verDir = m_gameDir + QStringLiteral("/versions/")
                                + versionId;
@@ -182,6 +189,11 @@ QString VersionIsolation::getVersionGameDir(const QString& versionId) const
 
 bool VersionIsolation::migrateToIsolated(const QString& versionId)
 {
+    // 外部目录只读模式：不允许迁移（会创建 game/ 与 .isolated 标记，破坏原结构）
+    if (m_folderLayout != MinecraftLayout::Unknown) {
+        return false;
+    }
+
     const QString verDir = m_gameDir + QStringLiteral("/versions/") + versionId;
     const QString jsonFile = verDir + QStringLiteral("/") + versionId + QStringLiteral(".json");
 
