@@ -698,6 +698,7 @@ int main(int argc, char *argv[])
                 else if (pageStr == "multiplayer" || pageStr == "2") targetPage = 2;
                 else if (pageStr == "stats" || pageStr == "3") targetPage = 3;
                 else if (pageStr == "settings" || pageStr == "4") targetPage = 4;
+                else if (pageStr == "sites" || pageStr == "useful_sites" || pageStr == "7") targetPage = 7;
             }
             if (parts.size() >= 2) {
                 QString tabStr = parts[1].toLower();

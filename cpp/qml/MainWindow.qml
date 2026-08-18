@@ -35,6 +35,7 @@ Window {
     property bool _settingsFadeOut: false
     property bool _installProgressFadeOut: false
     property bool _dlFadeOut: false
+    property bool _usFadeOut: false
     property var runningListModel: []
     property bool _pendingCrashAnalyze: false   // Loader 异步时挂起崩溃分析请求
     property var _pendingCrashResult: null      // Loader 异步时挂起崩溃分析结果
@@ -47,6 +48,8 @@ Window {
             case "stats": return qsTr("统计")
             case "settings": return qsTr("设置")
             case "download_progress": return qsTr("下载进度")
+            case "help_docs": return qsTr("帮助文档")
+            case "useful_sites": return qsTr("实用网站")
             default: return key
         }
     }
@@ -101,6 +104,7 @@ Window {
         if (navListIndex === 4 && index !== 4) _settingsFadeOut = true
         if (navListIndex === 1 && index !== 1) _dlFadeOut = true
         if (navListIndex === 5 && index !== 5) _installProgressFadeOut = true
+        if (navListIndex === 7 && index !== 7) _usFadeOut = true
         navListIndex = index
         showVersionSelect = false
         showVersionSettings = false
@@ -521,6 +525,8 @@ Window {
                         ListElement { label: "统计"; pageKey: "stats"; icon: "bar-chart-3" }
                         ListElement { label: "设置"; pageKey: "settings"; icon: "settings" }
                         ListElement { label: qsTr("下载进度"); pageKey: "download_progress"; icon: "download" }
+                        ListElement { label: qsTr("帮助文档"); pageKey: "help_docs"; icon: "external-link" }
+                        ListElement { label: qsTr("实用网站"); pageKey: "useful_sites"; icon: "compass" }
                     }
 
                     Repeater {
@@ -544,7 +550,14 @@ Window {
                                 }
                                 Text { text: appWindow.navLabel(model.pageKey); font.pixelSize: StyleTokens.fontSizeMd; color: navListIndex === index ? StyleTokens.textSecondary : "#9498a8" }
                             }
-                            MouseArea { id: navMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: switchPage(index) }
+                            MouseArea { id: navMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: {
+                                if (model.pageKey === "help_docs") {
+                                    // 帮助文档是链接项：直接开浏览器，不切换页面
+                                    Qt.openUrlExternally("https://shadowlauncher.cn/docs/index.html")
+                                    return
+                                }
+                                switchPage(index)
+                            } }
                         }
                     }
                     Item { Layout.fillHeight: true }
@@ -762,6 +775,34 @@ Window {
                                 onLoaded: {
                                     item.mainWindow = appWindow
                                     item.backend = backend
+                                }
+                            }
+                        }
+                    }
+
+                    // ── Useful websites page ──
+                    Rectangle {
+                        anchors.fill: parent
+                        visible: navListIndex === 7 || _usFadeOut
+                        color: hasCustomBg ? "transparent" : StyleTokens.bgPrimary
+
+                        Rectangle {
+                            anchors.fill: parent
+                            color: hasCustomBg ? "transparent" : StyleTokens.bgPrimary
+                            opacity: navListIndex === 7 ? 1 : 0
+                            Behavior on opacity { NumberAnimation { duration: 150 } }
+                            onOpacityChanged: { if (opacity === 0) _usFadeOut = false }
+
+                            Loader {
+                                id: usefulSitesPageLoader
+                                asynchronous: true
+                                anchors.fill: parent
+                                active: navListIndex === 7 || _usFadeOut
+                                source: "UsefulWebsitesPage.qml"
+                                onLoaded: {
+                                    item.backend = backend
+                                    item.toastManager = toastManager
+                                    item.appWindow = appWindow
                                 }
                             }
                         }

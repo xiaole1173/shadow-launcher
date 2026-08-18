@@ -300,6 +300,8 @@ qt6_add_resources(ShadowLauncher "qml_resources"
         qml/InstallProgressPage.qml
         qml/LoadingSpinner.qml
         qml/SettingsExperimentalPage.qml
+        qml/UsefulWebsitesPage.qml
+        qml/websites_data.js
         qml/animation_tokens.json
         qml/qmldir
 )
@@ -384,6 +386,11 @@ qt6_add_resources(ShadowLauncher "icon_resources"
         icons/lucide/image.svg
         icons/lucide/sun.svg
         icons/lucide/download-cloud.svg
+        icons/lucide/external-link.svg
+        icons/lucide/compass.svg
+        icons/lucide/book-open.svg
+        icons/lucide/users.svg
+        icons/lucide/chevron-right.svg
 
         # ── Version type icons (Blocks) ──
         icons/blocks/Anvil.png
@@ -404,6 +411,68 @@ qt6_add_resources(ShadowLauncher "icon_resources"
         icons/types/Alpha.png
         icons/types/Beta.png
         icons/types/Release.png
+
+        # ── 实用网站 favicon 图标 ──
+        icons/sites/account_xbox_com.png
+        icons/sites/armortrims_com.png
+        icons/sites/bangbang93_com.png
+        icons/sites/bugs_mojang_com.png
+        icons/sites/chunkbase_com.png
+        icons/sites/chunker_app.png
+        icons/sites/classic_minecraft_net.png
+        icons/sites/colorize_fun.png
+        icons/sites/curseforge_com.png
+        icons/sites/digminecraft_com.png
+        icons/sites/djfun_de.png
+        icons/sites/eaglercraft_ir.png
+        icons/sites/fabricmc_net.png
+        icons/sites/feedback_minecraft_net.png
+        icons/sites/files_minecraftforge_net.png
+        icons/sites/github_com.png
+        icons/sites/help_minecraft_net.png
+        icons/sites/irisshaders_dev.png
+        icons/sites/jacobsjo_eu.png
+        icons/sites/littleskin_cn.png
+        icons/sites/mc_js_cool.png
+        icons/sites/mclo_gs.png
+        icons/sites/mcmod_cn.png
+        icons/sites/mcnav_net.png
+        icons/sites/mcpixelart_com.png
+        icons/sites/mcshuo_com.png
+        icons/sites/mcstacker_net.png
+        icons/sites/mcstatus_io.png
+        icons/sites/minecraft_heads_com.png
+        icons/sites/minecraft_hk_com.png
+        icons/sites/minecraft_net.png
+        icons/sites/minecraft_server_list_com.png
+        icons/sites/minecraft_wiki.png
+        icons/sites/minecraftcapes_net.png
+        icons/sites/minecraftforum_net.png
+        icons/sites/minecraftmaps_com.png
+        icons/sites/minecraftshader_com.png
+        icons/sites/minecraftshapes_com.png
+        icons/sites/minecraftskins_com.png
+        icons/sites/minecraftskins_net.png
+        icons/sites/mineplugin_org.png
+        icons/sites/modrinth_com.png
+        icons/sites/motd_gg.png
+        icons/sites/namemc_com.png
+        icons/sites/neoforged_net.png
+        icons/sites/novaskin_me.png
+        icons/sites/optifine_net.png
+        icons/sites/papermc_io.png
+        icons/sites/planetminecraft_com.png
+        icons/sites/play_mcmod_cn.png
+        icons/sites/plotz_co_uk.png
+        icons/sites/quiltmc_org.png
+        icons/sites/resourcepack_net.png
+        icons/sites/shadowlauncher.png
+        icons/sites/skinmc_net.png
+        icons/sites/spigotmc_org.png
+        icons/sites/textcraft_net.png
+        icons/sites/vanillatweaks_net.png
+        icons/sites/wiki_biligame_com.png
+        icons/sites/zh_minecraft_wiki.png
 )
 
 # 鈹€鈹€ Agreement HTML resources (embedded for offline access) 鈹€鈹€
