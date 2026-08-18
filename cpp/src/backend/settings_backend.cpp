@@ -975,40 +975,43 @@ bool SettingsBackend::openVersionDir(const QString& versionId)
     return true;
 }
 
+// 完整递归删除目录（带 Windows 文件占用重试 + 权限剥离回退）。
+// 2026-08-19：从 deleteVersion 的 lambda 提取为文件级函数，供
+// deleteVersion / deleteVersionFiles（外部目录非隔离版本专用）复用。
+static bool forceRemoveDir(const QString& dirPath)
+{
+    for (int retry = 0; retry < 3; retry++) {
+        if (retry > 0) QThread::msleep(500);
+        QDir d(dirPath);
+        if (!d.exists()) return true;
+        bool ok = d.removeRecursively();
+        if (ok && !QDir(dirPath).exists()) return true;
+
+        // Manual cleanup: strip all permissions, then remove each file
+        qWarning() << "[deleteVersion] retry" << (retry+1) << "manual cleanup for" << dirPath;
+        for (const QFileInfo& fi : QDir(dirPath).entryInfoList(QDir::NoDotAndDotDot | QDir::AllEntries)) {
+            if (fi.isDir()) {
+                QDir(fi.absoluteFilePath()).removeRecursively();
+            } else {
+                QFile f(fi.absoluteFilePath());
+                // Aggressively strip all restrictions before removal (Windows locked files)
+                f.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner
+                               | QFileDevice::ReadGroup | QFileDevice::WriteGroup
+                               | QFileDevice::ReadOther | QFileDevice::WriteOther);
+                if (!f.remove()) {
+                    qWarning() << "[deleteVersion] cannot remove file:" << fi.absoluteFilePath();
+                }
+            }
+        }
+        if (!QDir(dirPath).exists()) return true;
+    }
+    qWarning() << "[deleteVersion] Failed to fully remove" << dirPath << "after 3 retries";
+    return QDir().rmdir(dirPath);
+}
+
 void SettingsBackend::deleteVersion(const QString& versionId)
 {
     int count = 0;
-
-    // Helper: remove a directory completely with fallback
-    auto forceRemoveDir = [](const QString& dirPath) -> bool {
-        for (int retry = 0; retry < 3; retry++) {
-            if (retry > 0) QThread::msleep(500);
-            QDir d(dirPath);
-            if (!d.exists()) return true;
-            bool ok = d.removeRecursively();
-            if (ok && !QDir(dirPath).exists()) return true;
-
-            // Manual cleanup: strip all permissions, then remove each file
-            qWarning() << "[deleteVersion] retry" << (retry+1) << "manual cleanup for" << dirPath;
-            for (const QFileInfo& fi : QDir(dirPath).entryInfoList(QDir::NoDotAndDotDot | QDir::AllEntries)) {
-                if (fi.isDir()) {
-                    QDir(fi.absoluteFilePath()).removeRecursively();
-                } else {
-                    QFile f(fi.absoluteFilePath());
-                    // Aggressively strip all restrictions before removal (Windows locked files)
-                    f.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner
-                                   | QFileDevice::ReadGroup | QFileDevice::WriteGroup
-                                   | QFileDevice::ReadOther | QFileDevice::WriteOther);
-                    if (!f.remove()) {
-                        qWarning() << "[deleteVersion] cannot remove file:" << fi.absoluteFilePath();
-                    }
-                }
-            }
-            if (!QDir(dirPath).exists()) return true;
-        }
-        qWarning() << "[deleteVersion] Failed to fully remove" << dirPath << "after 3 retries";
-        return QDir().rmdir(dirPath);
-    };
 
     // 1. Delete the vanilla version folder
     QString verDir = m_gameDir + QStringLiteral("/versions/") + versionId;
@@ -1042,6 +1045,22 @@ void SettingsBackend::deleteVersion(const QString& versionId)
         count++;
     }
     emit logMessage(QStringLiteral("\u5df2\u5220\u9664\u7248\u672c: %1 \uff08\u5171\u6e05\u7406 %2 \u4e2a\u6587\u4ef6\u5939\uff09").arg(versionId).arg(count));
+}
+
+// ── 外部 .minecraft 非隔离版本删除（2026-08-19）──
+// 只删除精确的 versions/<versionId>（版本描述文件 jar/json）：
+// - 不做"前缀变体横扫"（外部目录每个变体都是原启动器独立版本，不能连带删）
+// - 不碰 assets/indexes（共享资源索引，别的版本可能引用）
+// 共享形态下游戏数据（存档/模组/config）在根目录，删这里不影响任何游戏数据。
+void SettingsBackend::deleteVersionFiles(const QString& versionId)
+{
+    if (versionId.isEmpty()) return;
+    int count = 0;
+    const QString verDir = m_gameDir + QStringLiteral("/versions/") + versionId;
+    if (QDir(verDir).exists()) {
+        if (forceRemoveDir(verDir)) count++;
+    }
+    emit logMessage(QStringLiteral("已删除版本文件: %1（仅版本描述，共享游戏数据未受影响）").arg(versionId));
 }
 
 // ============================================================

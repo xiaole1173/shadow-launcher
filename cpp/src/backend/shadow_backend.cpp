@@ -2323,12 +2323,33 @@ bool ShadowBackend::openVersionDir(const QString& versionId) {
 }
 
 void ShadowBackend::deleteVersion(const QString& versionId) {
-    // 2026-08-19：外部 .minecraft 拦截删除。
-    // 外部目录（尤其版本隔离）的 versions/<id> 内含原启动器托管的存档/模组/config/.hmcl，
-    // 递归删除会连带销毁这些游戏数据（且原启动器仍引用该版本）。因此外部目录的版本
-    // 一律交回原启动器管理，本启动器不做任何删除，绝不破坏导入目录内部结构。
+    // 2026-08-19：外部 .minecraft —— 布局感知删除（配合用户澄清）。
+    // 隔离形态：游戏数据（存档/模组/config/.hmcl）直接平铺在 versions/<id> 内，
+    //   且原启动器仍引用该版本 → 递归删除会连带销毁这些数据并破坏原启动器 → 阻止。
+    // 非隔离形态：versions/<id> 仅含版本描述文件，共享游戏数据在根目录 → 允许删除，
+    //   且只删精确版本（deleteVersionFiles），不连带删其它变体、不碰共享 assets。
     if (m_mcFolder && m_mcFolder->isForeignActive()) {
-        emit logMessage(tr("外部 .minecraft 的版本由原启动器管理，本启动器不会删除外部目录的版本文件（含其存档/模组）。如需删除请使用原启动器。"));
+        const QString root = m_mcFolder->currentDir();
+        const QString verDir = QDir::toNativeSeparators(
+            QDir::cleanPath(root + QStringLiteral("/versions/") + versionId));
+        const QString vgd = QDir::toNativeSeparators(
+            QDir::cleanPath(m_mcFolder->versionGameDir(versionId)));
+        const QString gameSub = QDir::toNativeSeparators(
+            QDir::cleanPath(verDir + QStringLiteral("/game")));
+        const bool dataInVersionDir = !vgd.isEmpty()
+            && (vgd == verDir || vgd == gameSub
+                || vgd.startsWith(verDir + QLatin1Char('\\')));
+        if (dataInVersionDir) {
+            emit logMessage(tr("该外部版本为版本隔离形态，versions/%1 内含其游戏数据（存档/模组/配置），删除会连带销毁。请在原启动器中管理该版本。").arg(versionId));
+            return;
+        }
+        emit logMessage(tr("外部非隔离版本：仅删除版本文件，共享游戏数据与其它版本不受影响"));
+        m_settings->deleteVersionFiles(versionId);
+        m_version->refreshInstalled();
+        if (m_version->selectedVersion() == versionId) {
+            m_version->setSelectedVersion(QString());
+            emit selectedVersionClearedAfterDelete();
+        }
         return;
     }
     m_settings->deleteVersion(versionId);
