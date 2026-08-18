@@ -146,6 +146,39 @@ int main(int argc, char** argv)
         CHECK(b2.folders()[1].toMap()["name"].toString() == "PCL2 本体", "命名持久化");
     }
 
+    fprintf(stderr, "\n[8] 活动目录持久化 + restoreActiveFolder\n");
+    {
+        // b 当前活动为默认；切到 pcl2 并持久化 active
+        CHECK(b.setActiveFolder(pcl2), "setActiveFolder(pcl2)");
+        CHECK(QDir::cleanPath(b.activeFolderPath()) == QDir::cleanPath(pcl2), "活动=导入");
+
+        // 模拟重启：新实例读注册表 active 并恢复为活动目录
+        MinecraftFolderBackend b3;
+        b3.setDataDir(dataDir);
+        b3.restoreActiveFolder();
+        CHECK(QDir::cleanPath(b3.activeFolderPath()) == QDir::cleanPath(pcl2), "重启后恢复外部活动目录");
+        CHECK(b3.isForeignActive(), "外部模式已生效");
+
+        // 注册表 active 字段已写入
+        QFile rf(dataDir + QStringLiteral("/game_folders.json"));
+        bool activeOk = false;
+        if (rf.open(QIODevice::ReadOnly)) {
+            const QJsonDocument d = QJsonDocument::fromJson(rf.readAll());
+            rf.close();
+            const QString active = d.object().value(QStringLiteral("active")).toString();
+            activeOk = QDir::cleanPath(active) == QDir::cleanPath(pcl2);
+        }
+        CHECK(activeOk, "注册表 active 字段已写入");
+
+        // 回退默认后再重启 → 保持默认
+        b3.revertToDefault();
+        MinecraftFolderBackend b4;
+        b4.setDataDir(dataDir);
+        b4.restoreActiveFolder();
+        CHECK(b4.activeFolderPath() == b4.defaultFolderPath(), "回退后重启=默认");
+        CHECK(!b4.isForeignActive(), "未进入外部模式");
+    }
+
 #undef CHECK
 
     QDir(base).removeRecursively();

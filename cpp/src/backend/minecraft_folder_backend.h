@@ -111,6 +111,8 @@ public:
     Q_INVOKABLE bool setActiveFolder(const QString& path);
     /// 原生目录选择对话框，返回选中的路径（空串=取消）
     Q_INVOKABLE QString pickFolderDialog();
+    /// 启动时恢复上次使用的活动文件夹（读注册表 active；为空/默认/目录已不存在则保持现状）
+    Q_INVOKABLE void restoreActiveFolder();
 
 signals:
     void folderChanged();
@@ -132,7 +134,8 @@ private:
     // ── 注册表辅助 ──
     QString registryPath() const;
     QStringList readRegistryPaths() const;          // 已导入路径（有序）
-    void writeRegistry(const QStringList& paths) const;
+    QString readActivePath() const;                 // 上次活动目录（空=默认）
+    void writeRegistry(const QStringList& paths, const QString& active) const;
     static QString readNameFile(const QString& folder);        // 读命名文件→名称（空=无）
     static bool writeNameFile(const QString& folder, const QString& name);
     static QVariantMap buildFolderEntry(const QString& path, const QString& name,

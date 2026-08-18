@@ -254,6 +254,11 @@ ShadowBackend::ShadowBackend(QObject* parent)
     m_launch->setAccount(m_account);
     m_version->setIsolation(m_settings->isolation());
 
+    // 2026-08-19：恢复上次使用的活动游戏文件夹（持久化）。
+    // 必须放在默认目录同步之后，否则 249-255 的 setGameDir(默认) 会覆盖恢复结果。
+    // 注册表中无活动外部目录/目录已不存在 → 保持默认，行为不变。
+    m_mcFolder->restoreActiveFolder();
+
     // ── GeoIP service (auto-language detection) ──
     m_geoIp = new GeoIpService(this);
     // Pass initial settings
@@ -2318,6 +2323,14 @@ bool ShadowBackend::openVersionDir(const QString& versionId) {
 }
 
 void ShadowBackend::deleteVersion(const QString& versionId) {
+    // 2026-08-19：外部 .minecraft 拦截删除。
+    // 外部目录（尤其版本隔离）的 versions/<id> 内含原启动器托管的存档/模组/config/.hmcl，
+    // 递归删除会连带销毁这些游戏数据（且原启动器仍引用该版本）。因此外部目录的版本
+    // 一律交回原启动器管理，本启动器不做任何删除，绝不破坏导入目录内部结构。
+    if (m_mcFolder && m_mcFolder->isForeignActive()) {
+        emit logMessage(tr("外部 .minecraft 的版本由原启动器管理，本启动器不会删除外部目录的版本文件（含其存档/模组）。如需删除请使用原启动器。"));
+        return;
+    }
     m_settings->deleteVersion(versionId);
     // Refresh the installed list (deleted version disappears)
     m_version->refreshInstalled();

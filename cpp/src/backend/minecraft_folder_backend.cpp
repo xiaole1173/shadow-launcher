@@ -172,6 +172,8 @@ void MinecraftFolderBackend::revertToDefault()
         emit foreignChanged();
     }
     emit revertRequested();
+    // 2026-08-19：持久化回退 —— 活动目录记为默认，重启后不再恢复外部目录。
+    writeRegistry(readRegistryPaths(), defaultFolderPath());
 }
 
 bool MinecraftFolderBackend::effectiveIsolation() const
@@ -262,7 +264,20 @@ QStringList MinecraftFolderBackend::readRegistryPaths() const
     return out;
 }
 
-void MinecraftFolderBackend::writeRegistry(const QStringList& paths) const
+QString MinecraftFolderBackend::readActivePath() const
+{
+    QFile f(registryPath());
+    if (!f.open(QIODevice::ReadOnly)) return {};
+
+    QJsonParseError err;
+    const QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &err);
+    f.close();
+    if (err.error != QJsonParseError::NoError || !doc.isObject()) return {};
+
+    return doc.object().value(QStringLiteral("active")).toString();
+}
+
+void MinecraftFolderBackend::writeRegistry(const QStringList& paths, const QString& active) const
 {
     if (m_dataDir.isEmpty()) return;
     QDir().mkpath(m_dataDir);
@@ -275,6 +290,8 @@ void MinecraftFolderBackend::writeRegistry(const QStringList& paths) const
         arr.append(o);
     }
     root[QStringLiteral("folders")] = arr;
+    // 2026-08-19：持久化当前活动目录（重启恢复），空=默认目录
+    root[QStringLiteral("active")] = active;
 
     QFile f(registryPath());
     if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
@@ -404,7 +421,7 @@ bool MinecraftFolderBackend::addGameFolder(const QString& path, const QString& n
     if (!paths.contains(clean)) paths.append(clean);
 
     writeNameFile(clean, name.trimmed().isEmpty() ? QDir(clean).dirName() : name.trimmed());
-    writeRegistry(paths);
+    writeRegistry(paths, activeFolderPath());
     refreshFolders();
     return true;
 }
@@ -428,12 +445,14 @@ bool MinecraftFolderBackend::removeGameFolder(const QString& path)
     if (!paths.removeAll(clean)) return false;  // 不在注册表
 
     const bool wasActive = m_applied && QDir::cleanPath(m_info.root) == clean;
-    writeRegistry(paths);
     if (wasActive) {
         m_applied = false;
         emit foreignChanged();
         emit revertRequested();  // 移除活动外部目录 → 回退默认
     }
+    // 2026-08-19：活动目录持久化。移除的是当前活动外部目录 → active 记为默认，
+    // 避免写回一个已移除的路径。
+    writeRegistry(paths, wasActive ? defaultFolderPath() : activeFolderPath());
     refreshFolders();
     return true;
 }
@@ -449,7 +468,31 @@ bool MinecraftFolderBackend::setActiveFolder(const QString& path)
     m_applied = true;
     emit foreignChanged();
     emit applyRequested(clean, static_cast<int>(m_info.layout));
+
+    // 2026-08-19：持久化活动目录 —— 确保注册表含该条目并记录 active（重启恢复）。
+    QStringList paths = readRegistryPaths();
+    if (!paths.contains(clean)) paths.append(clean);
+    writeRegistry(paths, clean);
     return true;
+}
+
+void MinecraftFolderBackend::restoreActiveFolder()
+{
+    if (m_dataDir.isEmpty()) return;
+    const QString active = readActivePath();
+    if (active.isEmpty()) return;
+
+    const QString clean = QDir::cleanPath(active);
+    if (clean.isEmpty()) return;
+    if (clean == QDir::cleanPath(defaultFolderPath())) return;  // 默认无需应用
+    if (!QDir(clean).exists()) return;  // 目录已不存在 → 保持默认（不写回，避免覆盖注册表）
+
+    if (m_info.root != clean) probe(clean);
+    if (!m_info.valid) return;
+
+    m_applied = true;
+    emit foreignChanged();
+    emit applyRequested(clean, static_cast<int>(m_info.layout));
 }
 
 QString MinecraftFolderBackend::pickFolderDialog()
