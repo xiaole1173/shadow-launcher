@@ -159,16 +159,20 @@ Item {
                             id: cCard
                             // 首卡（本启动器）占满整行；其余两列
                             readonly property bool isWide: index === 0
+                            // ── 悬停/点击状态（卡片自身属性，由 MouseArea 显式赋值——
+                            //    直接绑定后声明的 MouseArea.hovered 在本编译环境绑定不生效）──
+                            property bool cHovered: false
+                            property bool cPressed: false
                             width: isWide ? catFlow.width : (catFlow.width - catFlow.spacing) / 2
                             height: isWide ? 88 : 92
                             radius: StyleTokens.radiusLg
-                            color: cHover.hovered ? StyleTokens.bgHover : StyleTokens.bgCard
-                            border.color: cHover.hovered ? StyleTokens.accent : StyleTokens.bgInput
+                            color: cHovered ? StyleTokens.bgHover : StyleTokens.bgCard
+                            border.color: cHovered ? StyleTokens.accent : StyleTokens.bgInput
                             border.width: 1
                             clip: true
 
                             // ── 悬停 / 点击状态 ──
-                            scale: (cHover.hovered ? 1.02 : 1.0) * (cHover.pressed ? 0.96 : 1.0)
+                            scale: (cHovered ? 1.02 : 1.0) * (cPressed ? 0.96 : 1.0)
                             Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
                             Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                             Behavior on border.color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
@@ -178,7 +182,7 @@ Item {
                                 Translate { id: cSlide; y: 26 },
                                 Translate {
                                     id: cLift
-                                    y: cHover.hovered ? -3 : 0
+                                    y: cHovered ? -3 : 0
                                     Behavior on y { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
                                 }
                             ]
@@ -187,7 +191,7 @@ Item {
                             Rectangle {
                                 anchors.fill: parent; radius: StyleTokens.radiusLg
                                 color: StyleTokens.accentLight
-                                opacity: cHover.hovered ? 0.08 : 0.0
+                                opacity: cHovered ? 0.08 : 0.0
                                 Behavior on opacity { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
                             }
 
@@ -236,7 +240,7 @@ Item {
                                         source: "icons/lucide/" + (modelData.icon || "globe") + ".svg"
                                         fillMode: Image.PreserveAspectFit
                                         sourceSize.width: 24; sourceSize.height: 24
-                                        scale: cHover.hovered ? 1.12 : 1.0
+                                        scale: cHovered ? 1.12 : 1.0
                                         Behavior on scale { NumberAnimation { duration: 180; easing.type: Easing.OutBack } }
                                     }
                                 }
@@ -265,11 +269,11 @@ Item {
                                     source: "icons/lucide/chevron-right.svg"
                                     width: 16; height: 16
                                     Layout.alignment: Qt.AlignVCenter
-                                    opacity: cHover.hovered ? 1.0 : 0.5
+                                    opacity: cHovered ? 1.0 : 0.5
                                     Behavior on opacity { NumberAnimation { duration: 160 } }
                                     transform: Translate {
                                         id: cArrow
-                                        x: cHover.hovered ? 4 : 0
+                                        x: cHovered ? 4 : 0
                                         Behavior on x { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
                                     }
                                 }
@@ -293,7 +297,10 @@ Item {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
+                                onEntered: cCard.cHovered = true
+                                onExited: cCard.cHovered = false
                                 onPressedChanged: {
+                                    cCard.cPressed = pressed
                                     if (pressed) {
                                         cFlash.opacity = 0.18
                                         cFlashScale.restart()
@@ -328,16 +335,20 @@ Item {
 
                         delegate: Rectangle {
                             id: sCard
+                            // ── 悬停/点击状态（卡片自身属性，由 MouseArea 显式赋值——
+                            //    直接绑定后声明的 MouseArea.hovered 在本编译环境绑定不生效）──
+                            property bool sHovered: false
+                            property bool sPressed: false
                             width: (siteFlow.width - siteFlow.spacing) / 2
                             height: 120
                             radius: StyleTokens.radiusLg
-                            color: sHover.hovered ? StyleTokens.bgHover : StyleTokens.bgCard
-                            border.color: sHover.hovered ? StyleTokens.accent : StyleTokens.bgInput
+                            color: sHovered ? StyleTokens.bgHover : StyleTokens.bgCard
+                            border.color: sHovered ? StyleTokens.accent : StyleTokens.bgInput
                             border.width: 1
                             clip: true
 
                             // ── 悬停 / 点击状态 ──
-                            scale: (sHover.hovered ? 1.02 : 1.0) * (sHover.pressed ? 0.96 : 1.0)
+                            scale: (sHovered ? 1.02 : 1.0) * (sPressed ? 0.96 : 1.0)
                             Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
                             Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                             Behavior on border.color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
@@ -347,7 +358,7 @@ Item {
                                 Translate { id: sSlide; y: 30 },
                                 Translate {
                                     id: sLift
-                                    y: sHover.hovered ? -3 : 0
+                                    y: sHovered ? -3 : 0
                                     Behavior on y { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
                                 }
                             ]
@@ -355,7 +366,7 @@ Item {
                             Rectangle {
                                 anchors.fill: parent; radius: StyleTokens.radiusLg
                                 color: StyleTokens.accentLight
-                                opacity: sHover.hovered ? 0.08 : 0.0
+                                opacity: sHovered ? 0.08 : 0.0
                                 Behavior on opacity { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
                             }
 
@@ -403,7 +414,7 @@ Item {
                                         source: "icons/sites/" + modelData.icon + ".png"
                                         fillMode: Image.PreserveAspectFit
                                         sourceSize.width: 42; sourceSize.height: 42
-                                        scale: sHover.hovered ? 1.1 : 1.0
+                                        scale: sHovered ? 1.1 : 1.0
                                         Behavior on scale { NumberAnimation { duration: 180; easing.type: Easing.OutBack } }
                                         onStatusChanged: {
                                             if (status === Image.Error) source = "icons/lucide/globe.svg"
@@ -454,11 +465,11 @@ Item {
                                     source: "icons/lucide/external-link.svg"
                                     width: 14; height: 14
                                     Layout.alignment: Qt.AlignVCenter
-                                    opacity: sHover.hovered ? 1.0 : 0.0
+                                    opacity: sHovered ? 1.0 : 0.0
                                     Behavior on opacity { NumberAnimation { duration: 160 } }
                                     transform: Translate {
                                         id: sArrow
-                                        x: sHover.hovered ? 0 : -4
+                                        x: sHovered ? 0 : -4
                                         Behavior on x { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
                                     }
                                 }
@@ -482,7 +493,10 @@ Item {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
+                                onEntered: sCard.sHovered = true
+                                onExited: sCard.sHovered = false
                                 onPressedChanged: {
+                                    sCard.sPressed = pressed
                                     if (pressed) {
                                         sFlash.opacity = 0.18
                                         sFlashScale.restart()
