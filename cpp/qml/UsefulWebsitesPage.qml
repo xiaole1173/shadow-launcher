@@ -141,16 +141,19 @@ Item {
                 id: catFlick
                 anchors.fill: parent
                 clip: true
-                contentWidth: catFlow.width
-                contentHeight: catFlow.implicitHeight
+                contentWidth: catFlick.width
+                contentHeight: catFlow.implicitHeight + 6 + 8
                 visible: root.currentCategory < 0
                 boundsBehavior: Flickable.StopAtBounds
                 ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
                 Flow {
                     id: catFlow
-                    width: catFlick.width
-                    spacing: 8
+                    // 四周留边距：hover 放大 1.015 不溢出容器边缘（全宽卡 ±5.8px < 8px）
+                    x: 8
+                    y: 6
+                    width: catFlick.width - 16
+                    spacing: 12
 
                     Repeater {
                         model: root.categories
@@ -172,10 +175,12 @@ Item {
                             clip: true
 
                             // ── 悬停 / 点击状态 ──
-                            scale: (cHovered ? 1.02 : 1.0) * (cPressed ? 0.96 : 1.0)
+                            scale: (cHovered ? 1.015 : 1.0) * (cPressed ? 0.96 : 1.0)
                             Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
                             Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                             Behavior on border.color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
+                            // hover 时提升层级，放大不被邻近卡片遮挡
+                            z: cHovered ? 2 : 0
 
                             // 悬停上浮（独立 transform，与滑入动画不冲突）
                             transform: [
@@ -318,16 +323,19 @@ Item {
                 id: siteFlick
                 anchors.fill: parent
                 clip: true
-                contentWidth: siteFlow.width
-                contentHeight: siteFlow.implicitHeight
+                contentWidth: siteFlick.width
+                contentHeight: siteFlow.implicitHeight + 6 + 8
                 visible: root.currentCategory >= 0
                 boundsBehavior: Flickable.StopAtBounds
                 ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
                 Flow {
                     id: siteFlow
-                    width: siteFlick.width
-                    spacing: 8
+                    // 四周留边距：hover 放大 1.015 不溢出容器边缘
+                    x: 8
+                    y: 6
+                    width: siteFlick.width - 16
+                    spacing: 12
 
                     Repeater {
                         model: root.currentCategory >= 0 && root.currentCategory < root.categories.length
@@ -348,10 +356,12 @@ Item {
                             clip: true
 
                             // ── 悬停 / 点击状态 ──
-                            scale: (sHovered ? 1.02 : 1.0) * (sPressed ? 0.96 : 1.0)
+                            scale: (sHovered ? 1.015 : 1.0) * (sPressed ? 0.96 : 1.0)
                             Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
                             Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                             Behavior on border.color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
+                            // hover 时提升层级，放大不被邻近卡片遮挡
+                            z: sHovered ? 2 : 0
 
                             // 悬停上浮
                             transform: [
