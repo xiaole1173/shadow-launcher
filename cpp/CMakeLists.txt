@@ -846,6 +846,7 @@ if(SHADOW_BUILD_MODPACK_SELFTEST)
         src/core/mc_language.cpp
         src/backend/settings_backend.cpp
         src/core/version_isolation.cpp
+        src/core/minecraft_layout.cpp
         src/utils/logger.cpp
     )
     target_include_directories(LaunchDetailTest PRIVATE src)

@@ -159,7 +159,7 @@ int main(int argc, char** argv)
         QFile fj(fakeJava);
         fj.open(QIODevice::WriteOnly);
         fj.write("@echo off\r\n");
-        fj.write("echo java version \"25.0.1\" 2025-10-21 LTS 1\>\&2\r\n");
+        fj.write("echo java version \"25.0.1\" 2025-10-21 LTS 1>&2\r\n");
         fj.close();
         Launcher l;
         l.setGameDir(gameDir);
@@ -198,6 +198,40 @@ int main(int argc, char** argv)
             2048, QString(), QString(), false);
         check(!script.contains(QStringLiteral("--add-opens")), "Java 8 → 无 --add-opens（防崩）");
         check(script.contains(QStringLiteral("-XX:+UseG1GC")), "Java 8 → G1GC 注入");
+        QFile::remove(fakeJava);
+        QDir(gameDir).removeRecursively();
+    }
+
+    // ── 6. 自定义 JVM 参数指定 GC 时不再自动注入（防 "Multiple garbage collectors selected"）──
+    // 内测 26.2 实锤：用户自定义参数含 -XX:+UseZGC，自动逻辑又注入 G1 组 →
+    // JVM 初始化失败（退出码 1）。修复：detectGcFlag 同时扫描自定义参数。
+    {
+        const QString gameDir = QStringLiteral("t_ldetail4");
+        makeVersion(gameDir, QStringLiteral("26.2"), QStringLiteral("2026-06-01T00:00:00Z"));
+        const QString fakeJava = QStringLiteral("t_fakejava25.bat");
+        QFile fj(fakeJava);
+        fj.open(QIODevice::WriteOnly);
+        fj.write("@echo off\r\n");
+        fj.write("echo java version \"25.0.1\" 2025-10-21 LTS 1>&2\r\n");
+        fj.close();
+        Launcher l;
+        l.setGameDir(gameDir);
+        l.setVersionGameDir(gameDir);
+        l.setAuthInfo(QStringLiteral("A"), QString(), QString(), false);
+        l.setGcMode(0);
+        const QString customJvm = QStringLiteral("-XX:+UseZGC -XX:+UnlockExperimentalVMOptions");
+        const QString script = l.buildLaunchScript(QStringLiteral("26.2"),
+            QDir::toNativeSeparators(QDir::current().absoluteFilePath(fakeJava)),
+            4096, customJvm, QString(), false);
+        check(script.contains(QStringLiteral("-XX:+UseZGC")), "自定义 ZGC → 保留用户 ZGC");
+        check(!script.contains(QStringLiteral("-XX:+UseG1GC")), "自定义 ZGC → 不再自动注入 G1（防双 GC）");
+        check(!script.contains(QStringLiteral("-XX:G1NewSizePercent")), "自定义 ZGC → 无 G1 调优参数");
+        // 对照组：无自定义参数时仍应自动注入 G1（Java 25 + gcMode 0 但 ZGC 探测不到时走 G1）
+        const QString scriptPlain = l.buildLaunchScript(QStringLiteral("26.2"),
+            QDir::toNativeSeparators(QDir::current().absoluteFilePath(fakeJava)),
+            4096, QString(), QString(), false);
+        check(scriptPlain.contains(QStringLiteral("-XX:+UseG1GC")) || scriptPlain.contains(QStringLiteral("-XX:+UseZGC")),
+              "无自定义参数 → 仍自动注入单一 GC");
         QFile::remove(fakeJava);
         QDir(gameDir).removeRecursively();
     }

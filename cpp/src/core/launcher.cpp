@@ -1287,13 +1287,29 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
         args << QString::fromLatin1(arg);
     }
 
-    // ── 智能 GC 策略（仅当 chain JVM args 未指定 GC 时）──
+    // ── 智能 GC 策略（仅当 chain JVM args 与自定义 JVM args 均未指定 GC 时）──
     // 如果版本 JSON 已指定 GC，尊重其选择；否则自动选择最优 GC
+    // 2026-08-20 修复（内测 26.2 实锤 "Multiple garbage collectors selected"）：
+    // 用户自定义 JVM 参数（m_jvmArgs）若已含 GC 选择（如 -XX:+UseZGC），自动注入的
+    // G1 组会与之共存 → JVM 初始化失败直接退出（退出码 1）。与 chainHasGc 同规则检测。
     bool chainHasGc = false;
-    for (const QString& a : chainJvmArgs) {
+    auto detectGcFlag = [](const QString& a) -> bool {
         if (a.startsWith(QStringLiteral("-XX:+Use")) || a.startsWith(QStringLiteral("-XX:-Use"))) {
-            if (a.contains(QStringLiteral("GC")) || a.contains(QStringLiteral("gc"))) {
+            return a.contains(QStringLiteral("GC")) || a.contains(QStringLiteral("gc"));
+        }
+        return false;
+    };
+    for (const QString& a : chainJvmArgs) {
+        if (detectGcFlag(a)) {
+            chainHasGc = true;
+            break;
+        }
+    }
+    if (!chainHasGc && !m_jvmArgs.isEmpty()) {
+        for (const QString& a : tokenizeJvmArgs(m_jvmArgs)) {
+            if (detectGcFlag(a)) {
                 chainHasGc = true;
+                qCInfo(logLaunch) << QStringLiteral("[启动] 自定义 JVM 参数已指定 GC (%1)，跳过自动选择").arg(a);
                 break;
             }
         }
@@ -1304,7 +1320,7 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
             args << gcArg;
         }
     } else {
-        qCInfo(logLaunch) << QStringLiteral("[启动] 版本 JSON 已指定 GC 策略，跳过自动选择");
+        qCInfo(logLaunch) << QStringLiteral("[启动] 版本 JSON 或自定义参数已指定 GC 策略，跳过自动选择");
     }
 
     // ── JVM 版本补全参数（对齐主流启动器实现 DefaultLauncher）──
