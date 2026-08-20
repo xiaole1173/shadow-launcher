@@ -84,14 +84,14 @@ Rectangle {
 
             Section { title: "房主操作" }
             Text {
-                text: "1. 点击「创建房间」按钮\n2. 系统会要求提权（管理员权限）—— 这是 EasyTier 虚拟组网所需的管理员权限\n3. 打开游戏进入单人世界，在游戏内点击「对局域网开放」\n4. 启动器会自动识别房间并生成「房间码」\n5. 将「房间码」复制并分享给好友"
+                text: "1. 点击「创建房间」按钮\n2. 系统会为 EasyTier 请求管理员权限（虚拟组网所需；启动器本身不会提权重启）\n3. 打开游戏进入单人世界，在游戏内点击「对局域网开放」\n4. 启动器会自动识别房间并生成「房间码」\n5. 将「房间码」复制并分享给好友"
                 wrapMode: Text.WordWrap; Layout.fillWidth: true
                 color: StyleTokens.textTertiary; font.pixelSize: StyleTokens.fontSizeMd; lineHeight: 1.6
             }
 
             Section { title: "访客操作" }
             Text {
-                text: "1. 点击「加入房间」\n2. 粘贴房主分享的房间码（格式: U/XXXX-XXXX-XXXX-XXXX）\n3. 系统会要求提权\n4. 自动发现房主 → 连接 → 获取 MC 服务器地址\n5. 打开 MC，在多人游戏 -> 局域网列表中就会看到「联机 MC服务器」，点击即可加入"
+                text: "1. 点击「加入房间」\n2. 粘贴房主分享的房间码（格式: U/XXXX-XXXX-XXXX-XXXX）\n3. 系统会为 EasyTier 请求管理员权限\n4. 自动发现房主 → 连接 → 获取 MC 服务器地址\n5. 打开 MC，在多人游戏 -> 局域网列表中就会看到「联机 MC服务器」，点击即可加入"
                 wrapMode: Text.WordWrap; Layout.fillWidth: true
                 color: StyleTokens.textTertiary; font.pixelSize: StyleTokens.fontSizeMd; lineHeight: 1.6
             }
@@ -112,7 +112,7 @@ Rectangle {
 
             Section { title: "常见问题排查" }
             Text {
-                text: "Q: 加入房间后一直卡在「发现中心」\nA: 请确认房主已创建房间且网络畅通。如超过 30 秒仍未连接，可能是 NAT 穿透遇到困难或无法访问公共中继节点，尝试双方重启软件重试。\n\nQ: MC 列表中没有显示联机服务器\nA: 访客连接成功后，MC 的多人游戏界面的局域网联机列表中会出现服务器（名为「联机 MC服务器」）。如有多个 LAN 服务器，可以手动输入 127.0.0.1:{端口号} 直接连接，端口号可在「网络监控」面板的 MC端口 处查看。\n\nQ: 提示「提权失败」\nA: 请以管理员身份运行启动器，或关闭杀毒软件后重试。\n\nQ: 连接后延迟很高\nA: 检查 NAT 类型。如果需要中转，延迟会高于直连。对称 NAT 环境下建议使用 5G 手机热点规避。"
+                text: "Q: 加入房间后一直卡在「发现中心」\nA: 请确认房主已创建房间且网络畅通。如超过 30 秒仍未连接，可能是 NAT 穿透遇到困难或无法访问公共中继节点，尝试双方重启软件重试。\n\nQ: MC 列表中没有显示联机服务器\nA: 访客连接成功后，MC 的多人游戏界面的局域网联机列表中会出现服务器（名为「联机 MC服务器」）。如有多个 LAN 服务器，可以手动输入 127.0.0.1:{端口号} 直接连接，端口号可在「网络监控」面板的 MC端口 处查看。\n\nQ: 提示「EasyTier 提权启动失败」或「提权失败」\nA: 请在 UAC 弹窗中点击「是」授权 EasyTier；若被安全软件拦截请临时放行。启动器本身无需以管理员身份运行。\n\nQ: 连接后延迟很高\nA: 检查 NAT 类型。如果需要中转，延迟会高于直连。对称 NAT 环境下建议使用 5G 手机热点规避。"
                 wrapMode: Text.WordWrap; Layout.fillWidth: true
                 color: StyleTokens.textTertiary; font.pixelSize: StyleTokens.fontSizeMd; lineHeight: 1.6
             }

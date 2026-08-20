@@ -179,8 +179,6 @@ set(HEADERS
     src/multiplayer/easytier_process.h
     src/multiplayer/multiplayer_manager.cpp
     src/multiplayer/multiplayer_manager.h
-    src/multiplayer/elevated_session.cpp
-    src/multiplayer/elevated_session.h
     src/multiplayer/mc_scanner.cpp
     src/multiplayer/mc_scanner.h
     src/multiplayer/port_request.cpp

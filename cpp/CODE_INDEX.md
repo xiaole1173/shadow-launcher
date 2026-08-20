@@ -40,7 +40,6 @@
 | EasyTier 进程/TOML/白名单 | `src/multiplayer/easytier_process.{h,cpp}` |
 | 房码算法 | `src/multiplayer/room_code.{h,cpp}` |
 | Scaffolding 协议 | `src/multiplayer/scaffolding_protocol.{h,cpp}` |
-| UAC 提权接力 | `src/multiplayer/elevated_session.{h,cpp}` |
 | 更新检查/安装 | `src/core/update_checker.*`、`src/core/update_manager.*`、`src/update/SLUpdater.cpp`（更新器进程） |
 | 引擎雅名体系（盘古/夸父…） | `src/core/engine_identity.h` |
 | 安装步骤管线（进度 UI 模型） | `src/core/step_pipeline.*`、`src/core/step_node.*` |
@@ -202,14 +201,13 @@
 
 | 文件 | 行数 | 功能 |
 |---|---|---|
-| `multiplayer_manager.h/.cpp` | 276 / 2152 | **联机核心**：建房/加入房间状态机（Idle/CreatingRoom/JoiningNetwork/Discovering/Connecting/Connected/VerifyingConnection/WaitingForGuests/Error…）、Scaffolding 服务端（host）与客户端（guest）、协议 handler（ping/protocols/server_port/player_ping/profiles_list）、指纹验证、心跳、玩家列表同步、FakeServer（MC 局域网广播）、MC 扫描、连接难度计算（NAT 四档）、重连、UAC 提权接力、退出兜底清理。 |
-| `easytier_process.h/.cpp` | 132 / 732 | **EasyTier 进程管理**：easytier-core/cli 查找与启停、TOML 配置生成（`[[peer]]` 表数组 + 陶瓦公共节点）、`--no-tun` 参数、RPC 端口确定性生成、端口转发（port-forward add）、TCP 白名单动态更新、peer 表轮询解析（虚拟 IP/NAT 类型/host 活跃性 cost 过滤）。 |
+| `multiplayer_manager.h/.cpp` | 276 / 2060 | **联机核心**：建房/加入房间状态机（Idle/CreatingRoom/JoiningNetwork/Discovering/Connecting/Connected/VerifyingConnection/WaitingForGuests/Error…）、Scaffolding 服务端（host）与客户端（guest）、协议 handler（ping/protocols/server_port/player_ping/profiles_list）、指纹验证、心跳、玩家列表同步、FakeServer（MC 局域网广播）、MC 扫描、连接难度计算（NAT 四档）、重连、退出兜底清理。**2026-08-21 起不再自提权重启**：createRoom/joinRoom 直接启动 EasyTier（提权由 EasyTierProcess 对 easytier-core 单独进行）。 |
+| `easytier_process.h/.cpp` | 132 / 806 | **EasyTier 进程管理**：easytier-core/cli 查找与启停、TOML 配置生成（`[[peer]]` 表数组 + 陶瓦公共节点）、`--no-tun` 参数、RPC 端口确定性生成、端口转发（port-forward add）、TCP 白名单动态更新、peer 表轮询解析（虚拟 IP/NAT 类型/host 活跃性 cost 过滤）。**2026-08-21 起：仅对 easytier-core 提权**——非提权启动器用 `ShellExecuteEx("runas")` 单独提升 easytier-core（敏感参数只走临时 TOML，不上命令行），启动器自身保持非提权、不再重启。 |
 | `room_code.h/.cpp` | 26 / 111 | **房码算法**：16 位 base34（不含 I/O）整体 mod 7 校验（对齐陶瓦）、生成/解析、I→1/O→0 兼容。 |
 | `scaffolding_protocol.h/.cpp` | 46 / 59 | **Scaffolding 协议**：请求包 `[typeLen][type][bodyLen][body]`、响应包 `[status][bodyLen][body]`（无 type，FIFO 匹配）构建工具。 |
 | `mc_scanner.h/.cpp` | 64 / 205 | **MC LAN 扫描器**：UDP 224.0.2.60:4445 监听真实 MC 服务器广播，检测 MC 端口。 |
 | `port_request.h/.cpp` | 19 / 34 | **端口请求**：requestSpecific/requestFree（对齐陶瓦 ports.rs）。 |
 | `connection_guard.h/.cpp` | 47 / 109 | **频率限制**：房码/连接/包速率防护。 |
-| `elevated_session.h/.cpp` | 55 / 113 | **UAC 提权接力**：非提权实例保存联机参数到临时配置 → 提权重启自身 → 读取继续（--elevate-config）。 |
 | `relay_crypto.h/.cpp` | 28 / 148 | **中继端点解密**：AES-256-GCM 解密 243 字节 blob（中继地址/前缀），开源构建回落全零占位。 |
 | `encrypted_addr.h` | 37 | 加密 blob 布局定义（offset/len，全零占位；真实值在 .gitignore 的本地文件，由 tools/encrypt_addr.py 生成）。 |
 | `encrypted_frag_1..5.cpp/.h` | 8×5 | 加密 blob 分片（混淆存放，开源构建为占位桩），`encrypted_frag_stub.cpp` 为桩实现。 |
@@ -351,6 +349,7 @@
 
 | 日期 | 说明 |
 |---|---|
+| 2026-08-21 | **联机取消启动器自提权（只提权 easytier-core）**：创建/加入房间不再 `runas` 重启整个启动器。原自提权（`elevated_session.{h,cpp}` + `--elevated/--elevate-config` + restoreHost/GuestSession）唯一目的是保护当时的私有中继 IP 不被命令行泄露，改用社区公共中继节点后已无必要。改为 `easytier_process.cpp` 用 `ShellExecuteEx("runas")` 单独提升 easytier-core（敏感参数只写临时 TOML、不上命令行，句柄用 `m_winProcess` 追踪退出）；启动器保持非提权（游戏也随之以普通权限运行）。删除 `elevated_session.{h,cpp}` 与 CMake 条目，更新 `MultiplayerHelpPanel.qml` 提权文案/FAQ。 |
 | 2026-08-14 | **公测准备：内测密钥闸门改编译期开关（CMakeLists/main_release.cpp/shadow_backend.{h,cpp}/AgreementOverlay.qml）**：新增 `option(SHADOW_ENABLE_BETA_GATE ... OFF)`（默认 OFF=公测直通 MainWindow；ON=内测，启动弹 BetaKeyDialog）。main_release.cpp 闸门段包进 `#ifdef SHADOW_ENABLE_BETA_GATE`；shadow_backend 新增 `betaGateEnabled` 静态属性（编译期）；AgreementOverlay 内测协议行/「欢迎使用 Shadow Launcher 内测版！」文案按开关显隐（allChecked 改 `(!betaGateEnabled||betaChecked)&&privacy&&terms`）。全部 Beta 代码/QML/协议资源保留，加回内测=cmake -DSHADOW_ENABLE_BETA_GATE=ON 重编译。双向实测：OFF 无 Beta 日志直通主窗口；ON 无密钥→Loading beta key dialog/Waiting for beta key input 卡窗、有密钥→直接放行。 |
 | 2026-08-12 | 鸣谢卡片 z0z0r4 补网址跳转（SettingsPage.qml ackItemComp model）：url 补 https://www.mcimirror.top/（用户补充，界面不显示网址）。 |
 | 2026-08-13 | **版本选择→版本设置页面叠加修复（VersionSelectOverlay.qml/MainWindow.qml）**：内测反馈——版本选择页右键版本条目进版本设置后两页面叠加（仅自定义背景开启时可见，点击不穿透）。根因——打开设置只置 showVersionSettings=true，未关 showVersionSelect → 两个浮层 Loader（同 z:5，settings 声明在后在上层）同时 opacity=1/visible=true；VersionSettingsOverlay 根 Rectangle `color: hasBg ? transparent : bgPrimary`——无自定义背景时不透明盖住下层看不出，开启自定义背景（透明）后下层版本选择页透出。修复（双保险）：①VersionSelectOverlay 右键 onPressed 加 showVersionSelect=false（进设置同时收版本选择，淡出动画自然播放）；②MainWindow onShowVersionSettingsChanged 联动 showVersionSettings→强制 showVersionSelect=false + openVersionSettingsSection 显式先关。编译通过。 |

@@ -41,7 +41,6 @@
 #include "utils/logger.h"
 #include "version.h"   // 2026-08-15：SHADOW_DISPLAY_VERSION（原 CMake 宏，现头文件）
 #include "backend/shadow_backend.h"
-#include "multiplayer/elevated_session.h"
 #include "core/http_client.h"
 #include "core/screenshot_server.h"
 
@@ -308,22 +307,6 @@ int main(int argc, char *argv[])
     QApplication app(argc, argv);
     checkpoint(QStringLiteral("QApplication constructed"));
 
-    // ── Parse elevated session args ──
-    {
-        QStringList args = app.arguments();
-        int elevIdx = args.indexOf(QStringLiteral("--elevated"));
-        int cfgIdx = args.indexOf(QStringLiteral("--elevate-config"));
-        if (elevIdx >= 0 && cfgIdx >= 0 && cfgIdx + 1 < args.size()) {
-            QString configPath = args[cfgIdx + 1];
-            auto data = ElevatedSession::loadAndDelete(configPath);
-            if (!data.networkName.isEmpty()) {
-                ElevatedSession::setActive(true);
-                ElevatedSession::setCurrentSession(data);
-                qCInfo(logApp) << QStringLiteral("[提权] 已加载会话配置 房间码=%1").arg(data.roomCode);
-            }
-        }
-    }
-
     app.setApplicationName("Shadow Launcher");
     app.setApplicationVersion(SHADOW_DISPLAY_VERSION);
     app.setOrganizationName("ShadowTeam");
@@ -510,34 +493,6 @@ int main(int argc, char *argv[])
 
     qCInfo(logApp) << QStringLiteral("事件循环已启动")
                    << "— total startup:" << startupTimer.elapsed() << "ms";
-
-    // ── Restore elevated session (multiplayer handoff) ──
-    if (ElevatedSession::isActive()) {
-        auto session = ElevatedSession::currentSession();
-        QTimer::singleShot(1500, backend, [backend, &engine, session]() {
-            // Navigate to multiplayer page (index 2)
-            auto objs = engine.rootObjects();
-            if (!objs.isEmpty())
-                objs.first()->setProperty("navListIndex", 2);
-
-            if (session.networkName.isEmpty())
-                return;
-
-            if (session.role == QStringLiteral("guest")) {
-                QMetaObject::invokeMethod(backend->multiplayer(), "restoreGuestSession",
-                    Q_ARG(QString, session.networkName),
-                    Q_ARG(QString, session.networkKey),
-                    Q_ARG(QString, session.roomCode));
-            } else {
-                QMetaObject::invokeMethod(backend->multiplayer(), "restoreHostSession",
-                    Q_ARG(QString, session.networkName),
-                    Q_ARG(QString, session.networkKey),
-                    Q_ARG(QString, session.roomCode),
-                    Q_ARG(unsigned short, session.mcPort),
-                    Q_ARG(QString, session.hostname));
-            }
-        });
-    }
 
     // ── Start screenshot server ──
     {

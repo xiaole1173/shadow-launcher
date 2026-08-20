@@ -64,7 +64,8 @@ public:
 
     void stop();
 
-    // Elevated mode: start easytier via QProcess (config file has public peers)
+    // Non-Windows launch path: plain QProcess (no elevation needed with --no-tun).
+    // On Windows, easytier-core is instead elevated via ShellExecuteEx("runas").
     void startViaQProcess(const QString& exe, const QStringList& args,
                           const QByteArray& tomlData);
 

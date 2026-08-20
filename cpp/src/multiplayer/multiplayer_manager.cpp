@@ -23,12 +23,6 @@
 #include <QDateTime>
 #include <QDebug>
 #include "../utils/logger.h"
-#include "elevated_session.h"
-#include "relay_crypto.h"
-
-#ifdef Q_OS_WIN
-#include <windows.h>
-#endif
 
 namespace ShadowLauncher {
 
@@ -159,103 +153,12 @@ void MultiplayerManager::createRoom()
 
     QString hostname = Scaffolding::kCenterHostnamePrefix + QString::number(m_centerPort);
 
-    // If not elevated, save state and relaunch elevated
-    if (!ElevatedSession::isActive()) {
-        QString relayEp = Relay::relayEndpoint();
-        QString configPath = ElevatedSession::saveElevationConfig(
-            m_networkName, m_networkKey, relayEp,
-            hostname, m_roomCode, m_mcPort);
-
-        qCInfo(logNet) << QStringLiteral("[联机] 需提权 配置=%1").arg(configPath);
-
-        QString exePath = QCoreApplication::applicationFilePath();
-        QString elevateArgs = QStringLiteral("--elevated --elevate-config \"%1\" --navigate 2")
-            .arg(configPath);
-
-        // Preserve dev mode flag if active
-        if (QCoreApplication::arguments().contains(QStringLiteral("--dev")))
-            elevateArgs += QStringLiteral(" --dev");
-
-#ifdef Q_OS_WIN
-        SHELLEXECUTEINFOW sei = {sizeof(sei)};
-        sei.fMask = SEE_MASK_NOCLOSEPROCESS;
-        sei.lpVerb = L"runas";
-        sei.lpFile = reinterpret_cast<const wchar_t*>(exePath.utf16());
-        sei.lpParameters = reinterpret_cast<const wchar_t*>(elevateArgs.utf16());
-        sei.nShow = SW_SHOWNORMAL;
-
-        if (ShellExecuteExW(&sei) && sei.hProcess) {
-            CloseHandle(sei.hProcess);
-            setState(CreatingRoom, QStringLiteral("正在提权，请等待..."));
-            QTimer::singleShot(1500, qApp, &QCoreApplication::quit);
-        } else {
-            DWORD err = GetLastError();
-            if (err == ERROR_CANCELLED) {
-                emit errorOccurred(QStringLiteral("提权被取消"));
-            } else {
-                emit errorOccurred(QStringLiteral("提权失败 (错误码: %1)").arg(err));
-            }
-            setState(Idle, {});
-            m_roomCode.clear();
-            emit roomCodeChanged();
-        }
-#else
-        emit errorOccurred(QStringLiteral("提权仅在Windows上支持"));
-        setState(Idle, {});
-        m_roomCode.clear();
-        emit roomCodeChanged();
-#endif
-        return;
-    }
-
-    qCInfo(logNet) << QStringLiteral("[联机] 创建房间(已提权) 房间码=%1").arg(m_roomCode);
+    qCInfo(logNet) << QStringLiteral("[联机] 创建房间 房间码=%1").arg(m_roomCode);
 
     setState(CreatingRoom, QStringLiteral("正在创建房间..."));
     // MC port unknown until scanner detects it; EasyTier starts with scaffold port only
+    // (EasyTierProcess elevates easytier-core itself; the launcher stays non-elevated).
     startEasyTier(m_networkName, m_networkKey, hostname);
-}
-
-void MultiplayerManager::restoreHostSession(const QString& networkName,
-                                                     const QString& networkKey,
-                                                     const QString& roomCode,
-                                                     quint16 mcPort,
-                                                     const QString& hostname)
-{
-    setRole(Host);
-    m_roomCode = roomCode;
-    m_networkName = networkName;
-    m_networkKey = networkKey;
-    m_mcPort = mcPort;
-    // Parse scaffolding port from hostname (align with Terracotta: hostname = "scaffolding-mc-server-{port}")
-    static QRegularExpression scRx(QStringLiteral(R"(scaffolding-mc-server-(\d+))"));
-    auto scMatch = scRx.match(hostname);
-    m_centerPort = scMatch.hasMatch() ? static_cast<quint16>(scMatch.captured(1).toUShort()) : mcPort;
-    if (m_centerPort == m_mcPort && m_centerPort > 0)
-        m_centerPort++;  // ensure distinct like in createRoom
-    emit roomCodeChanged();
-
-    qCInfo(logNet) << QStringLiteral("[联机] 恢复主机会话 房间码=%1 MC端口=%2 (提权后)")
-        .arg(m_roomCode).arg(m_mcPort);
-
-    setState(CreatingRoom, QStringLiteral("正在创建房间..."));
-    startEasyTier(m_networkName, m_networkKey, hostname);
-}
-
-void MultiplayerManager::restoreGuestSession(const QString& networkName,
-                                              const QString& networkKey,
-                                              const QString& roomCode)
-{
-    setRole(Guest);
-    m_roomCode = roomCode;
-    m_networkName = networkName;
-    m_networkKey = networkKey;
-    emit roomCodeChanged();
-
-    qCInfo(logNet) << QStringLiteral("[联机] 恢复宾客会话 房间码=%1 (提权后)")
-        .arg(m_roomCode);
-
-    setState(JoiningNetwork, QStringLiteral("正在加入联机网络..."));
-    startEasyTier(m_networkName, m_networkKey);
 }
 
 void MultiplayerManager::joinRoom(const QString& code)
@@ -282,55 +185,10 @@ void MultiplayerManager::joinRoom(const QString& code)
     m_networkKey = parts->networkKey;
     emit roomCodeChanged();
 
-    // If not elevated, trigger self-elevation
-    if (!ElevatedSession::isActive()) {
-        QString relayEp = Relay::relayEndpoint();
-        QString configPath = ElevatedSession::saveElevationConfig(
-            m_networkName, m_networkKey, relayEp,
-            QString(), m_roomCode, 0, QStringLiteral("guest"));
-
-        qCInfo(logNet) << QStringLiteral("[联机] 需提权(加入房间) 配置=%1").arg(configPath);
-
-        QString exePath = QCoreApplication::applicationFilePath();
-        QString elevateArgs = QStringLiteral("--elevated --elevate-config \"%1\" --navigate 2")
-            .arg(configPath);
-        if (QCoreApplication::arguments().contains(QStringLiteral("--dev")))
-            elevateArgs += QStringLiteral(" --dev");
-
-#ifdef Q_OS_WIN
-        SHELLEXECUTEINFOW sei = {sizeof(sei)};
-        sei.fMask = SEE_MASK_NOCLOSEPROCESS;
-        sei.lpVerb = L"runas";
-        sei.lpFile = reinterpret_cast<const wchar_t*>(exePath.utf16());
-        sei.lpParameters = reinterpret_cast<const wchar_t*>(elevateArgs.utf16());
-        sei.nShow = SW_SHOWNORMAL;
-
-        if (ShellExecuteExW(&sei) && sei.hProcess) {
-            CloseHandle(sei.hProcess);
-            setState(JoiningNetwork, QStringLiteral("正在提权，请等待..."));
-            QTimer::singleShot(1500, qApp, &QCoreApplication::quit);
-        } else {
-            DWORD err = GetLastError();
-            if (err == ERROR_CANCELLED)
-                emit errorOccurred(QStringLiteral("提权被取消"));
-            else
-                emit errorOccurred(QStringLiteral("提权失败 (错误码: %1)").arg(err));
-            setState(Idle, {});
-            m_roomCode.clear();
-            emit roomCodeChanged();
-        }
-#else
-        emit errorOccurred(QStringLiteral("提权仅在Windows上支持"));
-        setState(Idle, {});
-        m_roomCode.clear();
-        emit roomCodeChanged();
-#endif
-        return;
-    }
-
-    qCInfo(logNet) << QStringLiteral("[联机] 加入房间(已提权) 房间码=%1").arg(m_roomCode);
+    qCInfo(logNet) << QStringLiteral("[联机] 加入房间 房间码=%1").arg(m_roomCode);
 
     setState(JoiningNetwork, QStringLiteral("正在加入联机网络..."));
+    // (EasyTierProcess elevates easytier-core itself; the launcher stays non-elevated.)
     startEasyTier(m_networkName, m_networkKey);
 }
 
