@@ -1890,6 +1890,11 @@ void MultiplayerManager::completeGuestJoin(quint16 verifyPort, bool verified)
     // Profile sync pulls host + guests every 5s (fixes "only self visible")
     m_profileSyncTimer->start();
     syncGuestProfiles();
+
+    // Join is complete — step off the transient "正在验证MC连接..." state so the
+    // UI shows a settled status. The 0xFE probe above is informational only
+    // (Terracotta-aligned: it never gates the join), so we land on Connected here.
+    setState(Connected, QStringLiteral("已加入房间"));
 }
 
 // ─────────────────────────────────────────
