@@ -59,15 +59,10 @@ Rectangle {
                 elide: Text.ElideRight
             }
             Text {
-                text: {
-                    // Terracotta profiles carry name/machine_id/vendor/kind — no
-                    // hostname. Show the vendor (e.g. "shadow") under the name,
-                    // matching 主流启动器's display of our guest entry.
-                    var v = playerData.vendor || ""
-                    var ip = playerData.ip || ""
-                    if (ip !== "") return ip
-                    return v
-                }
+                // 名字下方显示厂商（如 "shadow"），与主流启动器显示访客条目一致。
+                // 不再显示 IP：游戏内"对局域网开放"会自动发现服务器，无需手动填 IP；
+                // 且旧实现里房主填虚拟 IP、访客填 127.0.0.1/内网 IP，语义混乱、无参考价值。
+                text: playerData.vendor || ""
                 color: StyleTokens.textSubtle
                 font.pixelSize: StyleTokens.fontSizeXs
                 font.family: StyleTokens.fontFamilyMono
@@ -101,22 +96,6 @@ Rectangle {
                 Behavior on color {
                     ColorAnimation { duration: AnimationTokens.dataFlushDuration; easing.type: AnimationTokens.dataFlushEasing }
                 }
-            }
-        }
-
-        // Vendor badge
-        Rectangle {
-            visible: (playerData.vendor ?? "") !== ""
-            implicitWidth: vendorLabel.implicitWidth + 10
-            implicitHeight: 20
-            radius: StyleTokens.radiusSm
-            color: "#103b82f6"
-            Text {
-                id: vendorLabel
-                anchors.centerIn: parent
-                text: playerData.vendor ?? ""
-                font.pixelSize: StyleTokens.fontSizeXs
-                color: "#80a0e0"
             }
         }
 

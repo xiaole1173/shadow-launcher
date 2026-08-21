@@ -56,15 +56,6 @@ MultiplayerManager::MultiplayerManager(QObject* parent)
     connect(m_easyTier, &EasyTierProcess::virtualIpChanged, this, [this](const QString& ip) {
         m_centerIp = ip;
         qCInfo(logNet) << QStringLiteral("[联机] 虚拟IP修正 center_ip=%1").arg(ip);
-        // Update host player IP in QML player list too
-        if (m_role == Host && !m_players.isEmpty()) {
-            QVariantMap host = m_players[0].toMap();
-            if (host["kind"].toString() == QStringLiteral("HOST")) {
-                host["ip"] = ip;
-                m_players[0] = host;
-                emit playersChanged();
-            }
-        }
     });
     connect(m_easyTier, &EasyTierProcess::errorOccurred, this, &MultiplayerManager::onEasyTierError);
 
@@ -529,7 +520,6 @@ void MultiplayerManager::startHostServer()
     hostPlayer["machine_id"] = m_machineId;
     hostPlayer["hostname"] = QSysInfo::machineHostName();
     hostPlayer["kind"] = QStringLiteral("HOST");
-    hostPlayer["ip"] = m_easyTier ? m_easyTier->virtualIp() : QString();
     hostPlayer["latency"] = 0;
     m_players << hostPlayer;
     emit playersChanged();
@@ -1244,7 +1234,6 @@ void MultiplayerManager::handlePlayerPing(const QByteArray& body, QTcpSocket* so
         player[QStringLiteral("machine_id")] = mid;
         player[QStringLiteral("hostname")] = obj[QStringLiteral("hostname")].toString(name);
         player[QStringLiteral("kind")] = QStringLiteral("GUEST");
-        player[QStringLiteral("ip")] = guestIp;
         player[QStringLiteral("latency")] = m_latency.value(mid, -1);
         if (obj.contains(QLatin1String("vendor")))
             player[QStringLiteral("vendor")] = obj[QLatin1String("vendor")].toString();
@@ -1263,11 +1252,6 @@ void MultiplayerManager::handlePlayerPing(const QByteArray& body, QTcpSocket* so
             QVariantMap p = m_players[i].toMap();
             if (p[QStringLiteral("machine_id")].toString() == mid) {
                 p[QStringLiteral("latency")] = m_latency.value(mid, -1);
-                // Refresh IP from socket
-                QString ip = socket->peerAddress().toString();
-                if (ip.startsWith(QLatin1String("::ffff:")))
-                    ip = ip.mid(7);
-                if (!ip.isEmpty()) p[QStringLiteral("ip")] = ip;
                 m_players[i] = p;
                 emit playersChanged();
                 break;
