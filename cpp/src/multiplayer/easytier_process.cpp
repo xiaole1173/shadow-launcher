@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 #include "easytier_process.h"
 #include "../utils/secure_wipe.h"
@@ -226,11 +226,11 @@ void EasyTierProcess::stop()
 
 if (m_process) {
         m_process->disconnect();
-        if (m_process->state() == QProcess::Running) {
-            m_process->terminate();
-            if (!m_process->waitForFinished(3000))
-                m_process->kill();
-        }
+        if (m_process->state() != QProcess::NotRunning)
+            // kill() = 立即强制结束（Windows 上是 TerminateProcess，实测 ~5ms）。
+            // 不能用 terminate()：它对 console 进程走"优雅终止"（发 Ctrl 事件），
+            // easytier-core 不响应，waitForFinished(3000) 会卡满 3 秒冻结 UI。
+            m_process->kill();
         m_process->deleteLater();
         m_process = nullptr;
     }
