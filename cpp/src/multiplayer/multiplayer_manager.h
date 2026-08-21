@@ -175,6 +175,9 @@ private:
     // Guest profile sync: actively pull player profiles from host (align with Terracotta)
     void syncGuestProfiles();
 
+    // Guest: host left the room (socket drop or heartbeat timeout) — toast + full teardown
+    void handleHostLost(const QString& msg);
+
     // MC LAN scanner for host MC auto-detection (Terracotta-aligned: detect real MC server port)
     McScanner* m_hostMcScanner = nullptr;
 
@@ -222,6 +225,8 @@ private:
     QTimer* m_mcHealthTimer = nullptr;
     QTimer* m_mcPresenceTimeoutTimer = nullptr; // Host MC presence timeout (2 min)
     QTimer* m_profileSyncTimer = nullptr; // Guest profile sync
+    QTimer* m_hostWatchdog = nullptr; // guest: detects departed host (heartbeat timeout)
+    qint64 m_lastHostActivityMs = 0;  // guest: last inbound host data timestamp
     QProcess* m_peerQuery = nullptr;      // easyTier peer list query
 
     // MC connection verification (retry counter for 0xFE ping)
@@ -232,6 +237,10 @@ private:
     // fingerprint verified; easytier tunnel may lag the first connect)
     int m_connectRetries = 0;
     static constexpr int kGuestConnectMaxRetries = 20;
+
+    // Guest: if the host sends no data for this long (≈3 missed 5s heartbeats),
+    // treat it as departed and auto-leave the room.
+    static constexpr int kHostGoneTimeoutMs = 15000;
 
     // Host MC health tracking
     int m_mcHealthFailures = 0;

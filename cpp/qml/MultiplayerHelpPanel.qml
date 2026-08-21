@@ -84,14 +84,14 @@ Rectangle {
 
             Section { title: "房主操作" }
             Text {
-                text: "1. 点击「创建房间」按钮\n2. 系统会为 EasyTier 请求管理员权限（虚拟组网所需；启动器本身不会提权重启）\n3. 打开游戏进入单人世界，在游戏内点击「对局域网开放」\n4. 启动器会自动识别房间并生成「房间码」\n5. 将「房间码」复制并分享给好友"
+                text: "1. 点击「创建房间」按钮\n2. 打开游戏进入单人世界，在游戏内点击「对局域网开放」\n3. 启动器会自动识别房间并生成「房间码」\n4. 将「房间码」复制并分享给好友"
                 wrapMode: Text.WordWrap; Layout.fillWidth: true
                 color: StyleTokens.textTertiary; font.pixelSize: StyleTokens.fontSizeMd; lineHeight: 1.6
             }
 
             Section { title: "访客操作" }
             Text {
-                text: "1. 点击「加入房间」\n2. 粘贴房主分享的房间码（格式: U/XXXX-XXXX-XXXX-XXXX）\n3. 系统会为 EasyTier 请求管理员权限\n4. 自动发现房主 → 连接 → 获取 MC 服务器地址\n5. 打开 MC，在多人游戏 -> 局域网列表中就会看到「联机 MC服务器」，点击即可加入"
+                text: "1. 点击「加入房间」\n2. 粘贴房主分享的房间码（格式: U/XXXX-XXXX-XXXX-XXXX）\n3. 自动发现房主 → 连接 → 获取 MC 服务器地址\n4. 打开 MC，在多人游戏 -> 局域网列表中就会看到「联机 MC服务器」，点击即可加入"
                 wrapMode: Text.WordWrap; Layout.fillWidth: true
                 color: StyleTokens.textTertiary; font.pixelSize: StyleTokens.fontSizeMd; lineHeight: 1.6
             }
@@ -112,7 +112,7 @@ Rectangle {
 
             Section { title: "常见问题排查" }
             Text {
-                text: "Q: 加入房间后一直卡在「发现中心」\nA: 请确认房主已创建房间且网络畅通。如超过 30 秒仍未连接，可能是 NAT 穿透遇到困难或无法访问公共中继节点，尝试双方重启软件重试。\n\nQ: MC 列表中没有显示联机服务器\nA: 访客连接成功后，MC 的多人游戏界面的局域网联机列表中会出现服务器（名为「联机 MC服务器」）。如有多个 LAN 服务器，可以手动输入 127.0.0.1:{端口号} 直接连接，端口号可在「网络监控」面板的 MC端口 处查看。\n\nQ: 提示「EasyTier 提权启动失败」或「提权失败」\nA: 请在 UAC 弹窗中点击「是」授权 EasyTier；若被安全软件拦截请临时放行。启动器本身无需以管理员身份运行。\n\nQ: 连接后延迟很高\nA: 检查 NAT 类型。如果需要中转，延迟会高于直连。对称 NAT 环境下建议使用 5G 手机热点规避。"
+                text: "Q: 加入房间后一直卡在「发现中心」\nA: 请确认房主已创建房间且网络畅通。如超过 30 秒仍未连接，可能是 NAT 穿透遇到困难或无法访问公共中继节点，尝试双方重启软件重试。\n\nQ: MC 列表中没有显示联机服务器\nA: 访客连接成功后，MC 的多人游戏界面的局域网联机列表中会出现服务器（名为「联机 MC服务器」）。如有多个 LAN 服务器，可以手动输入 127.0.0.1:{端口号} 直接连接，端口号可在「网络监控」面板的 MC端口 处查看。\n\nQ: 房主退出后，访客的房间为什么自动关闭了？\nA: 房主退出或掉线后，联机隧道即不可用。访客端会自动退出房间并提示「房主已离开」。这是为了避免停留在失效的房间中；如需继续联机请让房主重新创建房间。\n\nQ: 联机是否需要管理员权限？\nA: 不需要。启动器与 EasyTier 组件均以普通权限运行（EasyTier 采用 --no-tun 纯用户态组网，不创建虚拟网卡），全程不会弹出 UAC 提权窗口。\n\nQ: 连接后延迟很高\nA: 检查 NAT 类型。如果需要中转，延迟会高于直连。对称 NAT 环境下建议使用 5G 手机热点规避。"
                 wrapMode: Text.WordWrap; Layout.fillWidth: true
                 color: StyleTokens.textTertiary; font.pixelSize: StyleTokens.fontSizeMd; lineHeight: 1.6
             }

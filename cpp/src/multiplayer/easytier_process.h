@@ -9,14 +9,6 @@
 #include <QList>
 #include <QTimer>
 
-#ifdef Q_OS_WIN
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <windows.h>
-#include <shellapi.h>
-#endif
-
 // NAT types from EasyTier peer JSON — declared before use
 enum class EasyTierNatType {
     Unknown,
@@ -64,8 +56,8 @@ public:
 
     void stop();
 
-    // Non-Windows launch path: plain QProcess (no elevation needed with --no-tun).
-    // On Windows, easytier-core is instead elevated via ShellExecuteEx("runas").
+    // Launch easytier-core as a plain child QProcess (no elevation — --no-tun uses
+    // only userspace sockets and needs no admin, verified 2026-08-21).
     void startViaQProcess(const QString& exe, const QStringList& args,
                           const QByteArray& tomlData);
 
@@ -105,9 +97,6 @@ private:
     void parsePeerList(const QString& output);
 
     QProcess* m_process = nullptr;
-#ifdef Q_OS_WIN
-    HANDLE m_winProcess = nullptr;
-#endif
     QString m_networkName;
     QString m_networkKey;
     QString m_hostname;

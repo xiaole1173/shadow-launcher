@@ -114,6 +114,24 @@ MultiplayerManager::MultiplayerManager(QObject* parent)
     m_profileSyncTimer->setInterval(5000);
     connect(m_profileSyncTimer, &QTimer::timeout, this, &MultiplayerManager::syncGuestProfiles);
 
+    // Guest host-activity watchdog: the guest sends heartbeat / profile-sync
+    // requests every 5s and the host always answers. If NOTHING comes back for
+    // kHostGoneTimeoutMs the host has departed (its easytier tunnel is gone but
+    // the guest's half-open socket may never emit a TCP disconnect). Mirrors the
+    // host-side dead-guest watchdog above.
+    m_hostWatchdog = new QTimer(this);
+    m_hostWatchdog->setInterval(5000);
+    connect(m_hostWatchdog, &QTimer::timeout, this, [this]() {
+        if (m_role != Guest || !m_fingerprintVerified || m_lastHostActivityMs == 0)
+            return;
+        qint64 now = QDateTime::currentMSecsSinceEpoch();
+        if (now - m_lastHostActivityMs > kHostGoneTimeoutMs) {
+            qCWarning(logNet) << QStringLiteral("[联机] 房主心跳超时 自动退出房间");
+            handleHostLost(QStringLiteral("房主已离开，房间已自动退出"));
+        }
+    });
+    m_hostWatchdog->start();
+
     // MC LAN Scanner: initialize lazily when scanning starts
 }
 
@@ -157,7 +175,7 @@ void MultiplayerManager::createRoom()
 
     setState(CreatingRoom, QStringLiteral("正在创建房间..."));
     // MC port unknown until scanner detects it; EasyTier starts with scaffold port only
-    // (EasyTierProcess elevates easytier-core itself; the launcher stays non-elevated).
+    // (easytier-core runs non-elevated via QProcess — needs no admin with --no-tun).
     startEasyTier(m_networkName, m_networkKey, hostname);
 }
 
@@ -188,7 +206,7 @@ void MultiplayerManager::joinRoom(const QString& code)
     qCInfo(logNet) << QStringLiteral("[联机] 加入房间 房间码=%1").arg(m_roomCode);
 
     setState(JoiningNetwork, QStringLiteral("正在加入联机网络..."));
-    // (EasyTierProcess elevates easytier-core itself; the launcher stays non-elevated.)
+    // (easytier-core runs non-elevated via QProcess — needs no admin with --no-tun.)
     startEasyTier(m_networkName, m_networkKey);
 }
 
@@ -230,6 +248,7 @@ void MultiplayerManager::leaveRoom()
     m_pendingResponses.clear();
     m_localMcPort = 0;
     m_connectRetries = 0;
+    m_lastHostActivityMs = 0;
 
     setState(Idle, QString());
     setRole(None);
@@ -274,6 +293,17 @@ void MultiplayerManager::stopEasyTierNow()
 {
     if (m_easyTier)
         m_easyTier->stop();
+}
+
+void MultiplayerManager::handleHostLost(const QString& msg)
+{
+    if (m_state == Idle)
+        return;
+    qCWarning(logNet) << QStringLiteral("[联机] 房主已离开: %1").arg(msg);
+    // errorOccurred() → MultiplayerPage shows the toast + resets _backendReady.
+    emit errorOccurred(msg);
+    // Full teardown: timers, room code, players, FakeServer, easytier, socket.
+    leaveRoom();
 }
 
 void MultiplayerManager::copyRoomCode()
@@ -827,6 +857,7 @@ void MultiplayerManager::onSocketConnected()
     m_discoverTimeoutTimer->stop();
     setState(Connected, QStringLiteral("已连接"));
     m_fingerprintVerified = false;
+    m_lastHostActivityMs = QDateTime::currentMSecsSinceEpoch();
 
     // ── Terracotta-style: verify scaffolding server identity with fingerprint ping ──
     m_pendingResponses.enqueue(Scaffolding::kPing);
@@ -870,8 +901,17 @@ void MultiplayerManager::onSocketDisconnected()
     }
 
     m_connectRetries = 0;
-    if (m_state != Idle)
+    if (m_state == Idle)
+        return;
+
+    if (m_role == Guest && m_fingerprintVerified) {
+        // We were fully in the room and the host side dropped the tunnel.
+        // Clean up completely (room code, easytier, FakeServer) + toast.
+        qCWarning(logNet) << QStringLiteral("[联机] 宾客TCP断开(已验证) 房主已离开");
+        handleHostLost(QStringLiteral("房主已离开，房间已自动退出"));
+    } else {
         setState(Error, QStringLiteral("与联机中心的连接已断开"));
+    }
 }
 
 void MultiplayerManager::onSocketError(QAbstractSocket::SocketError err)
@@ -880,6 +920,13 @@ void MultiplayerManager::onSocketError(QAbstractSocket::SocketError err)
     if (m_role == Guest && m_state == Connecting) {
         return; // Discovery still running
     }
+    // Verified guest: a socket error means the host/tunnel is gone. Hand over to
+    // the shared teardown (the following 'disconnected' signal is a no-op because
+    // handleHostLost already reset the state to Idle).
+    if (m_role == Guest && m_fingerprintVerified) {
+        handleHostLost(QStringLiteral("房主已离开，房间已自动退出"));
+        return;
+    }
     emit errorOccurred(QStringLiteral("网络错误: %1").arg(
         m_socket ? m_socket->errorString() : QStringLiteral("unknown")));
 }
@@ -887,6 +934,8 @@ void MultiplayerManager::onSocketError(QAbstractSocket::SocketError err)
 void MultiplayerManager::onSocketReadyRead()
 {
     if (!m_socket) return;
+    // Any inbound data proves the host is still alive (refresh the watchdog).
+    m_lastHostActivityMs = QDateTime::currentMSecsSinceEpoch();
     m_readBuffer += m_socket->readAll();
 
     // Terracotta RESPONSE format: [status 1B][bodyLen 4B BE][body] — no type field.

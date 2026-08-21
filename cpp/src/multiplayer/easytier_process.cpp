@@ -18,50 +18,6 @@
 
 using namespace ShadowLauncher;
 
-// Quote a single argument for a Windows command line (used by ShellExecuteEx).
-// Follows the MSVC CRT / Rust std::env::args parsing rules: wrap in quotes when
-// the argument contains spaces, tabs, quotes or backslashes, doubling backslash
-// runs that precede a double quote. Prevents the temp config path (which may be
-// non-ASCII or contain spaces, e.g. %TEMP% under a Unicode username) from being
-// split into multiple argv entries.
-static QString quoteWindowsArg(const QString& arg)
-{
-    if (arg.isEmpty())
-        return QStringLiteral("\"\"");
-    bool needQuote = false;
-    for (const QChar c : arg) {
-        if (c == QLatin1Char(' ') || c == QLatin1Char('\t') ||
-            c == QLatin1Char('"') || c == QLatin1Char('\\')) {
-            needQuote = true;
-            break;
-        }
-    }
-    if (!needQuote)
-        return arg;
-
-    QString out = QStringLiteral("\"");
-    int backslashes = 0;
-    for (const QChar c : arg) {
-        if (c == QLatin1Char('\\')) {
-            ++backslashes;
-        } else if (c == QLatin1Char('"')) {
-            out.append(QString(backslashes * 2 + 1, QLatin1Char('\\')));
-            out.append(QLatin1Char('"'));
-            backslashes = 0;
-        } else {
-            if (backslashes > 0) {
-                out.append(QString(backslashes, QLatin1Char('\\')));
-                backslashes = 0;
-            }
-            out.append(c);
-        }
-    }
-    if (backslashes > 0)
-        out.append(QString(backslashes * 2, QLatin1Char('\\')));
-    out.append(QLatin1Char('"'));
-    return out;
-}
-
 EasyTierProcess::EasyTierProcess(QObject* parent)
     : QObject(parent)
     , m_outputTimer(new QTimer(this))
@@ -241,50 +197,12 @@ void EasyTierProcess::start(const QString& networkName, const QString& networkKe
     // Start easytier-core with config file (peers, dhcp, name/secret).
     // Public nodes in TOML are sufficient — no connector add fallback needed.
     //
-    // The launcher itself runs NON-elevated (no self-relaunch): it needs no admin,
-    // and keeping it non-elevated means the game it later spawns also runs
-    // unprivileged. Only easytier-core needs elevation (it sets up the virtual
-    // network adapter), so we request that via ShellExecuteEx("runas") — a single
-    // UAC consent scoped to easytier-core. All sensitive params (network name /
+    // easytier-core runs NON-elevated: with --no-tun it never creates a TUN
+    // device (no wintun) and uses only userspace sockets, so it needs no admin.
+    // Verified 2026-08-21: it starts cleanly at Medium Mandatory Level (binds
+    // listeners + RPC, no permission errors). Sensitive params (network name /
     // secret) live in the temp TOML config and are NEVER put on the command line.
-#ifdef Q_OS_WIN
-    {
-        QStringList quotedArgs;
-        quotedArgs.reserve(args.size());
-        for (const QString& a : args)
-            quotedArgs << quoteWindowsArg(a);
-        QString argStr = quotedArgs.join(QLatin1Char(' '));
-
-        SHELLEXECUTEINFOW sei = {sizeof(sei)};
-        sei.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NO_CONSOLE;
-        sei.lpVerb = L"runas";
-        sei.lpFile = reinterpret_cast<const wchar_t*>(exe.utf16());
-        sei.lpParameters = reinterpret_cast<const wchar_t*>(argStr.utf16());
-        sei.nShow = SW_HIDE;
-
-        if (ShellExecuteExW(&sei) && sei.hProcess) {
-            if (m_winProcess)
-                CloseHandle(m_winProcess);
-            m_winProcess = sei.hProcess;
-            m_ready = false;
-            m_timeoutTimer->start();
-            m_outputTimer->start();
-            qCInfo(logNet) << QStringLiteral("[EasyTier] 已请求提权启动 easytier-core (runas)");
-            return;
-        }
-
-        DWORD err = GetLastError();
-        if (err == ERROR_CANCELLED) {
-            emit errorOccurred(QStringLiteral("已取消提权，EasyTier 未启动"));
-        } else {
-            emit errorOccurred(QStringLiteral("EasyTier 提权启动失败 (错误码: %1)").arg(err));
-        }
-        return;
-    }
-#else
-    // Non-Windows: no elevation needed with --no-tun (plain userspace sockets).
     startViaQProcess(exe, args, QByteArray());
-#endif
 }
 
 void EasyTierProcess::stop()
@@ -306,15 +224,7 @@ void EasyTierProcess::stop()
         m_cliProcess = nullptr;
     }
 
-#ifdef Q_OS_WIN
-    if (m_winProcess) {
-        TerminateProcess(m_winProcess, 0);
-        CloseHandle(m_winProcess);
-        m_winProcess = nullptr;
-    }
-#endif
-
-    if (m_process) {
+if (m_process) {
         m_process->disconnect();
         if (m_process->state() == QProcess::Running) {
             m_process->terminate();
@@ -434,7 +344,7 @@ void EasyTierProcess::startViaQProcess(const QString& exe, const QStringList& ar
         return;
     }
 
-    // Non-Windows path: plain QProcess (--no-tun needs no elevation on Unix).
+    // All platforms: plain QProcess — --no-tun needs no elevation.
     if (!m_process)
         m_process = new QProcess(this);
 
@@ -461,36 +371,11 @@ void EasyTierProcess::startViaQProcess(const QString& exe, const QStringList& ar
 
 bool EasyTierProcess::isRunning() const
 {
-#ifdef Q_OS_WIN
-    if (m_winProcess) {
-        DWORD exitCode = 0;
-        return GetExitCodeProcess(m_winProcess, &exitCode) && exitCode == STILL_ACTIVE;
-    }
-#endif
     return m_process && m_process->state() == QProcess::Running;
 }
 
 void EasyTierProcess::onTimerTick()
 {
-#ifdef Q_OS_WIN
-    if (m_winProcess) {
-        DWORD exitCode = 0;
-        if (GetExitCodeProcess(m_winProcess, &exitCode) && exitCode != STILL_ACTIVE) {
-            // Process exited
-            CloseHandle(m_winProcess);
-            m_winProcess = nullptr;
-            m_outputTimer->stop();
-            m_timeoutTimer->stop();
-            if (!m_ready) {
-                emit errorOccurred(QStringLiteral("EasyTier 进程意外退出 (退出码: %1)").arg(exitCode));
-            }
-            m_ready = false;
-            return;
-        }
-        pollPeerList();
-        return;
-    }
-#endif
     checkOutput();
     pollPeerList();
 }
