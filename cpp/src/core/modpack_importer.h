@@ -79,6 +79,8 @@ public:
                                  bool includeOptional = false, const QString& iconUrl = {});
     Q_INVOKABLE void cancelImport();
     Q_INVOKABLE void dismissResult();  // Called from QML after user dismisses success
+    /// 加载器失败后手动重试（MC+模组已保留，只重跑加载器）
+    Q_INVOKABLE void retryLoader();
 
     /// 整合包图标 URL（下载 tab 传入；外部导入无来源留空 → 占位图）
     Q_INVOKABLE void setPackIcon(const QString& iconUrl);

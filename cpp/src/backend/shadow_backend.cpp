@@ -2412,6 +2412,11 @@ void ShadowBackend::dismissCard(const QString& installId) {
 }
 
 void ShadowBackend::retryVersionInstall(const QString& installId) {
+    // 整合包任务卡片（modpack-*）：转发到 ModpackImporter 的加载器重试（只重跑加载器，保留 MC+模组）
+    if (m_version && m_version->isTaskCard(installId) && m_modpackImporter) {
+        auto* imp = qobject_cast<ModpackImporter*>(m_modpackImporter);
+        if (imp) { imp->retryLoader(); return; }
+    }
     if (m_version) m_version->retryVersionInstall(installId);
 }
 

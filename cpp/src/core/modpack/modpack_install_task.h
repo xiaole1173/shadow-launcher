@@ -48,6 +48,8 @@ public:
 
     void start(const QString& zipPath, const QString& versionName = {}, bool includeOptional = false, const QString& iconUrl = {});
     void cancel();
+    /// 加载器失败（MC+模组已就绪）后手动重试：只重跑加载器，保留成果
+    void retryLoader();
     bool isBusy() const { return m_busy; }
 
     // 整合包图标（下载 tab 来源 URL；外部导入为空 → 卡片显示占位）
@@ -137,6 +139,12 @@ private:
     bool m_mcDone = false;       // MC 路完成
     bool m_pendingFailSet = false;
     QString m_pendingFail;       // 失败等待另一路停止后统一出口
+
+    // ── 加载器失败重试（MC+模组已就绪，只重跑加载器）──
+    bool loaderFailureRetryable() const;  // 当前失败是否为「加载器终态失败（可重试）」
+    void startLoaderRetry();              // 重新连接 installFinished 并触发 retryVersionInstall
+    int  m_loaderAutoRetryCount = 0;      // 自动重试计数（上限 1）
+    bool m_loaderRetryMode = false;       // 处于「待手动重试加载器」状态（卡片保留成果）
 
     // ── 依赖 ──
     VersionBackend* m_vb = nullptr;

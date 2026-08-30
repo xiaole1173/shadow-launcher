@@ -7215,6 +7215,7 @@ InstallCard VersionBackend::taskCardToInstallCard(const QString& cardId) const
     c.failed = m.value(QStringLiteral("failed"), false).toBool();
     c.error = m.value(QStringLiteral("error"), QString()).toString();
     c.canCancel = m.value(QStringLiteral("canCancel"), true).toBool();
+    c.canRetry = m.value(QStringLiteral("canRetry"), false).toBool();
     return c;
 }
 
@@ -7233,6 +7234,7 @@ void VersionBackend::addTaskCard(const QString& cardId, const QString& displayNa
     m[QStringLiteral("failed")] = false;
     m[QStringLiteral("error")] = QString();
     m[QStringLiteral("canCancel")] = true;
+    m[QStringLiteral("canRetry")] = false;
     m_taskCards.insert(cardId, m);
 
     if (m_installCardsModel && m_installCardsModel->findRowByIid(cardId) < 0)
@@ -7306,6 +7308,38 @@ void VersionBackend::removeTaskCard(const QString& cardId)
         m_modpackMcVersion.clear();
         m_modpackCancelHandler = nullptr;
     }
+}
+
+void VersionBackend::setTaskCardRetry(const QString& cardId, bool canRetry, const QString& error)
+{
+    if (!m_taskCards.contains(cardId)) return;
+    QVariantMap m = m_taskCards.value(cardId);
+    m[QStringLiteral("canRetry")] = canRetry;
+    if (!error.isEmpty() || canRetry == false)
+        m[QStringLiteral("error")] = error;
+    m_taskCards.insert(cardId, m);
+    if (m_installCardsModel) {
+        int row = m_installCardsModel->findRowByIid(cardId);
+        if (row >= 0)
+            m_installCardsModel->updateRow(row, taskCardToInstallCard(cardId));
+    }
+}
+
+bool VersionBackend::isLoaderFailure(const QString& installId) const
+{
+    auto* ds = dlSession(installId);
+    auto* ctx = mergedContext(installId);
+    // 加载器终态失败：MC 已下载完成（mcDownloadDone）且 ctx 已标记 installFailed
+    return ds && ds->isFailed() && ctx && ctx->installFailed && ctx->mcDownloadDone;
+}
+
+bool VersionBackend::canRetryLoaderInstall(const QString& installId) const
+{
+    auto* ds = dlSession(installId);
+    if (!ds) return false;
+    const QString t = ds->loaderType;
+    return (t == QStringLiteral("forge") || t == QStringLiteral("neoforge")
+            || t == QStringLiteral("fabric"));
 }
 
 // ── 整合包任务注册 / 会话卡片抑制 ──
@@ -8368,7 +8402,12 @@ void VersionBackend::dismissCard(const QString& installId)
     }
 
     // ── 整合包任务卡片：关闭即移除卡片并清注册（卡片已结束，无会话可清）──
+    // 若任务仍注册（进行中/待重试加载器）：先触发任务取消（放弃=回滚清理），再移除卡片
     if (m_taskCards.contains(installId)) {
+        if (installId == m_modpackCardId && m_modpackCancelHandler) {
+            qCInfo(logVersion) << QStringLiteral("[卡片] 关闭待处理的整合包任务，触发取消 card=%1").arg(installId);
+            m_modpackCancelHandler();
+        }
         removeTaskCard(installId);
         return;
     }
@@ -8865,8 +8904,11 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
             } else {
                 const QString failErr = errMsg.isEmpty() ? tr("模组加载器安装失败") : errMsg;
                 // ── 可重试型安装失败自动重装 1 次（网络/超时类；配置/校验类直接终态）──
+                // 整合包会话（isModpackSessionSuppressed）不在此自动重试——由任务层
+                // ModpackInstallTask 统一自动重试 1 次，避免与手动安装场景叠加成 2 次。
                 auto* cctx = m_mergedContexts.value(installId, nullptr);
-                if (cctx && !cctx->failed && isRetryableLoaderError(failErr) && cctx->loaderAutoRetryCount < 1) {
+                if (cctx && !cctx->failed && !isModpackSessionSuppressed(installId)
+                    && isRetryableLoaderError(failErr) && cctx->loaderAutoRetryCount < 1) {
                     cctx->loaderAutoRetryCount++;
                     emit logMessage(tr("%1 安装失败: %2，正在自动重装（第 %3 次）...")
                                         .arg(ds ? ds->loaderType : QString(), failErr)

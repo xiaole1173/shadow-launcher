@@ -132,6 +132,12 @@ void ModpackImporter::cancelImport()
     m_task->cancel();
 }
 
+void ModpackImporter::retryLoader()
+{
+    if (!m_busy || !m_task) return;
+    m_task->retryLoader();
+}
+
 void ModpackImporter::setPackIcon(const QString& iconUrl)
 {
     if (!m_task) return;

@@ -236,6 +236,14 @@ public:
     Q_INVOKABLE void dismissAllCompleted();  // remove card from progress page
     /// 合并安装卡片失败态「重试」：MC 文件完好则跳过（缺了走修复），只重跑加载器阶段
     Q_INVOKABLE void retryVersionInstall(const QString& installId);
+    /// 是否为整合包任务卡片（modpack-*）；shadow_backend 据此把「重试」转发到加载器重试
+    bool isTaskCard(const QString& cardId) const { return m_taskCards.contains(cardId); }
+    /// 合并安装会话是否处于「加载器失败（MC 已下载完成，可只重试加载器）」终态
+    bool isLoaderFailure(const QString& installId) const;
+    /// 该会话的加载器类型是否支持重试（forge/neoforge/fabric；quilt 等暂不支持）
+    bool canRetryLoaderInstall(const QString& installId) const;
+    /// 整合包任务卡片：设置「重试加载器」按钮可用性（失败卡保留 + 不自动消失）
+    void setTaskCardRetry(const QString& cardId, bool canRetry, const QString& error = {});
 
     Q_INVOKABLE void installModLoader(const QString& mcVersion, const QString& loaderType,
                                        const QString& loaderVersion, const QString& installName,

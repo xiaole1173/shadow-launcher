@@ -133,6 +133,9 @@ void ModpackInstallTask::start(const QString& zipPath, const QString& versionNam
     m_mcDone = false;
     m_pendingFailSet = false;
     m_pendingFail.clear();
+    // 加载器重试状态复位
+    m_loaderAutoRetryCount = 0;
+    m_loaderRetryMode = false;
     m_modEma = 0;
     m_mcSpeed = 0;
     m_lastBytes = 0;
@@ -642,6 +645,31 @@ void ModpackInstallTask::onMcInstallFinished(bool ok)
         return;
     }
     if (!ok) {
+        // ── 加载器失败（MC 已下载完成）：保留 MC + 模组成果，只重试加载器 ──
+        if (loaderFailureRetryable()) {
+            m_mcDone = false;   // 还原：MC+加载器路未最终完成，等重试后置 true
+            if (m_modsDone && m_loaderAutoRetryCount < 1) {
+                // 自动重试 1 次（网络抖动自动救回，模组/MC 不动）
+                ++m_loaderAutoRetryCount;
+                emit logLine(tr("加载器安装失败，正在自动重试（第 %1 次）…").arg(m_loaderAutoRetryCount));
+                if (m_vb) {
+                    m_vb->updateTaskCard(m_cardId, m_progress, tr("重新安装加载器…"), false, {}, 0, true);
+                    m_vb->setTaskCardRetry(m_cardId, false);
+                }
+                startLoaderRetry();
+                return;
+            }
+            // 自动重试已用尽 → 保留成果，进入手动重试模式（卡片不消失、有「重试加载器」按钮）
+            m_loaderRetryMode = true;
+            emit logLine(tr("加载器安装失败（MC 与模组已保留），请点击卡片「重试加载器」重新尝试"));
+            if (m_vb) {
+                m_vb->updateTaskCard(m_cardId, m_progress, tr("加载器安装失败"), true,
+                                     tr("加载器安装失败（MC 与模组已保留），可点击重试"), 0, true);
+                m_vb->setTaskCardRetry(m_cardId, true,
+                                       tr("加载器安装失败（MC 与模组已保留），可点击重试"));
+            }
+            return;
+        }
         fail(tr("Minecraft %1 安装失败").arg(m_meta.mcVersion));
         return;
     }
@@ -903,6 +931,48 @@ void ModpackInstallTask::downloadPackIconToVersionDir()
 
 // ── 取消 ──
 
+// ── 加载器失败重试（MC+模组已就绪，只重跑加载器）──────────────────
+
+bool ModpackInstallTask::loaderFailureRetryable() const
+{
+    if (!m_vb || m_mcSessionId.isEmpty()) return false;
+    return m_vb->isLoaderFailure(m_mcSessionId);
+}
+
+void ModpackInstallTask::startLoaderRetry()
+{
+    if (!m_vb) return;
+    // 该加载器类型不支持重试（如 quilt）：按整体失败处理（回滚，与现状一致，不卡住）
+    if (!m_vb->canRetryLoaderInstall(m_mcSessionId)) {
+        m_loaderRetryMode = false;
+        fail(tr("加载器安装失败，且该加载器暂不支持重试"));
+        return;
+    }
+    // 只保留一个 installFinished 连接（避免多次重试累积多个 lambda 连接）
+    disconnect(m_vb, &VersionBackend::installFinished, this, nullptr);
+    connect(m_vb, &VersionBackend::installFinished, this, [this](bool ok) {
+        if (!m_installingMc) return;
+        m_installingMc = false;
+        onMcInstallFinished(ok);
+    }, Qt::UniqueConnection);
+    m_installingMc = true;
+    emit progressChanged(m_progress, tr("重新安装加载器…"), {});
+    emit stepChanged(tr("重新安装加载器"));
+    m_vb->retryVersionInstall(m_mcSessionId);
+}
+
+void ModpackInstallTask::retryLoader()
+{
+    if (!m_busy || !m_loaderRetryMode || !m_vb) return;
+    emit logLine(tr("用户点击「重试加载器」，重新尝试安装加载器…"));
+    m_loaderRetryMode = false;
+    if (m_vb) {
+        m_vb->updateTaskCard(m_cardId, m_progress, tr("重新安装加载器…"), false, {}, 0, true);
+        m_vb->setTaskCardRetry(m_cardId, false);
+    }
+    startLoaderRetry();
+}
+
 void ModpackInstallTask::cancel()
 {
     if (!m_busy || m_cancel) return;
@@ -923,6 +993,13 @@ void ModpackInstallTask::cancel()
         m_vb->cancelVersionInstall(m_mcSessionId);
     }
     if (!dlRunning && !mcRunning) {
+        if (m_loaderRetryMode) {
+            // 待重试加载器：无并发写盘（加载器已停、模组/MC 已完成），直接清理
+            emit logLine(tr("→ 放弃待重试的加载器安装，清理已生成文件…"));
+            rollback();
+            finishCancelled();
+            return;
+        }
         emit logLine(tr("→ 当前处于解析/解压阶段，等待工作线程响应取消…"));
     }
     // 解析/解压阶段：不抢先回滚——工作线程检查 m_cancel 后自行收尾
