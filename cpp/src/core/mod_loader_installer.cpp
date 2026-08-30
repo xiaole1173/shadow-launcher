@@ -1871,6 +1871,10 @@ void ModLoaderInstaller::forgeStepLibs(const QByteArray& jarData)
         qint64 speedLastBytes = 0;
         qint64 speedLastMs = 0;
         qint64 lastSpeed = 0;   // 最近一次算出的速度：窗口间保持，避免轮询抓到 0 闪烁
+        // ── 2026-08-30：每文件整链（官方+镜像）重试 1 轮 ──
+        // 原实现某文件官方+镜像各一次后即标 failed；现在整链再试一轮，
+        // 对齐夸父「最终兜底重试一轮」语义，减少网络抖动导致的整体失败。
+        QHash<int, int> chainRounds;   // task index → 已重试轮数（上限 1）
     };
     auto st = std::make_shared<St>();
     auto finishLibs = [this, st]() {
@@ -1907,6 +1911,14 @@ void ModLoaderInstaller::forgeStepLibs(const QByteArray& jarData)
             *tryMirror = [this, idx, urls, savePath, st, pump, tryMirror, tasks](int ui) {
                 if (m_cancelled) { st->active--; (*pump)(); return; }
                 if (ui >= urls.size()) {
+                    // 整链重试 1 轮（官方+镜像各再试一次）后仍失败才标失败
+                    if (st->chainRounds[idx] < 1) {
+                        st->chainRounds[idx]++;
+                        qCWarning(logLoader) << QStringLiteral("[安装] 安装器库所有源均失败，整链重试第 %1 轮: %2")
+                            .arg(st->chainRounds[idx]).arg(savePath);
+                        (*tryMirror)(0);
+                        return;
+                    }
                     st->active--;
                     st->failed = true;
                     st->failErr = QStringLiteral("[安装] 安装器库下载失败（所有源均失败）: %1").arg(savePath);

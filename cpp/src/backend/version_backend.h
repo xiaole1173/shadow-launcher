@@ -51,6 +51,7 @@ public:
         TotalProgressVisibleRole,
         HasUserDataImportRole,
         CanCancelRole,
+        CanRetryRole,
         ImportFailedAtMsRole
     };
 
@@ -114,6 +115,12 @@ struct MergedInstallContext {
     bool failed = false;
     QString failReason;
 
+    // ── 加载器失败重试状态 ──
+    bool installFailed = false;           // 终态失败（保留卡片供手动重试，不再阻塞安装态）
+    int  loaderAutoRetryCount = 0;        // 可重试型安装失败自动重装计数（上限 1）
+    int  loaderUrlChainRetries = 0;       // 主文件 URL 候选链整链重试计数（上限 1）
+    QString forgeInstallerBranch;         // 主文件下载链需要重跑时复用（installModLoader 写入）
+
     // Owned children (deleted in ~VersionBackend via destroyMergedContext)
     VersionDownloader* mcDownloader = nullptr;
     ModLoaderInstaller* installer = nullptr;
@@ -146,7 +153,7 @@ public:
     explicit VersionBackend(QObject* parent = nullptr);
     ~VersionBackend() override;
 
-    bool isInstalling() const { return m_installing || (m_activeCount > 0) || !m_mergedContexts.isEmpty(); }
+    bool isInstalling() const { return m_installing || (m_activeCount > 0) || hasActiveMergedContexts(); }
     int activeCount() const { return m_activeCount; }
 
     QVariantList versionInfoList() const;
@@ -227,6 +234,8 @@ public:
     Q_INVOKABLE void cancelPendingUserDataImport(const QString& installId);
     Q_INVOKABLE void dismissCard(const QString& installId);
     Q_INVOKABLE void dismissAllCompleted();  // remove card from progress page
+    /// 合并安装卡片失败态「重试」：MC 文件完好则跳过（缺了走修复），只重跑加载器阶段
+    Q_INVOKABLE void retryVersionInstall(const QString& installId);
 
     Q_INVOKABLE void installModLoader(const QString& mcVersion, const QString& loaderType,
                                        const QString& loaderVersion, const QString& installName,
@@ -404,6 +413,16 @@ private:
                                                const QString& loaderVersion);
     void destroyMergedContext(const QString& installId);
     MergedInstallContext* mergedContext(const QString& installId) const { return m_mergedContexts.value(installId, nullptr); }
+    /// 是否仍有「活跃」（未终态失败）的合并上下文（失败保留的上下文不计入，见 installFailed）
+    bool hasActiveMergedContexts() const;
+    /// 合并安装失败的统一终态收尾：标失败 + 保留卡片（可重试）+ 复位安装态
+    void finalizeMergedFailure(const QString& installId, const QString& errMsg);
+    /// 启动加载器主文件下载链（Forge/NeoForge）；重试时复用（MC 已下好）。
+    void beginLoaderDownload(const QString& installId);
+    /// 判断加载器错误是否属于「可自动重试型」（网络/超时类）；配置/校验类不回滚重试
+    static bool isRetryableLoaderError(const QString& errMsg);
+    /// 重试前复位加载器相关步骤状态（MC 步骤保持 completed）
+    void resetLoaderStepsForRetry(const QString& installId);
 
     bool m_cardsRebuildPending = false;
     QElapsedTimer m_cardsTimer;

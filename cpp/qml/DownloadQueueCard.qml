@@ -107,13 +107,13 @@ Rectangle {
         }
     }
 
-    // ── 自动消失计时器（完成后/失败后 3s 自动关闭卡片）──
-    // 与 MC 原版下载/合并下载同一销毁通道（dismissCard），绿色定格仅持续短暂时间
+    // ── 自动消失计时器（完成后 3s 自动关闭；失败卡仅在不可重试时自动关闭）──
+    // 合并安装失败卡 canRetry=true → 保留卡片等用户点「重试」/「X」
     Timer {
         id: dismissTimer
         interval: 3000
         repeat: false
-        running: !_dismissed && (_meta.failed || _hot.progress >= 1.0)
+        running: !_dismissed && (_hot.progress >= 1.0 || (_meta.failed && !_meta.canRetry))
         onTriggered: {
             _dismissed = true
             if (backend && _meta.iid)
@@ -162,6 +162,48 @@ Rectangle {
                  : StyleTokens.textPrimary
             elide: Text.ElideRight
             width: parent.width - 30
+        }
+
+        // ── 重试按钮（仅合并安装失败卡 canRetry=true 时显示）──
+        Rectangle {
+            id: retryBtn
+            anchors.right: actionBtn.left
+            anchors.rightMargin: 6
+            anchors.verticalCenter: parent.verticalCenter
+            height: 20; radius: 10
+            width: retryRow.implicitWidth + 14
+            visible: !!(_meta.failed && _meta.canRetry)
+            color: retryMouse.containsMouse ? "#1e3b2e" : "#16241c"
+
+            Behavior on color { ColorAnimation { duration: 120 } }
+
+            RowLayout {
+                id: retryRow
+                anchors.centerIn: parent
+                spacing: 4
+
+                Image {
+                    source: "icons/lucide/rotate-ccw.svg"
+                    Layout.preferredWidth: 12
+                    Layout.preferredHeight: 12
+                }
+
+                Text {
+                    text: "重试"
+                    font.pixelSize: StyleTokens.fontSizeXs
+                    color: StyleTokens.textPrimary
+                }
+            }
+
+            MouseArea {
+                id: retryMouse
+                anchors.fill: parent; hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: {
+                    if (backend && _meta.iid)
+                        backend.retryVersionInstall(_meta.iid)
+                }
+            }
         }
 
         // ── 操作按钮：完成态永久隐藏，规避误点取消引发异常 ──

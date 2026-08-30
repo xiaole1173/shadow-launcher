@@ -2411,6 +2411,10 @@ void ShadowBackend::dismissCard(const QString& installId) {
     if (m_version) m_version->dismissCard(installId);
 }
 
+void ShadowBackend::retryVersionInstall(const QString& installId) {
+    if (m_version) m_version->retryVersionInstall(installId);
+}
+
 void ShadowBackend::cancelQueuedDownload(const QString& versionId) {
     if (m_version) m_version->cancelQueuedDownload(versionId);
 }

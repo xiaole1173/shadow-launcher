@@ -432,6 +432,7 @@ public:
     Q_INVOKABLE void installVersion(const QString& versionId);
     Q_INVOKABLE void cancelVersionInstall(const QString& versionId);
     Q_INVOKABLE void dismissCard(const QString& installId);
+    Q_INVOKABLE void retryVersionInstall(const QString& installId);
     Q_INVOKABLE void launch(const QString& versionId, bool online);
     Q_INVOKABLE void cancelLaunch();
     /// launch() 后半段：auth 注入 + 启动（Java 自动安装完成由 LaunchBackend 状态机继续）

@@ -147,6 +147,8 @@ struct InstallCard {
     bool totalProgressVisible = true;
     bool hasUserDataImport = false;
     bool canCancel = true;
+    // 失败态卡片是否提供「重试」入口（仅合并安装的加载器失败卡片）
+    bool canRetry = false;
     qint64 importFailedAtMs = 0;
     // 整合包任务卡片附属数据（type == "modpack" 时经 cardData 轮询下发）
     QVariantList mods;    // [{name,size,status,error,progress}]

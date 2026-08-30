@@ -2158,8 +2158,8 @@ void VersionBackend::onVersionDownloadFinished(bool success,
             // Check if loader is ready
             if (ctx->loaderJarReady) {
                 if (ctx->failed) {
-                    qDebug() << "[install] MC done, loader previously failed — finalizing as vanilla" << ctx->installId;
-                    finishInstall(ctx->installId);
+                    qDebug() << "[install] MC done, loader previously failed — finalizing as failed (retryable)" << ctx->installId;
+                    finalizeMergedFailure(ctx->installId, ctx->errorMessage);
                 } else {
                     qDebug() << "[install] MC done, loader ready — proceeding to install";
                     proceedToLoaderInstall(ctx->installId);
@@ -2167,7 +2167,7 @@ void VersionBackend::onVersionDownloadFinished(bool success,
             } else if (ctx->failed) {
                 // MC 下载失败且 loader 未就绪：也必须失败收尾（否则卡片卡死无响应）
                 qDebug() << "[install] MC failed, loader not ready, finalizing as failed" << ctx->installId;
-                finishInstall(ctx->installId);
+                finalizeMergedFailure(ctx->installId, ctx->errorMessage);
             }
         }
     }
@@ -2820,11 +2820,11 @@ void VersionBackend::setInstalling(bool v)
 
 {
 
-    bool wasInstalling = m_installing || (m_activeCount > 0) || !m_mergedContexts.isEmpty();
+    bool wasInstalling = m_installing || (m_activeCount > 0) || hasActiveMergedContexts();
 
     m_installing = v;
 
-    bool isNowInstalling = m_installing || (m_activeCount > 0) || !m_mergedContexts.isEmpty();
+    bool isNowInstalling = m_installing || (m_activeCount > 0) || hasActiveMergedContexts();
 
     qCInfo(logVersion) << QStringLiteral("安装状态变更 安装中=%1 活跃任务=%2 合并上下文=%3").arg(v ? QStringLiteral("是") : QStringLiteral("否")).arg(m_activeCount).arg(m_mergedContexts.size());
 
@@ -2840,6 +2840,149 @@ void VersionBackend::setInstalling(bool v)
 }
 
 
+
+// ── 合并安装失败：重试/终态收尾（2026-08-30）──────────────────────────
+// 背景：merged finished(false) 此前只管标步骤红 + installFinished(false)，
+// 既不 emit installComplete 也不销毁/复位 merged context → isInstalling 恒 true
+// （m_mergedContexts 非空）+ 卡片无终态、无重试 → 卡死。以下补齐统一终态与重试。
+
+bool VersionBackend::hasActiveMergedContexts() const
+{
+    for (auto it = m_mergedContexts.constBegin(); it != m_mergedContexts.constEnd(); ++it) {
+        if (it.value() && !it.value()->installFailed) return true;
+    }
+    return false;
+}
+
+bool VersionBackend::isRetryableLoaderError(const QString& errMsg)
+{
+    if (errMsg.isEmpty()) return false;
+    // 只对网络/超时类错误自动重试；配置/完整性/Java 配置类是确定失败，重试无意义。
+    const QString e = errMsg.toLower();
+    if (e.contains(QStringLiteral("超时")) || e.contains(QStringLiteral("timeout"))
+        || e.contains(QStringLiteral("下载失败")) || e.contains(QStringLiteral("所有源均不可用"))
+        || e.contains(QStringLiteral("无法连接")) || e.contains(QStringLiteral("网络")))
+        return true;
+    return false;
+}
+
+void VersionBackend::finalizeMergedFailure(const QString& installId, const QString& errMsg)
+{
+    auto* ds = dlSession(installId);
+    auto* ctx = mergedContext(installId);
+    // 先置 installFailed：markFailed → updateCardFromSession 的 failed patch 才能读到 canRetry=true
+    if (ctx) ctx->installFailed = true;
+    if (ds) ds->markFailed(errMsg.isEmpty() ? tr("模组加载器安装失败") : errMsg);
+    // 本 ctx 计入何 hasActiveMergedContexts 判定为 false → isInstalling 变 false → 解除卡死
+    setInstalling(false);
+    startNextFromQueue();
+    emit installFinished(false);
+    updateCardFromSession(installId);   // 卡片 failed/canRetry 落地
+}
+
+void VersionBackend::resetLoaderStepsForRetry(const QString& installId)
+{
+    auto* ds = dlSession(installId);
+    if (!ds) return;
+    auto* ctx = mergedContext(installId);
+    auto* pipe = ds->pipeline();
+
+    // updateStep 的守卫禁止 terminal(failed)→pending/active 降级，故这里直接操作
+    // StepNode + ds->steps，绕过守卫（重试语义必须允许 failed→pending 复位）。
+    for (int i = 0; i < ds->steps.size(); ++i) {
+        QVariantMap s = ds->steps[i].toMap();
+        if (s.value(QStringLiteral("status")).toString() != QStringLiteral("failed"))
+            continue;
+        const QString nm = s.value(QStringLiteral("name")).toString();
+        const bool mcStep = (i < 4)
+                            || nm.contains(QStringLiteral("原版"))
+                            || (nm.contains(QStringLiteral("校验")) && nm.contains(QStringLiteral("资源")));
+        auto* node = pipe ? pipe->stepNode(i) : nullptr;
+        if (mcStep) {
+            if (node) node->setCompleted();
+            s[QStringLiteral("status")] = QStringLiteral("completed");
+            s[QStringLiteral("percentage")] = 100;
+        } else {
+            if (node) node->setStatus(StepStatus::Pending);
+            s[QStringLiteral("status")] = QStringLiteral("pending");
+            s[QStringLiteral("percentage")] = 0;
+        }
+        ds->steps[i] = s;
+    }
+
+    // 主文件已缓存（安装阶段失败）→ 主文件/校验/库保持完成，安装步骤重新激活
+    if (ctx && ctx->loaderJarReady) {
+        int mi = findStepByName(installId, QStringLiteral("主文件"));
+        if (mi >= 0) updateStep(installId, mi, QStringLiteral("completed"), 100);
+        int vi = findLoaderVerifyStep(installId);
+        if (vi >= 0) updateStep(installId, vi, QStringLiteral("completed"), 100);
+        int li = findLoaderLibsStep(installId);
+        if (li >= 0) updateStep(installId, li, QStringLiteral("completed"), 100);
+    }
+    const int ii = findLoaderInstallStep(installId);
+    if (ii >= 0 && pipe && pipe->stepNode(ii)) {
+        // 直接置 active（updateStep 会因 failed→active 降级而忽略）
+        auto* node = pipe->stepNode(ii);
+        node->setActive();
+        node->setPercentage(0);
+        QVariantMap s = ds->steps[ii].toMap();
+        s[QStringLiteral("status")] = QStringLiteral("active");
+        s[QStringLiteral("percentage")] = 0;
+        ds->steps[ii] = s;
+    }
+
+    ds->clearFailure();
+    updateCardFromSession(installId);
+}
+
+void VersionBackend::retryVersionInstall(const QString& installId)
+{
+    auto* ds = dlSession(installId);
+    auto* ctx = mergedContext(installId);
+
+    if (!ds) {
+        emit toastMessage(tr("该任务已关闭，无法重试，请重新安装"));
+        return;
+    }
+    // 只有失败态合并安装卡片支持重试（卡片侧已经按 canRetry 显示按钮）
+    if (!ds->isFailed() && (!ctx || !ctx->installFailed)) return;
+
+    // ── 智能复用：主文件已就绪（安装阶段失败）→ 只重跑安装（MC + jar 已缓存）──
+    if (ctx && ctx->loaderJarReady && ctx->installer) {
+        qCInfo(logVersion) << QStringLiteral("[retry] smart retry id=%1 loader=%2 (MC + 主文件已缓存)")
+                              .arg(installId, ds->loaderType);
+        ctx->installFailed = false;
+        ctx->failed = false;
+        ctx->errorMessage.clear();
+        ctx->loaderAutoRetryCount = 0;
+        resetLoaderStepsForRetry(installId);
+        setInstalling(true);
+        emit logMessage(tr("已重启 %1 安装（复用已下载的原版与主文件）").arg(ds->loaderType));
+        proceedToLoaderInstall(installId);
+        return;
+    }
+
+    // ── 主文件未就绪（下载阶段失败）或上下文已清理 → 完整重装（重建上下文 + 重下 MC）──
+    // 保守策略：加载器下载失败时整装重来最干净；「MC 跳过」优化仅作用于主文件已就绪场景。
+    const QString mcVersion = ds->mcVersion;
+    const QString loaderType = ds->loaderType;
+    const QString loaderVer   = ds->loaderVer;
+    if (mcVersion.isEmpty() || loaderType.isEmpty() || loaderVer.isEmpty()) {
+        emit toastMessage(tr("缺少任务信息，无法重试，请重新安装"));
+        return;
+    }
+    if (loaderType != QStringLiteral("forge") && loaderType != QStringLiteral("neoforge")
+        && loaderType != QStringLiteral("fabric")) {
+        emit toastMessage(tr("该加载器暂不支持重试，请关闭后重新安装"));
+        return;
+    }
+    qCInfo(logVersion) << QStringLiteral("[retry] full reinstall id=%1 loader=%2")
+                          .arg(installId, loaderType);
+    // installModLoader 内部会 destroyMergedContext（清理保留的失败上下文）并复用同 installId 会话
+    installModLoader(mcVersion, loaderType, loaderVer, installId,
+                     ds->fabricApiVersion, ds->fabricApiUrl, ds->fabricApiFinalPath,
+                     ds->forgeInstallerSha1, ctx ? ctx->forgeInstallerBranch : QString());
+}
 
 void VersionBackend::setInstallPhase(const QString& phase)
 
@@ -5170,6 +5313,7 @@ void VersionBackend::installModLoader(const QString& mcVersion, const QString& l
     // Create MergedInstallContext for this install
     auto* ctx = createMergedContext(installName, mcVersion, loaderType, loaderVersion);
     if (!ctx) return;
+    ctx->forgeInstallerBranch = forgeInstallerBranch;
 
     ensureSession(installName);
     auto* ds = dlSession(installName);
@@ -5377,7 +5521,7 @@ if (!loaderDlUrl.isEmpty()) {
                 updateStep(installName, loaderDlStepIdx, QStringLiteral("failed"), 0, data.size(), 0);
                 ctx->failed = true;
                 ctx->errorMessage = tr("下载文件异常");
-                if (ctx->mcDownloadDone) finishInstall(installName);
+                if (ctx->mcDownloadDone) finalizeMergedFailure(installName, ctx->errorMessage);
                 return;
             }
             if (!m_downloadSessions.contains(installName)) return;
@@ -5541,13 +5685,22 @@ if (!loaderDlUrl.isEmpty()) {
                             updateStep(installName, loaderDlStepIdx, QStringLiteral("failed"), 0, 0, 0);
                             return;
                         }
-                        qWarning() << "[Coordinator] Loader download FAILED (all fallbacks)";
+                        // ── URL 候选链整体重试 1 轮（对齐夸父「最终兜底重试一轮」语义）──
+                        if (ctx->loaderUrlChainRetries < 1) {
+                            ctx->loaderUrlChainRetries++;
+                            qWarning() << "[Coordinator] Loader download all sources failed, whole-chain retry round" << ctx->loaderUrlChainRetries;
+                            emit logMessage(tr("%1 下载失败，正在重试（第 %2 轮）...").arg(loaderType).arg(ctx->loaderUrlChainRetries + 1));
+                            updateStep(installName, loaderDlStepIdx, QStringLiteral("active"), 0);
+                            *fbIdx = 0;
+                            (*tryFb)();
+                            return;
+                        }
+                        qWarning() << "[Coordinator] Loader download FAILED (all fallbacks, retries exhausted)";
                         emit logMessage(QStringLiteral(" %1 下载失败: 所有源均不可用").arg(loaderType));
-                        emit logMessage(tr("⚠ %1 下载失败，将以原版安装").arg(loaderType));
                         updateStep(installName, loaderDlStepIdx, QStringLiteral("failed"), 0, 0, 0);
                         ctx->failed = true;
                         ctx->errorMessage = tr("所有源均不可用");
-                        if (ctx->mcDownloadDone) finishInstall(installName);
+                        if (ctx->mcDownloadDone) finalizeMergedFailure(installName, ctx->errorMessage);
                         return;
                     }
                     const QString url = fallbackUrls[(*fbIdx)++];
@@ -6486,6 +6639,26 @@ void VersionBackend::updateCardFromSession(const QString& installId, const QStri
                 full.canCancel = false;
                 m_installCardsModel->updateRow(mrow, full);
             }
+
+            // ── 加载器失败态：写卡片 failed/error/canRetry（对齐纯 MC 分支 6554）──
+            // merged 分支此前从不 patch failed → 卡片只有红色子步骤、没有整体失败态
+            // + 保留重试按钮，QML 据此取消自动消失（dismissTimer）
+            if (existing && ds->isFailed() && !existing->failed) {
+                InstallCard full = *existing;
+                full.failed = true;
+                full.error = ds->errorMessage();
+                auto* mctx = mergedContext(installId);
+                full.canRetry = mctx ? mctx->installFailed : false;
+                m_installCardsModel->updateRow(mrow, full);
+            }
+            // ── 重试开始：清除失败态（failed/error/canRetry），卡片回到进行中 ──
+            if (existing && existing->failed && !ds->isFailed()) {
+                InstallCard full = *existing;
+                full.failed = false;
+                full.error.clear();
+                full.canRetry = false;
+                m_installCardsModel->updateRow(mrow, full);
+            }
         }
         return;
     }
@@ -7271,6 +7444,8 @@ QVariant InstallCardModel::data(const QModelIndex& index, int role) const {
 
     case CanCancelRole:            return c.canCancel;
 
+    case CanRetryRole:             return c.canRetry;
+
     case ImportFailedAtMsRole:     return QVariant::fromValue<qint64>(c.importFailedAtMs);
 
     default:                       return QVariant();
@@ -7310,6 +7485,8 @@ QHash<int, QByteArray> InstallCardModel::roleNames() const {
         {HasUserDataImportRole, "hasUserDataImport"},
 
         {CanCancelRole, "canCancel"},
+
+        {CanRetryRole, "canRetry"},
 
         {ImportFailedAtMsRole, "importFailedAtMs"}
 
@@ -7428,6 +7605,7 @@ QVariantMap InstallCardModel::cardData(int row) const {
     map["totalProgressVisible"] = c.totalProgressVisible;
     map["hasUserDataImport"] = c.hasUserDataImport;
     map["canCancel"] = c.canCancel;
+    map["canRetry"] = c.canRetry;
     map["importFailedAtMs"] = c.importFailedAtMs;
     // 整合包任务卡片附属数据（QML 轮询消费；普通卡片为空，不影响既有逻辑）
     map["mods"] = c.mods;
@@ -7814,6 +7992,10 @@ auto* ds = dlSession(it.key());
         c.canCancel = !(ds->hasImportPending && ds->steps.size() > 0 &&
 
             ds->steps.last().toMap().value("status").toString() == "active");
+
+        // 加载器终态失败卡片提供「重试」入口（MC 已就绪，重试只重跑加载器）
+        c.canRetry = mlFailed;
+        if (auto* mctx = mergedContext(sid)) c.canRetry = mctx->installFailed;
 
         c.importFailedAtMs = ds->importFailedAtMs;
 
@@ -8681,12 +8863,28 @@ MergedInstallContext* VersionBackend::createMergedContext(const QString& install
                     finishInstall(installId);
                 }
             } else {
+                const QString failErr = errMsg.isEmpty() ? tr("模组加载器安装失败") : errMsg;
+                // ── 可重试型安装失败自动重装 1 次（网络/超时类；配置/校验类直接终态）──
+                auto* cctx = m_mergedContexts.value(installId, nullptr);
+                if (cctx && !cctx->failed && isRetryableLoaderError(failErr) && cctx->loaderAutoRetryCount < 1) {
+                    cctx->loaderAutoRetryCount++;
+                    emit logMessage(tr("%1 安装失败: %2，正在自动重装（第 %3 次）...")
+                                        .arg(ds ? ds->loaderType : QString(), failErr)
+                                        .arg(cctx->loaderAutoRetryCount + 1));
+                    // 保持安装态（不终态收尾）；复位加载器步骤后重跑安装
+                    QTimer::singleShot(800, this, [this, installId]() {
+                        resetLoaderStepsForRetry(installId);
+                        proceedToLoaderInstall(installId);
+                    });
+                    return;
+                }
                 if (ds) {
                     for (int i = 0; i < ds->steps.size(); i++)
                         updateStep(installId, i, QStringLiteral("failed"), 0);
-                    ds->markFailed(errMsg.isEmpty() ? tr("模组加载器安装失败") : errMsg);
                 }
-                emit logMessage(tr("[失败] 模组加载器安装失败: %1").arg(errMsg));
+                emit logMessage(tr("[失败] 模组加载器安装失败: %1").arg(failErr));
+                finalizeMergedFailure(installId, failErr);
+                return;
             }
             setInstalling(false);
             startNextFromQueue();
