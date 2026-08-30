@@ -384,7 +384,9 @@ void JavaBackend::installJavaForLaunch(int majorVersion,
                                        std::function<void(int, const QString&)> onProgress,
                                        std::function<void(bool, const QString&, const QString&)> onDone)
 {
-    // 游戏运行只需 JRE（与一键安装一致；Tuna 镜像 8/17/21/25 均有 JRE 构建）
+    // ── 2026-08-17：JDK 替代 JRE ──
+    // JRE 裁剪了 jdk.crypto.ec 等模块，NeoForge 1.21.8+ 启动时
+    // "Module jdk.crypto.ec not found" 崩溃。JDK 包含全部模块。
     // 进度：JavaRuntimeInstaller 的 downloadProgressChanged 信号 → onProgress 回调
     auto* conn = new QMetaObject::Connection;
     *conn = connect(m_runtimeInstaller, &JavaRuntimeInstaller::downloadProgressChanged,
@@ -393,7 +395,7 @@ void JavaBackend::installJavaForLaunch(int majorVersion,
                             onProgress(m_runtimeInstaller->downloadPercent(),
                                        m_runtimeInstaller->statusText());
                     });
-    m_runtimeInstaller->installJavaAsync(majorVersion, QStringLiteral("jre"),
+    m_runtimeInstaller->installJavaAsync(majorVersion, QStringLiteral("jdk"),
         [this, conn, onDone](bool ok, const QString& err, const QString& exe) {
             disconnect(*conn);
             delete conn;

@@ -61,9 +61,6 @@ Rectangle {
                     asynchronous: true; cache: true
                     sourceSize.width: 96; sourceSize.height: 96
                     source: cardIcon ? cardIcon.replace("cdn.modrinth.com", "mod.mcimirror.top") : ""
-                    onStatusChanged: {
-                        if (status === Image.Error) detailIconFb.visible = true
-                    }
                 }
                 Text {
                     id: detailIconFb
@@ -71,7 +68,8 @@ Rectangle {
                     text: fallbackLetter()
                     color: StyleTokens.accentHover
                     font.pixelSize: StyleTokens.fontSize2xl; font.weight: Font.Bold
-                    visible: !cardIcon
+                    // 纯绑定：无图标或加载失败时显示占位（避免手动赋值破坏绑定导致与图标重叠）
+                    visible: !cardIcon || detailIconImg.status === Image.Error
                 }
             }
 

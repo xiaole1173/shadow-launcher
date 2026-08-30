@@ -91,3 +91,6 @@ cef_helper/
 
 # Publish tool local config (real base_url / paths)
 tools/publish_config.json
+
+# MC百科抓取断点缓存（可重新生成）
+tools/_mcmod_map_resume.jsonl

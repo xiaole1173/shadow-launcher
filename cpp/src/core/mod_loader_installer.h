@@ -95,6 +95,8 @@ signals:
     void logMessage(const QString& msg);
     // User-facing toast (e.g. auto Java download progress during loader install)
     void toastMessage(const QString& msg);
+    // 自动下载便携 Java 完成（majorVersion）——供上层触发 Java 列表刷新（不弹 toast）
+    void javaAutoInstalled(int majorVersion);
     // Pause between verify and install (for parallel MC download)
     void waitingForMC();
     // Sub-progress within a step (for installer stdout parsing)

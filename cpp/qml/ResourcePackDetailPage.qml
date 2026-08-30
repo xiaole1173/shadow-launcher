@@ -41,16 +41,38 @@ Rectangle {
     property int rpVersionCacheVersion: 0
     property var rpVersionDetailCache: ({})
 
+    // ── 详情页跳转/复制按钮（统一胶囊）──
+    property var _linkItems: []
+    property var _copyItems: []
+    function refreshLinks() {
+        if (!backend || !rpDetailSlug) { _linkItems = []; _copyItems = []; return }
+        var r = backend.resolveProjectLinks(rpDetailTitle, rpDetailSlug, "resourcepack")
+        var links = []
+        if (r.mrUrl) links.push({ label: "Modrinth", url: r.mrUrl })
+        if (r.cfUrl) links.push({ label: "CurseForge", url: r.cfUrl })
+        var name = rpDetailTitle || rpDetailSlug
+        var zh = backend.resolveModZh(rpDetailTitle)
+        if (zh && zh !== name) name = zh + " " + name
+        _linkItems = links
+        _copyItems = [
+            { label: "复制名称", text: name }
+        ]
+    }
+    onRpDetailTitleChanged: if (backend) refreshLinks()
+
     signal goBack()
 
     // ── Trigger fetch ──
     onRpDetailSlugChanged: {
+        refreshLinks()
         if (rpDetailSlug && backend) {
             rpDetailLoading = true
             rpVersionCache = ({})
             rpVersionDetailCache = ({})
             rpVersionCacheVersion = 0
             expandedGroups = []
+            _rpGroupedCache = []
+            _versionListEnter = false
             // CurseForge 资源包（slug 为纯数字 modId）
             if (/^\d+$/.test(rpDetailSlug)) {
                 backend.fetchResourcepackVersionsCf(rpDetailSlug)
@@ -60,28 +82,38 @@ Rectangle {
         }
     }
 
-    // ── Computed: grouped versions ──
-    property var rpDetailGrouped: {
-        var _ver = rpVersionCacheVersion
-        var d = rpVersionCache
-        var raw = (d && d[rpDetailSlug]) ? d[rpDetailSlug] : []
-        var groups = {}
-        for (var i = 0; i < raw.length; i++) {
-            var v = raw[i]
-            var segs = v.split(".")
-            var major = segs.length >= 2 ? segs[0] + "." + segs[1] : v
-            if (!groups[major]) groups[major] = []
-            groups[major].push(v)
-        }
-        var result = []
-        for (var k in groups) { result.push({major: k, versions: groups[k]}) }
-        result.sort(function(a,b) {
-            var as = a.major.split("."), bs = b.major.split(".")
-            var aM = parseInt(as[0])||0, bM = parseInt(bs[0])||0
-            if (aM !== bM) return bM - aM
-            return (parseInt(bs[1])||0) - (parseInt(as[1])||0)
+    // ── 2026-08-23：rpDetailGrouped 改异步分组（对齐 ModDetailPage，防大量版本同步卡主线程）──
+    property var rpDetailGrouped: _rpGroupedCache
+    property var _rpGroupedCache: []
+    property bool _rpGroupedComputing: false
+    property bool _versionListEnter: false
+
+    function _rebuildRpGrouped() {
+        if (_rpGroupedComputing) return
+        _rpGroupedComputing = true
+        Qt.callLater(function() {
+            _rpGroupedComputing = false
+            var d = rpVersionCache
+            var raw = (d && d[rpDetailSlug]) ? d[rpDetailSlug] : []
+            var groups = {}
+            for (var i = 0; i < raw.length; i++) {
+                var v = raw[i]
+                var segs = v.split(".")
+                var major = segs.length >= 2 ? segs[0] + "." + segs[1] : v
+                if (!groups[major]) groups[major] = []
+                groups[major].push(v)
+            }
+            var result = []
+            for (var k in groups) { result.push({major: k, versions: groups[k]}) }
+            result.sort(function(a,b) {
+                var as = a.major.split("."), bs = b.major.split(".")
+                var aM = parseInt(as[0])||0, bM = parseInt(bs[0])||0
+                if (aM !== bM) return bM - aM
+                return (parseInt(bs[1])||0) - (parseInt(as[1])||0)
+            })
+            _rpGroupedCache = result
+            if (raw.length > 0) _versionListEnter = true
         })
-        return result
     }
     property var expandedGroups: []
 
@@ -175,68 +207,22 @@ Rectangle {
                     }
                 }
 
-                // Action buttons row
-                RowLayout {
-                    Layout.fillWidth: true; spacing: 8
-                    Rectangle {
-                        implicitWidth: Math.max(rpModBtn.implicitWidth + 24, 110)
-                        implicitHeight: 30; radius: StyleTokens.radiusMd
-                        color: rpModBtnHov.containsMouse ? "#1a2a50" : "transparent"
-                        border.color: "#3a5ed0"; border.width: 1.5
-
-                        property real _eScale: 1.0; scale: _eScale
-                        Timer { id: modBtnRestore; interval: 100
-                            onTriggered: { rpModBtnRect._eScale = 1.0 }
-                        }
-                        Behavior on color { ColorAnimation { duration: 150 } }
-                        Behavior on _eScale { SpringAnimation { spring: 1.8; damping: 0.3; epsilon: 0.01 } }
-
-                        Text {
-                            id: rpModBtn; anchors.centerIn: parent
-                            text: qsTr("转到 Modrinth"); color: StyleTokens.accentLight; font.pixelSize: StyleTokens.fontSizeSm
-                        }
-                        MouseArea {
-                            id: rpModBtnHov; anchors.fill: parent
-                            hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                rpModBtnRect._eScale = 0.92; modBtnRestore.restart()
-                                if (rpDetailSlug) Qt.openUrlExternally("https://modrinth.com/resourcepack/" + rpDetailSlug)
-                            }
-                        }
-                    }
-                    Rectangle {
-                        id: rpCopyBtnRect
-                        implicitWidth: Math.max(rpCopyBtn.implicitWidth + 24, 90)
-                        implicitHeight: 30; radius: StyleTokens.radiusMd
-                        color: rpCopyBtnHov.containsMouse ? "#282018" : "transparent"
-                        border.color: "#685040"; border.width: 1.5
-
-                        property real _eScale: 1.0; scale: _eScale
-                        Timer { id: copyBtnRestore; interval: 100
-                            onTriggered: { rpCopyBtnRect._eScale = 1.0 }
-                        }
-                        Behavior on color { ColorAnimation { duration: 150 } }
-                        Behavior on _eScale { SpringAnimation { spring: 1.8; damping: 0.3; epsilon: 0.01 } }
-
-                        Text {
-                            id: rpCopyBtn; anchors.centerIn: parent
-                            text: qsTr("复制名称"); color: "#c89860"; font.pixelSize: StyleTokens.fontSizeSm
-                        }
-                        MouseArea {
-                            id: rpCopyBtnHov; anchors.fill: parent
-                            hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                rpCopyBtnRect._eScale = 0.92; copyBtnRestore.restart()
-                                if (backend) backend.copyToClipboard(rpDetailTitle || rpDetailSlug)
-                            }
-                        }
-                    }
+                // 跳转 / 复制按钮（DetailLinkBar 纯文本胶囊，统一风格）
+                DetailLinkBar {
+                    Layout.fillWidth: true
+                    Layout.topMargin: 2
+                    backend: root.backend
+                    toastManager: root.toastManager
+                    links: root._linkItems
+                    copyItems: root._copyItems
                 }
             }
 
             // ── Section: Version List ──
             Text {
-                visible: !rpDetailLoading && rpDetailGrouped.length > 0
+                visible: _versionListEnter
+                opacity: _versionListEnter ? 1 : 0
+                Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
                 text: qsTr("版本列表")
                 font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold; color: "#a0a8c0"
                 Layout.topMargin: 8; Layout.leftMargin: 4
@@ -287,21 +273,40 @@ Rectangle {
                 }
             }
 
-            // ── Version groups ──
-            Repeater {
-                model: !rpDetailLoading ? rpDetailGrouped : []
-                delegate: ExpandableGroupCard {
-                    Layout.fillWidth: true
-                    title: "MC " + modelData.major
-                    subtitle: modelData.versions.length + " 个版本"
-                    expanded: isGroupExpanded(modelData.major)
-                    onToggled: toggleGroupExpanded(modelData.major)
+            // ── Version groups（懒渲染：每组默认前 30 个版本，点按钮追加 50）──
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 8
+                visible: _versionListEnter
 
-                    Repeater {
-                        model: modelData.versions
-                        delegate: DetailVersionCard {
-                            width: parent.width - 24
-                            x: 24
+                Repeater {
+                    model: !rpDetailLoading ? rpDetailGrouped : []
+                    delegate: ExpandableGroupCard {
+                        id: groupCard
+                        Layout.fillWidth: true
+                        title: "MC " + modelData.major
+                        subtitle: modelData.versions.length + " 个版本"
+                        expanded: isGroupExpanded(modelData.major)
+                        onToggled: toggleGroupExpanded(modelData.major)
+
+                        property int _visibleCount: 30
+                        readonly property int _totalCount: modelData.versions.length
+                        readonly property bool _hasMore: _visibleCount < _totalCount
+
+                        opacity: 0
+                        Timer {
+                            interval: index * 80 + 100
+                            running: _versionListEnter
+                            repeat: false
+                            onTriggered: groupCard.opacity = 1
+                        }
+                        Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutBack; easing.overshoot: 0.2 } }
+
+                        Repeater {
+                            model: groupCard.expanded ? modelData.versions.slice(0, groupCard._visibleCount) : []
+                            delegate: DetailVersionCard {
+                                width: parent.width - 24
+                                x: 24
                                 versionLabel: {
                                     var d = getVerDetail(modelData)
                                     return d ? (d.version_number || modelData) : modelData
@@ -347,10 +352,36 @@ Rectangle {
                                     rpFileDialog.open()
                                 }
                             }
+                        }
+
+                        // ── 懒渲染：还有 X 个版本 ──
+                        Rectangle {
+                            visible: groupCard.expanded && groupCard._hasMore
+                            width: parent.width - 48
+                            x: 24
+                            height: 30
+                            radius: StyleTokens.radiusMd
+                            color: moreHov.containsMouse ? "#3a50b0" : "transparent"
+                            border.color: "#2a3a68"
+                            border.width: 1
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                            Text {
+                                anchors.centerIn: parent
+                                text: "还有 " + (groupCard._totalCount - groupCard._visibleCount) + " 个版本"
+                                color: moreHov.containsMouse ? StyleTokens.accentLink : StyleTokens.textMuted
+                                font.pixelSize: StyleTokens.fontSizeSm
+                            }
+                            MouseArea {
+                                id: moreHov
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: { groupCard._visibleCount += 50 }
+                            }
+                        }
                     }
                 }
             }
-
             Item { Layout.fillWidth: true; height: 40 }
         }
     }
@@ -385,6 +416,7 @@ Rectangle {
                 root.rpVersionDetailCache = newDetailCache
             }
             root.rpVersionCacheVersion++
+            root._rebuildRpGrouped()
         }
         function onResourcepackVersionsProgress(done, total) {
             if (root.rpDetailSlug === "") return

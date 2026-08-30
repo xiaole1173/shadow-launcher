@@ -20,6 +20,7 @@
 #include <QUrlQuery>
 #include <QVariantMap>
 #include <memory>
+#include <cmath>
 
 namespace ShadowLauncher {
 
@@ -32,7 +33,30 @@ static QString normTitle(const QString& s)
     n.remove(QRegularExpression(QStringLiteral("[^a-z0-9]")));
     return n;
 }
-static QVariantList mergeDedupSorted(const QVariantList& mrItems, const QVariantList& cfItems, double mrMult)
+
+// 纯数字串（CurseForge 详情页 slug 固定用数字 id 标识，Modrinth slug 恒为非数字）
+static bool isDigits(const QString& s)
+{
+    if (s.isEmpty()) return false;
+    for (const QChar& c : s) {
+        if (!c.isDigit()) return false;
+    }
+    return true;
+}
+
+// 是否含 CJK 中文（逐字符判码点，避免正则兼容性坑；用于识别中文搜索词）
+static bool containsCjk(const QString& s)
+{
+    for (const QChar& c : s) {
+        const ushort u = c.unicode();
+        if ((u >= 0x4E00 && u <= 0x9FA5) || (u >= 0x3400 && u <= 0x4DBF))
+            return true;
+    }
+    return false;
+}
+// query 非空时按「搜索词相关度」排序：名称命中权重 1 / 仅简介命中 0.05（防简介喧宾夺主），
+// 同层内以加权下载量对数(0~1)作次键，避免下载量淹没相关度、也避免完全无视下载量。
+static QVariantList mergeDedupSorted(const QVariantList& mrItems, const QVariantList& cfItems, double mrMult, const QString& query = {})
 {
     QSet<QString> seen;
     QVariantList merged;
@@ -48,13 +72,22 @@ static QVariantList mergeDedupSorted(const QVariantList& mrItems, const QVariant
     };
     appendDedup(mrItems);  // Modrinth 先（优先保留）
     appendDedup(cfItems);  // CF 只补充特有
-    std::sort(merged.begin(), merged.end(), [mrMult](const QVariant& a, const QVariant& b) {
-        auto w = [mrMult](const QVariant& v) {
+    const QString q = query.trimmed().toLower();
+    std::sort(merged.begin(), merged.end(), [mrMult, &q](const QVariant& a, const QVariant& b) {
+        auto score = [mrMult, &q](const QVariant& v) {
             const QVariantMap m = v.toMap();
             const double d = m.value(QStringLiteral("downloads")).toDouble();
-            return m.value(QStringLiteral("source")).toString() == QStringLiteral("CurseForge") ? d : d * mrMult;
+            const double w = m.value(QStringLiteral("source")).toString() == QStringLiteral("CurseForge") ? d : d * mrMult;
+            if (q.isEmpty())
+                return w;  // 无搜索词：纯加权下载量（原行为）
+            const QString title = m.value(QStringLiteral("title")).toString().toLower();
+            const QString desc  = m.value(QStringLiteral("desc")).toString().toLower();
+            double rel = 0.0;
+            if (title.contains(q))          rel += 1.00;   // 名称命中：权重最高
+            else if (desc.contains(q))      rel += 0.05;   // 仅简介命中：权重低，避免喧宾夺主
+            return rel + std::log10(std::max(w, 1.0)) / 9.0;  // 下载量对数(0~1)作同层次键
         };
-        return w(a) > w(b);
+        return score(a) > score(b);
     });
     return merged;
 }
@@ -69,7 +102,8 @@ static QVariantList mergePoolFreezeZone(const QVariantList& pool,
                                         const QVariantList& mrAll,
                                         const QVariantList& cfAll,
                                         int shownCount,
-                                        double mrMult)
+                                        double mrMult,
+                                        const QString& query = {})
 {
     QVariantList frozen = pool.mid(0, shownCount);
     QSet<QString> frozenKeys;
@@ -84,7 +118,7 @@ static QVariantList mergePoolFreezeZone(const QVariantList& pool,
         if (!frozenKeys.contains(normTitle(v.toMap().value(QStringLiteral("title")).toString())))
             cfRest.append(v);
     }
-    return frozen + mergeDedupSorted(mrRest, cfRest, mrMult);
+    return frozen + mergeDedupSorted(mrRest, cfRest, mrMult, query);
 }
 
 // ============================================================
@@ -139,9 +173,246 @@ ResourceBackend::ResourceBackend(QObject* parent)
             this, &ResourceBackend::modFileDownloadCancelled);
     connect(m_modMgr, &ModManager::versionDependenciesResolved,
             this, &ResourceBackend::versionDependenciesResolved);
+
+    loadModTranslations();
+    loadMcmodMap();
 }
 
 ResourceBackend::~ResourceBackend() = default;
+
+void ResourceBackend::loadModTranslations()
+{
+    const QString path = QStringLiteral(":/qt/qml/ShadowLauncher/qml/mod_zh.json");
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) {
+        emit logMessage(tr("[汉化] 打开 %1 失败: %2").arg(path, f.errorString()));
+        return;
+    }
+    QJsonParseError err{};
+    const QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &err);
+    f.close();
+    if (err.error != QJsonParseError::NoError || !doc.isArray()) {
+        emit logMessage(tr("[汉化] 解析 %1 失败: %2").arg(path, err.errorString()));
+        return;
+    }
+    const QJsonArray arr = doc.array();
+    for (const QJsonValue& v : arr) {
+        const QJsonObject o = v.toObject();
+        const QString en = o.value(QStringLiteral("en")).toString();
+        const QString zh = o.value(QStringLiteral("zh")).toString();
+        if (en.isEmpty() || zh.isEmpty()) continue;
+        m_zhByTitle.insert(normTitle(en), zh);
+        m_enByZh.insert(zh, en);
+        const QJsonArray aliases = o.value(QStringLiteral("aliases")).toArray();
+        for (const QJsonValue& av : aliases) {
+            const QString a = av.toString().trimmed();
+            if (!a.isEmpty()) m_enByZh.insert(a, en);
+        }
+    }
+    QString sample;
+    int shown = 0;
+    for (auto it = m_zhByTitle.constBegin(); it != m_zhByTitle.constEnd() && shown < 3; ++it, ++shown)
+        sample += (shown ? ", " : "") + it.key() + "→" + it.value();
+    emit logMessage(tr("[汉化] 已加载 %1 条模组中文名，示例: %2").arg(m_zhByTitle.size()).arg(sample));
+}
+
+// ── MC 百科 class-id 索引（tools/gen_mcmod_map.py 生成；仅存 id/en/cf/mr 极简映射，不搬运百科内容）──
+void ResourceBackend::loadMcmodMap()
+{
+    const QString path = QStringLiteral(":/qt/qml/ShadowLauncher/qml/mcmod_map.json");
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) {
+        emit logMessage(tr("[百科] 打开 %1 失败: %2").arg(path, f.errorString()));
+        return;
+    }
+    QJsonParseError err{};
+    const QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &err);
+    f.close();
+    if (err.error != QJsonParseError::NoError || !doc.isArray()) {
+        emit logMessage(tr("[百科] 解析 %1 失败: %2").arg(path, err.errorString()));
+        return;
+    }
+    const QJsonArray arr = doc.array();
+    m_mcmodByEn.reserve(arr.size());
+    m_mcmodByCf.reserve(arr.size());
+    m_mcmodByMr.reserve(arr.size());
+    m_mcmodEnPairs.reserve(arr.size());
+    m_cfByEn.reserve(arr.size());
+    for (const QJsonValue& v : arr) {
+        const QJsonObject o = v.toObject();
+        const int id = o.value(QStringLiteral("id")).toInt();
+        if (id <= 0) continue;
+        const QString en = o.value(QStringLiteral("en")).toString().trimmed();
+        const QString cf = o.value(QStringLiteral("cf")).toString().trimmed().toLower();
+        const QString mr = o.value(QStringLiteral("mr")).toString().trimmed().toLower();
+        if (!en.isEmpty()) {
+            const QString key = normTitle(en);
+            if (!key.isEmpty()) {
+                if (!m_mcmodByEn.contains(key))
+                    m_mcmodByEn.insert(key, id);
+                m_mcmodEnPairs.append(qMakePair(key, id));
+                if (!cf.isEmpty() && !m_cfByEn.contains(key))
+                    m_cfByEn.insert(key, cf);
+            }
+        }
+        if (!cf.isEmpty() && !m_mcmodByCf.contains(cf))
+            m_mcmodByCf.insert(cf, id);
+        if (!mr.isEmpty() && !m_mcmodByMr.contains(mr))
+            m_mcmodByMr.insert(mr, id);
+    }
+    emit logMessage(tr("[百科] 已加载 %1 条 class-id 索引（en:%2/cf:%3/mr:%4）")
+                        .arg(arr.size()).arg(m_mcmodByEn.size())
+                        .arg(m_mcmodByCf.size()).arg(m_mcmodByMr.size()));
+}
+
+QString ResourceBackend::resolveMcmodUrl(const QString& title, const QString& slug) const
+{
+    const QString s = slug.trimmed();
+    // 1) Modrinth slug 精确（唯一稳定键）
+    if (!s.isEmpty() && !isDigits(s)) {
+        const auto it = m_mcmodByMr.constFind(s.toLower());
+        if (it != m_mcmodByMr.constEnd())
+            return QStringLiteral("https://www.mcmod.cn/class/%1.html").arg(it.value());
+    }
+    // 2) 英文名精确
+    const QString t = normTitle(title);
+    if (!t.isEmpty()) {
+        const auto eit = m_mcmodByEn.constFind(t);
+        if (eit != m_mcmodByEn.constEnd())
+            return QStringLiteral("https://www.mcmod.cn/class/%1.html").arg(eit.value());
+        // 3) 保守包含匹配：唯一候选才采用（硬规则：不确定的映射不凭空造，多义直接回退搜索）
+        if (t.size() >= 4) {
+            int matched = 0;
+            bool multi = false;
+            for (const auto& p : m_mcmodEnPairs) {
+                const QString& key = p.first;
+                if (key.isEmpty() || key.size() < 4) continue;
+                if (key.contains(t) || t.contains(key)) {
+                    if (matched == 0) matched = p.second;
+                    else if (matched != p.second) { multi = true; break; }
+                }
+            }
+            if (!multi && matched > 0)
+                return QStringLiteral("https://www.mcmod.cn/class/%1.html").arg(matched);
+        }
+    }
+    // 4) 回退搜索链接（中文名优先，否则英文名）
+    QString key = resolveModZh(title);
+    if (key.isEmpty()) key = title.trimmed();
+    return QStringLiteral("https://www.mcmod.cn/s?key=") + QString::fromUtf8(QUrl::toPercentEncoding(key));
+}
+
+QVariantMap ResourceBackend::resolveProjectLinks(const QString& title, const QString& slug, const QString& kind) const
+{
+    QVariantMap out;
+    out[QStringLiteral("mrUrl")]   = QString();
+    out[QStringLiteral("cfUrl")]   = QString();
+    out[QStringLiteral("mcmodUrl")] = QString();
+
+    const QString s = slug.trimmed();
+    if (s.isEmpty()) return out;
+
+    QString mrPath, cfPath;
+    if (kind == QLatin1String("mod"))            { mrPath = QStringLiteral("mod");           cfPath = QStringLiteral("mc-mods"); }
+    else if (kind == QLatin1String("resourcepack")) { mrPath = QStringLiteral("resourcepack"); cfPath = QStringLiteral("texture-packs"); }
+    else if (kind == QLatin1String("shader"))      { mrPath = QStringLiteral("shader");       cfPath = QStringLiteral("shaders"); }
+    else if (kind == QLatin1String("modpack"))     { mrPath = QStringLiteral("modpack");      cfPath = QStringLiteral("modpacks"); }
+    else if (kind == QLatin1String("datapack"))    { mrPath = QStringLiteral("datapack");     cfPath.clear(); }
+
+    const bool cf = isDigits(s);
+    if (cf) {
+        if (!cfPath.isEmpty()) {
+            // CurseForge 链接末尾应为字母 slug（如 mouse-tweaks），而非数字 id。
+            // 按标题在 mcmod_map 里反查字母 slug；查不到再退回数字 id（CF 仍会重定向）。
+            QString cfSlug;
+            const QString t = normTitle(title);
+            if (!t.isEmpty()) {
+                const auto it = m_cfByEn.constFind(t);
+                if (it != m_cfByEn.constEnd())
+                    cfSlug = it.value();
+            }
+            if (cfSlug.isEmpty())
+                cfSlug = s;
+            out[QStringLiteral("cfUrl")] =
+                QStringLiteral("https://www.curseforge.com/minecraft/%1/%2").arg(cfPath, cfSlug);
+        }
+    } else {
+        if (!mrPath.isEmpty())
+            out[QStringLiteral("mrUrl")] =
+                QStringLiteral("https://modrinth.com/%1/%2").arg(mrPath, s);
+    }
+
+    out[QStringLiteral("mcmodUrl")] = resolveMcmodUrl(title, s);
+    return out;
+}
+
+QString ResourceBackend::resolveZhQuery(const QString& query) const
+{
+    const QString q = query.trimmed();
+    if (q.isEmpty()) return {};
+    // 1) 精确命中优先（整词相等）
+    if (m_enByZh.contains(q))
+        return m_enByZh.value(q);
+    // 2) 前缀命中（zh 以输入开头，如"简单的"→"简单的语音聊天"），取最短译名（最贴近输入）
+    QString bestKey;
+    for (auto it = m_enByZh.constBegin(); it != m_enByZh.constEnd(); ++it) {
+        const QString& k = it.key();
+        if (k.startsWith(q) && (bestKey.isEmpty() || k.size() < bestKey.size()))
+            bestKey = k;
+    }
+    if (!bestKey.isEmpty())
+        return m_enByZh.value(bestKey);
+    // 3) 包含命中（zh 含输入，取最短），避免 QHash 随机顺序导致反推冷门/落空
+    for (auto it = m_enByZh.constBegin(); it != m_enByZh.constEnd(); ++it) {
+        const QString& k = it.key();
+        if (k.contains(q) && (bestKey.isEmpty() || k.size() < bestKey.size()))
+            bestKey = k;
+    }
+    if (!bestKey.isEmpty())
+        return m_enByZh.value(bestKey);
+    return {};
+}
+
+// 中文模糊：返回所有 zh/别名 匹配 query 的英文名（精确>前缀>包含，同层取最短译名）
+QStringList ResourceBackend::resolveZhQueries(const QString& query, int maxCount) const
+{
+    const QString q = query.trimmed();
+    QStringList out;
+    if (q.isEmpty() || maxCount <= 0) return out;
+    struct Cand { QString zh; QString en; int rank; };  // rank 越小越贴近输入
+    QList<Cand> cands;
+    QSet<QString> seenEn;
+    for (auto it = m_enByZh.constBegin(); it != m_enByZh.constEnd(); ++it) {
+        const QString& k = it.key();
+        const QString& en = it.value();
+        if (seenEn.contains(en)) continue;
+        int rank = -1;
+        if (k == q)            rank = 0;   // 精确
+        else if (k.startsWith(q)) rank = 1;   // 前缀
+        else if (k.contains(q))   rank = 2;   // 包含
+        if (rank < 0) continue;
+        cands.append({k, en, rank});
+        seenEn.insert(en);
+    }
+    std::sort(cands.begin(), cands.end(), [](const Cand& a, const Cand& b) {
+        if (a.rank != b.rank) return a.rank < b.rank;
+        if (a.zh.size() != b.zh.size()) return a.zh.size() < b.zh.size();
+        return a.en < b.en;
+    });
+    const int n = qMin(cands.size(), maxCount);
+    out.reserve(n);
+    for (int i = 0; i < n; ++i)
+        out << cands[i].en;
+    return out;
+}
+
+// 汉化反查：英文名 → 中文名（无中文或与英文相同则返回空，供 QML 依赖卡/详情标题用）
+QString ResourceBackend::resolveModZh(const QString& title) const
+{
+    if (title.isEmpty()) return {};
+    const QString zh = m_zhByTitle.value(normTitle(title));
+    return (zh.isEmpty() || zh == title) ? QString() : zh;
+}
 
 void ResourceBackend::setFetchEngine(ResourceFetchEngine* e)
 {
@@ -216,7 +487,26 @@ void ResourceBackend::searchModsEx(const QString& query, const QString& loader,
     // ═══ 池子架构（对齐 主流启动器）：双源结果累积成池，翻页时续拉合并 ═══
     // 页与页之间保持全局加权排序连续性：池 = 已拉双源的去重+加权排序全量。
     m_searchKind = SearchKind::Mod;
-    const QString key = query + QLatin1Char('|') + loader + QLatin1Char('|') + category
+    // 中文搜索词 → 查汉化表反推英文名（Modrinth/CF 搜索接口不识别中文昵称）
+    QString effQuery = query;
+    if (containsCjk(query)) {
+        const QStringList ens = resolveZhQueries(query, 20);
+        // 多候选 → 聚合搜索（多英文名并发搜后合并，实现片段词出多结果）；CF-only 不支持中文反推，退普通
+        if (!sourceIsCfOnly(source) && ens.size() > 1) {
+            emit logMessage(tr("[搜索] 中文“%1”命中 %2 个候选，聚合搜索").arg(query).arg(ens.size()));
+            // 记录聚合搜索 key（中文原词+条件），否则「重置/后续搜索」因 key 未变而跳过池子重置 → 列表停留在旧聚合结果
+            m_modSearchKey = query + QLatin1Char('|') + loader + QLatin1Char('|') + category
+                           + QLatin1Char('|') + gameVersions.join(QLatin1Char(',')) + QLatin1Char('|')
+                           + environment + QLatin1Char('|') + license + QLatin1Char('|') + source;
+            startZhAggregatedModSearch(ens, query, loader, category, gameVersions, environment, license, page, limit);
+            return;
+        }
+        const QString en = resolveZhQuery(query);
+        if (!en.isEmpty()) { effQuery = en; emit logMessage(tr("[搜索] 中文“%1”→英文“%2”").arg(query, en)); }
+        else emit logMessage(tr("[搜索] 中文“%1”未命中汉化表，原样搜索").arg(query));
+    }
+    emit logMessage(tr("[搜索] searchModsEx 入口 q=“%1” eff=“%2”").arg(query, effQuery));
+    const QString key = effQuery + QLatin1Char('|') + loader + QLatin1Char('|') + category
                       + QLatin1Char('|') + gameVersions.join(QLatin1Char(',')) + QLatin1Char('|')
                       + environment + QLatin1Char('|') + license + QLatin1Char('|') + source;
     m_modSearchPage = limit > 0 ? page / limit : 0;   // QML 传 offset，换算成页号
@@ -234,7 +524,7 @@ void ResourceBackend::searchModsEx(const QString& query, const QString& loader,
         ? true : (sourceIsCfOnly(source) ? false : (filterMrOnly || (!cfOnly && !category.isEmpty())));
     m_modSearchCfOnly = cfOnlyEffective;
     m_modSearchMrOnly = mrOnly;
-    m_modSearchQuery = query;
+    m_modSearchQuery = effQuery;
     m_modSearchLoader = loader;
     m_modSearchCategory = category;
     m_modSearchEnv = environment;
@@ -259,7 +549,7 @@ void ResourceBackend::searchModsEx(const QString& query, const QString& loader,
     }
 
     // 确保池子足够显示目标页（池不够 → 双源续拉；池够 → 直接发）
-    ensureModPool(m_modSearchCfOnly, m_modSearchMrOnly, query, loader, category, gameVersions, environment, license);
+    ensureModPool(m_modSearchCfOnly, m_modSearchMrOnly, effQuery, loader, category, gameVersions, environment, license);
 }
 
 // 池子驱动：Mod 双源续拉 + 合并 + 发信号
@@ -328,7 +618,8 @@ void ResourceBackend::ensureModPool(bool cfOnly, bool mrOnly,
                             QJsonDocument(facetArr).toJson(QJsonDocument::Compact));
         params.addQueryItem(QStringLiteral("offset"), QString::number(m_modMrOffset));
         params.addQueryItem(QStringLiteral("limit"), QString::number(m_modSearchLimit));
-        params.addQueryItem(QStringLiteral("index"), QStringLiteral("downloads"));
+        // 有搜索词用 relevance（标题+简介相关度，简介也纳入搜索），无搜索词回到下载量排序
+        params.addQueryItem(QStringLiteral("index"), query.isEmpty() ? QStringLiteral("downloads") : QStringLiteral("relevance"));
         url.setQuery(params);
         ++m_modPending;
         const auto onMrOk = [this, gen, url](int status, const QByteArray& body) {
@@ -440,7 +731,7 @@ void ResourceBackend::onModSourceDone(int gen)
     // ═══ 冻结区 + 候选区：已显示的前 shownCount 条永不重排 ═══
     // 已显示部分（QML 已渲染的页）保持原序 → 滚动/切页不闪动；
     // 只有未显示的候选区会因新数据重排（用户看不到变化，无感知）。
-    const QVariantList mergedPool = mergePoolFreezeZone(m_modPool, m_modMrAll, m_modCfAll, m_modShownCount, 2.5);
+    const QVariantList mergedPool = mergePoolFreezeZone(m_modPool, m_modMrAll, m_modCfAll, m_modShownCount, 2.5, m_modSearchQuery);
     const int frozenCount = qMin(m_modShownCount, m_modPool.size());
     m_modPool = mergedPool;
     emit logMessage(tr("[池子] Mod 合并: 冻结 %1 + 候选 %2 → 池 %3 条")
@@ -463,7 +754,122 @@ void ResourceBackend::emitModPool()
     const int shown = (m_modSearchPage + 1) * m_modSearchLimit;
     if (shown > m_modShownCount)
         m_modShownCount = qMin(shown, m_modPool.size());
+    // 附加中文名（zh != 英文名才附加，避免 "Fabric API（Fabric API）" 这类重复）
+    int zhCount = 0;
+    if (!m_zhByTitle.isEmpty()) {
+        for (QVariant& v : m_modPool) {
+            QVariantMap m = v.toMap();
+            const QString title = m.value(QStringLiteral("title")).toString();
+            const QString zh = m_zhByTitle.value(normTitle(title));
+            if (!zh.isEmpty() && zh != title) { m[QStringLiteral("zh")] = zh; ++zhCount; }
+            else m.remove(QStringLiteral("zh"));
+            v = m;
+        }
+    }
+    emit logMessage(tr("[汉化] emitModPool 池=%1 条，附加中文=%2 条，表=%3 条")
+                        .arg(m_modPool.size()).arg(zhCount).arg(m_zhByTitle.size()));
     emit modSearchResultsReady(m_modPool);
+}
+
+// ── 中文多候选聚合搜索：多个英文名并发搜 Modrinth，全部回后合并去重 ──
+// （中文词 → 本地模糊命中 N 个英文名 → 逐个 relevance 搜 → 合并展示，实现"片段词出多结果"）
+void ResourceBackend::startZhAggregatedModSearch(const QStringList& ens, const QString& origQuery,
+    const QString& loader, const QString& category, const QStringList& gameVersions,
+    const QString& environment, const QString& license, int page, int limit)
+{
+    ++m_searchGen;
+    const int gen = m_searchGen;
+    m_searchKind = SearchKind::Mod;
+    m_modPool.clear();
+    m_modMrAll.clear();
+    m_modCfAll.clear();
+    m_modMrOffset = 0;  m_modCfOffset = 0;
+    m_modMrMore = false; m_modCfMore = false;
+    m_modShownCount = 0;
+    m_modSearchLimit = qMax(1, limit);
+    m_modSearchPage = m_modSearchLimit > 0 ? page / m_modSearchLimit : 0;
+    m_modSearchQuery = origQuery;
+
+    // facet（对齐 ensureModPool 的 Modrinth 侧）
+    QStringList loaders;
+    if (!loader.isEmpty()) loaders << loader;
+    QJsonArray facetArr;
+    facetArr.append(QJsonArray{QStringLiteral("project_type:mod")});
+    if (!category.isEmpty() && !CfApi::isCfCategory(category))
+        facetArr.append(QJsonArray{QStringLiteral("categories:") + category});
+    if (!gameVersions.isEmpty()) {
+        QJsonArray verGroup;
+        for (const QString& v : gameVersions)
+            verGroup.append(QStringLiteral("versions:") + v);
+        facetArr.append(verGroup);
+    }
+    if (!environment.isEmpty()) {
+        if (environment == QStringLiteral("client"))
+            facetArr.append(QJsonArray{QStringLiteral("client_side:required")});
+        else if (environment == QStringLiteral("server"))
+            facetArr.append(QJsonArray{QStringLiteral("server_side:required")});
+    }
+    if (license == QStringLiteral("open_source")) {
+        QJsonArray licGroup;
+        const char* lics[] = {"license:mit","license:gpl-3.0","license:lgpl-3.0","license:apache-2.0","license:mpl-2.0","license:bsd-3-clause","license:unlicense"};
+        for (const char* l : lics) licGroup.append(QString::fromLatin1(l));
+        facetArr.append(licGroup);
+    }
+    if (!loaders.isEmpty()) {
+        QJsonArray ldGroup;
+        for (const QString& l : loaders)
+            ldGroup.append(QStringLiteral("categories:") + l);
+        facetArr.append(ldGroup);
+    }
+
+    const int K = qMin(ens.size(), 20);          // 最多聚合 20 个英文名
+    const int perLimit = qMin(m_modSearchLimit, 10);  // 每个英文名取其相关前 10
+    m_modPending = K;
+    m_modMgr->setBusy(true);
+
+    for (int i = 0; i < K; ++i) {
+        QUrl url(QStringLiteral("https://mod.mcimirror.top/modrinth/v2/search"));
+        QUrlQuery params;
+        params.addQueryItem(QStringLiteral("query"), ens[i]);
+        params.addQueryItem(QStringLiteral("facets"),
+                            QJsonDocument(facetArr).toJson(QJsonDocument::Compact));
+        params.addQueryItem(QStringLiteral("offset"), QStringLiteral("0"));
+        params.addQueryItem(QStringLiteral("limit"), QString::number(perLimit));
+        params.addQueryItem(QStringLiteral("index"), QStringLiteral("relevance"));
+        url.setQuery(params);
+        const auto onOk = [this, gen](int status, const QByteArray& body) {
+            if (gen != m_searchGen) return;
+            if (status == 200) {
+                int total = 0;
+                QJsonArray results = m_modMgr->parseSearchResponse(body, total);
+                m_modMrAll.append(parseSearchResponseItems(results));
+            }
+            if (--m_modPending <= 0) finishZhAggregatedModSearch(gen);
+        };
+        const auto onFail = [this, gen](const QString&) {
+            if (gen != m_searchGen) return;
+            if (--m_modPending <= 0) finishZhAggregatedModSearch(gen);
+        };
+        if (m_fetchEngine)
+            m_fetchEngine->getJson(url.toString(), true, onOk, onFail);
+        else
+            HttpClient::instance().get(url.toString(), onOk, onFail);
+    }
+    // 兜底：8s 未全回 → 用已回结果先出
+    QTimer::singleShot(8000, this, [this, gen]() {
+        if (gen != m_searchGen) return;
+        if (m_modPending > 0) { m_modPending = 0; finishZhAggregatedModSearch(gen); }
+    });
+}
+
+void ResourceBackend::finishZhAggregatedModSearch(int gen)
+{
+    if (gen != m_searchGen) return;
+    m_modMgr->setBusy(false);
+    // 中文原词无法用于英文标题相关度排序 → 退化为加权下载量排序（mrMult 2.5 与主搜索一致）
+    m_modPool = mergeDedupSorted(m_modMrAll, {}, 2.5);
+    emit logMessage(tr("[搜索] 中文聚合：合并 %1 条结果").arg(m_modPool.size()));
+    emitModPool();
 }
 
 
@@ -667,7 +1073,7 @@ void ResourceBackend::ensureShaderPool()
                             QJsonDocument(facetArr).toJson(QJsonDocument::Compact));
         params.addQueryItem(QStringLiteral("offset"), QString::number(m_shaderMrOffset));
         params.addQueryItem(QStringLiteral("limit"), QString::number(m_shaderSearchLimit));
-        params.addQueryItem(QStringLiteral("index"), QStringLiteral("downloads"));
+        params.addQueryItem(QStringLiteral("index"), query.isEmpty() ? QStringLiteral("downloads") : QStringLiteral("relevance"));
         url.setQuery(params);
         ++m_shaderPending;
         const auto onMrOk = [this, gen, url](int status, const QByteArray& body) {
@@ -894,7 +1300,7 @@ void ResourceBackend::ensureRpPool()
         params.addQueryItem(QStringLiteral("facets"), QJsonDocument(facetArr).toJson(QJsonDocument::Compact));
         params.addQueryItem(QStringLiteral("offset"), QString::number(m_rpMrOffset));
         params.addQueryItem(QStringLiteral("limit"), QString::number(m_rpSearchLimit));
-        params.addQueryItem(QStringLiteral("index"), QStringLiteral("downloads"));
+        params.addQueryItem(QStringLiteral("index"), query.isEmpty() ? QStringLiteral("downloads") : QStringLiteral("relevance"));
         url.setQuery(params);
         ++m_rpPending;
         const auto onRpOk = [this, gen, url](int status, const QByteArray& body) {
@@ -1144,7 +1550,7 @@ void ResourceBackend::ensurePackPool()
                             QJsonDocument(facetArr).toJson(QJsonDocument::Compact));
         params.addQueryItem(QStringLiteral("offset"), QString::number(m_packMrOffset));
         params.addQueryItem(QStringLiteral("limit"), QString::number(m_packSearchLimit));
-        params.addQueryItem(QStringLiteral("index"), QStringLiteral("downloads"));
+        params.addQueryItem(QStringLiteral("index"), query.isEmpty() ? QStringLiteral("downloads") : QStringLiteral("relevance"));
         url.setQuery(params);
         ++m_packPending;
         const auto onMrOk = [this, gen, url](int status, const QByteArray& body) {
@@ -1703,6 +2109,22 @@ void ResourceBackend::resolveCfDependencies(const QString& modId, const QVariant
                 if (ta == tb) return false;
                 return ta == QStringLiteral("required");
             });
+        // 补中文名：CF 依赖结果无 zh，用汉化表反查英文 title（与 Modrinth 依赖卡一致）
+        for (QVariant& v : list) {
+            QVariantMap m = v.toMap();
+            const QString title = m.value(QStringLiteral("title")).toString();
+            const QString zh = m_zhByTitle.value(normTitle(title));
+            if (!zh.isEmpty() && zh != title) m[QStringLiteral("zh")] = zh;
+            else m.remove(QStringLiteral("zh"));
+            // 图标 CDN 换镜像域名（与列表卡一致，否则部分图标直连 cdn.modrinth.com 失败）
+            QString icon = m.value(QStringLiteral("icon_url")).toString();
+            if (!icon.isEmpty()) {
+                icon.replace(QStringLiteral("cdn.modrinth.com"), QStringLiteral("mod.mcimirror.top"));
+                icon.replace(QStringLiteral("cdn-alt.modrinth.com"), QStringLiteral("mod.mcimirror.top"));
+                m[QStringLiteral("icon_url")] = icon;
+            }
+            v = m;
+        }
         emit cfDependenciesResolved(modId, list);
     };
 

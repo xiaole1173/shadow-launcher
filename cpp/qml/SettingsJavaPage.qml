@@ -260,8 +260,8 @@ Item {
                     wrapMode: TextEdit.Wrap; selectByMouse: true
                     activeFocusOnPress: true
                     onFocusChanged: root._jvmFocused = focus
-                    onTextChanged: root._validateJvmArgs(text)
-                    onEditingFinished: {
+                    onTextChanged: {
+                        root._validateJvmArgs(text)
                         if (backend) backend.setJvmArgs(text)
                     }
 
@@ -374,7 +374,7 @@ Item {
                     font.family: StyleTokens.fontFamilyMono
                     text: backend ? backend.gameArgs || "" : ""
                     activeFocusOnPress: true
-                    onEditingFinished: { if (backend) backend.setGameArgs(text) }
+                    onTextEdited: { if (backend) backend.setGameArgs(text) }
                 }
             }
 

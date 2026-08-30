@@ -2868,6 +2868,14 @@ void ShadowBackend::fetchCfDependencies(const QString& modId) {
     m_resource->fetchCfDependencies(modId);
 }
 
+QString ShadowBackend::resolveModZh(const QString& title) const {
+    return m_resource->resolveModZh(title);
+}
+
+QVariantMap ShadowBackend::resolveProjectLinks(const QString& title, const QString& slug, const QString& kind) const {
+    return m_resource->resolveProjectLinks(title, slug, kind);
+}
+
 // ── 整合包：双源搜索 / 详情版本 / 下载→自动导入 ──
 void ShadowBackend::searchModpacksEx(const QString& query, const QString& loader,
     const QString& category, const QStringList& gameVersions,
@@ -4618,6 +4626,38 @@ bool ShadowBackend::validateBetaKey(const QString& key, QString* outError)
 void ShadowBackend::logUiMsg(const QString& msg)
 {
     qCInfo(logUI) << msg;
+}
+
+// ── UI 一次性标记（QSettings 持久化；2026-08-24 v1.0.1 一次性启动公告 toast 用）──
+bool ShadowBackend::readUiFlag(const QString& key) const
+{
+    if (key.isEmpty()) return false;
+    QSettings s(QCoreApplication::organizationName(),
+                QCoreApplication::applicationName());
+    return s.value(QStringLiteral("ui/flags/") + key, false).toBool();
+}
+
+void ShadowBackend::writeUiFlag(const QString& key, bool value)
+{
+    if (key.isEmpty()) return;
+    QSettings s(QCoreApplication::organizationName(),
+                QCoreApplication::applicationName());
+    s.setValue(QStringLiteral("ui/flags/") + key, value);
+}
+
+// ── 更新后首次启动判定（2026-08-25）──
+// SLUpdater 完成替换后、新版本首次启动时，main_release.cpp 会在 exe 目录写 .just_updated
+// 标记；本方法消费该标记（存在即删），返回 true 表示本次是"更新后首次启动"。
+bool ShadowBackend::consumeJustUpdatedFlag()
+{
+    const QString marker = QCoreApplication::applicationDirPath()
+                           + QStringLiteral("/.just_updated");
+    const bool existed = QFile::exists(marker);
+    if (existed)
+        QFile::remove(marker);
+    if (existed)
+        qCInfo(logUI) << "本次为更新后首次启动（已消费 .just_updated 标记）";
+    return existed;
 }
 
 int ShadowBackend::diagAutoLangComboIdx() const

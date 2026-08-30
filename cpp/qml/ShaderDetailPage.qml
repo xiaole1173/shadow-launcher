@@ -35,15 +35,37 @@ Rectangle {
     property var shaderDetailVersionMap: ({})
     property var pendingShaderDownload: ({})
 
+    // ── 详情页跳转/复制按钮（统一胶囊）──
+    property var _linkItems: []
+    property var _copyItems: []
+    function refreshLinks() {
+        if (!backend || !shaderDetailSlug) { _linkItems = []; _copyItems = []; return }
+        var r = backend.resolveProjectLinks(shaderDetailTitle, shaderDetailSlug, "shader")
+        var links = []
+        if (r.mrUrl) links.push({ label: "Modrinth", url: r.mrUrl })
+        if (r.cfUrl) links.push({ label: "CurseForge", url: r.cfUrl })
+        var name = shaderDetailTitle || shaderDetailSlug
+        var zh = backend.resolveModZh(shaderDetailTitle)
+        if (zh && zh !== name) name = zh + " " + name
+        _linkItems = links
+        _copyItems = [
+            { label: "复制名称", text: name }
+        ]
+    }
+    onShaderDetailTitleChanged: if (backend) refreshLinks()
+
     signal goBack()
 
     // ── Trigger version fetch ──
     onShaderDetailSlugChanged: {
+        refreshLinks()
         if (shaderDetailSlug && backend) {
             shaderDetailLoading = true
             shaderDetailRawVersions = []
             shaderDetailVersionMap = {}
             expandedGroups = []
+            _groupedCache = []
+            _versionListEnter = false
             // CurseForge 光影（slug 为纯数字 modId）
             if (/^\d+$/.test(shaderDetailSlug)) {
                 backend.fetchShaderVersionsCf(shaderDetailSlug)
@@ -82,38 +104,49 @@ Rectangle {
         return s.charAt(0).toUpperCase() + s.slice(1)
     }
 
-    // ── Group versions by MC major.minor ──
-    property var grouped: {
-        var groups = {}
-        var raw = shaderDetailRawVersions || []
-        var map = shaderDetailVersionMap || {}
-        for (var i = 0; i < raw.length; i++) {
-            var v = raw[i]
-            var d = map[v]
-            var gvs = d ? (d.gameVersions || []) : []
-            if (gvs.length === 0) gvs = [v]
-            var base = stripSuffix(gvs[0] || v)
-            var parts = base.split(".")
-            var major = parts.length >= 2 ? parts[0] + "." + parts[1] : base
-            if (!groups[major]) groups[major] = []
-            groups[major].push(v)
-        }
-        for (var k in groups) {
-            groups[k].sort(function(a,b){
-                var da = getVersionDetail(a); var db = getVersionDetail(b)
-                var dateA = da ? da.date : ""; var dateB = db ? db.date : ""
-                if (dateA > dateB) return -1; if (dateA < dateB) return 1; return 0
+    // ── 2026-08-23：grouped 改异步分组（防大量版本同步卡主线程）──
+    property var grouped: _groupedCache
+    property var _groupedCache: []
+    property bool _groupedComputing: false
+    property bool _versionListEnter: false
+
+    function _rebuildGrouped() {
+        if (_groupedComputing) return
+        _groupedComputing = true
+        Qt.callLater(function() {
+            _groupedComputing = false
+            var groups = {}
+            var raw = shaderDetailRawVersions || []
+            var map = shaderDetailVersionMap || {}
+            for (var i = 0; i < raw.length; i++) {
+                var v = raw[i]
+                var d = map[v]
+                var gvs = d ? (d.gameVersions || []) : []
+                if (gvs.length === 0) gvs = [v]
+                var base = stripSuffix(gvs[0] || v)
+                var parts = base.split(".")
+                var major = parts.length >= 2 ? parts[0] + "." + parts[1] : base
+                if (!groups[major]) groups[major] = []
+                groups[major].push(v)
+            }
+            for (var k in groups) {
+                groups[k].sort(function(a,b){
+                    var da = getVersionDetail(a); var db = getVersionDetail(b)
+                    var dateA = da ? da.date : ""; var dateB = db ? db.date : ""
+                    if (dateA > dateB) return -1; if (dateA < dateB) return 1; return 0
+                })
+            }
+            var result = []
+            for (var kk in groups) { result.push({major: kk, versions: groups[kk]}) }
+            result.sort(function(a,b){
+                var as = a.major.split("."), bs = b.major.split(".")
+                var am = parseInt(as[0])||0, bm = parseInt(bs[0])||0
+                if (am !== bm) return bm - am
+                return (parseInt(bs[1])||0) - (parseInt(as[1])||0)
             })
-        }
-        var result = []
-        for (var kk in groups) { result.push({major: kk, versions: groups[kk]}) }
-        result.sort(function(a,b){
-            var as = a.major.split("."), bs = b.major.split(".")
-            var am = parseInt(as[0])||0, bm = parseInt(bs[0])||0
-            if (am !== bm) return bm - am
-            return (parseInt(bs[1])||0) - (parseInt(as[1])||0)
+            _groupedCache = result
+            if (raw.length > 0) _versionListEnter = true
         })
-        return result
     }
     property var expandedGroups: []
 
@@ -192,6 +225,15 @@ Rectangle {
                         }
                     }
                 }
+
+                // ── 跳转 / 复制按钮（置于卡片内）──
+                DetailLinkBar {
+                    Layout.fillWidth: true
+                    backend: root.backend
+                    toastManager: root.toastManager
+                    links: root._linkItems
+                    copyItems: root._copyItems
+                }
             }
 
             // ── Loading ──
@@ -243,84 +285,131 @@ Rectangle {
 
             // ── Version List Section ──
             Text {
-                visible: !shaderDetailLoading && grouped.length > 0
+                visible: _versionListEnter
+                opacity: _versionListEnter ? 1 : 0
+                Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
                 text: qsTr("版本列表")
                 font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold; color: "#a0a8c0"
                 Layout.topMargin: 8; Layout.leftMargin: 4
             }
 
-            // ── Version groups ──
-            Repeater {
-                model: !shaderDetailLoading ? grouped : []
-                delegate: ExpandableGroupCard {
-                    Layout.fillWidth: true
-                    title: "MC " + modelData.major
-                    subtitle: modelData.versions.length + " 个版本"
-                    expanded: isExpanded(modelData.major)
-                    onToggled: toggleGroup(modelData.major)
+            // ── Version groups（懒渲染 + 错峰入场）──
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 8
+                visible: _versionListEnter
 
-                    Repeater {
-                        model: modelData.versions
-                        delegate: DetailVersionCard {
-                            width: parent.width - 24
-                            x: 24
-                            versionLabel: {
-                                var d = getVersionDetail(modelData)
-                                return d ? d.versionNumber : modelData
-                            }
+                Repeater {
+                    model: !shaderDetailLoading ? grouped : []
+                    delegate: ExpandableGroupCard {
+                        id: groupCard
+                        Layout.fillWidth: true
+                        title: "MC " + modelData.major
+                        subtitle: modelData.versions.length + " 个版本"
+                        expanded: isExpanded(modelData.major)
+                        onToggled: toggleGroup(modelData.major)
 
-                            tags: {
-                                var result = []
-                                var d = getVersionDetail(modelData)
-                                if (d && d.loaders) {
-                                    for (var li = 0; li < d.loaders.length; li++) {
-                                        result.push({text: root.capLoader(d.loaders[li]), color: StyleTokens.accentLink, bg: StyleTokens.accentSubtle})
+                        property int _visibleCount: 30
+                        readonly property int _totalCount: modelData.versions.length
+                        readonly property bool _hasMore: _visibleCount < _totalCount
+
+                        opacity: 0
+                        Timer {
+                            interval: index * 80 + 100
+                            running: _versionListEnter
+                            repeat: false
+                            onTriggered: groupCard.opacity = 1
+                        }
+                        Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutBack; easing.overshoot: 0.2 } }
+
+                        Repeater {
+                            model: groupCard.expanded ? modelData.versions.slice(0, groupCard._visibleCount) : []
+                            delegate: DetailVersionCard {
+                                width: parent.width - 24
+                                x: 24
+                                versionLabel: {
+                                    var d = getVersionDetail(modelData)
+                                    return d ? d.versionNumber : modelData
+                                }
+
+                                tags: {
+                                    var result = []
+                                    var d = getVersionDetail(modelData)
+                                    if (d && d.loaders) {
+                                        for (var li = 0; li < d.loaders.length; li++) {
+                                            result.push({text: root.capLoader(d.loaders[li]), color: StyleTokens.accentLink, bg: StyleTokens.accentSubtle})
+                                        }
                                     }
+                                    var pr = preReleaseTag(modelData)
+                                    if (pr) result.push({text: pr, color: "#d0a050", bg: "#382818"})
+                                    return result
                                 }
-                                var pr = preReleaseTag(modelData)
-                                if (pr) result.push({text: pr, color: "#d0a050", bg: "#382818"})
-                                return result
-                            }
 
-                            infoLines: {
-                                var d = getVersionDetail(modelData)
-                                return [
-                                    { label: "MC:", value: d ? (d.gameVersions || [modelData]).join(", ") : modelData },
-                                    { label: "", value: formatDate(d ? d.date : "") + "  |  下载量 " + formatDL(d ? d.downloads : 0) }
-                                ]
-                            }
+                                infoLines: {
+                                    var d = getVersionDetail(modelData)
+                                    return [
+                                        { label: "MC:", value: d ? (d.gameVersions || [modelData]).join(", ") : modelData },
+                                        { label: "", value: formatDate(d ? d.date : "") + "  |  下载量 " + formatDL(d ? d.downloads : 0) }
+                                    ]
+                                }
 
-                            hasDownload: true
-                            onDownloadClicked: {
-                                var d = getVersionDetail(modelData)
-                                if (!d || !d.url) {
-                                    if (toastManager) toastManager.show("无法获取下载地址")
-                                    return
+                                hasDownload: true
+                                onDownloadClicked: {
+                                    var d = getVersionDetail(modelData)
+                                    if (!d || !d.url) {
+                                        if (toastManager) toastManager.show("无法获取下载地址")
+                                        return
+                                    }
+                                    var vn = d.versionNumber || modelData
+                                    var safeTitle = (shaderDetailTitle || shaderDetailSlug || "shader").replace(/[\\\/:*?"<>|]/g, "_").replace(/\s+/g, "_")
+                                    var ext = (d.url && d.url.match(/\.(zip|jar)$/i)) ? d.url.match(/\.(zip|jar)$/i)[1] : "zip"
+                                    var fn = safeTitle + "-" + vn + "." + ext
+                                    var mineDir = String(backend ? (backend.minecraftDir || "") : "")
+                                    var defaultPath = mineDir ? (mineDir.replace(/\\+$/, "") + "/" + fn) : fn
+                                    pendingShaderDownload = {
+                                        slug: shaderDetailSlug, title: shaderDetailTitle || shaderDetailSlug,
+                                        versionNumber: vn, url: d.url, filename: fn,
+                                        size: d.size || 0, sha1: d.sha1 || "",
+                                        defaultPath: defaultPath,
+                                        displayName: (shaderDetailTitle || shaderDetailSlug) + " " + vn
+                                    }
+                                    // 默认定位到 versions 文件夹，方便用户选择安装到的游戏版本
+                                    var versionsFolder = backend ? backend.gameDir + "/versions" : "."
+                                    shaderFileDialog.currentFolder = "file:///" + versionsFolder.replace(/\\/g, "/")
+                                    shaderFileDialog.currentFile = "file:///" + defaultPath.replace(/\\/g, "/")
+                                    shaderFileDialog.open()
                                 }
-                                var vn = d.versionNumber || modelData
-                                var safeTitle = (shaderDetailTitle || shaderDetailSlug || "shader").replace(/[\\\/:*?"<>|]/g, "_").replace(/\s+/g, "_")
-                                var ext = (d.url && d.url.match(/\.(zip|jar)$/i)) ? d.url.match(/\.(zip|jar)$/i)[1] : "zip"
-                                var fn = safeTitle + "-" + vn + "." + ext
-                                var mineDir = String(backend ? (backend.minecraftDir || "") : "")
-                                var defaultPath = mineDir ? (mineDir.replace(/\\+$/, "") + "/" + fn) : fn
-                                pendingShaderDownload = {
-                                    slug: shaderDetailSlug, title: shaderDetailTitle || shaderDetailSlug,
-                                    versionNumber: vn, url: d.url, filename: fn,
-                                    size: d.size || 0, sha1: d.sha1 || "",
-                                    defaultPath: defaultPath,
-                                    displayName: (shaderDetailTitle || shaderDetailSlug) + " " + vn
-                                }
-                                // 默认定位到 versions 文件夹，方便用户选择安装到的游戏版本
-                                var versionsFolder = backend ? backend.gameDir + "/versions" : "."
-                                shaderFileDialog.currentFolder = "file:///" + versionsFolder.replace(/\\/g, "/")
-                                shaderFileDialog.currentFile = "file:///" + defaultPath.replace(/\\/g, "/")
-                                shaderFileDialog.open()
+                            }
+                        }
+
+                        // ── 懒渲染：还有 X 个版本 ──
+                        Rectangle {
+                            visible: groupCard.expanded && groupCard._hasMore
+                            width: parent.width - 48
+                            x: 24
+                            height: 30
+                            radius: StyleTokens.radiusMd
+                            color: moreHov.containsMouse ? "#3a50b0" : "transparent"
+                            border.color: "#2a3a68"
+                            border.width: 1
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                            Text {
+                                anchors.centerIn: parent
+                                text: "还有 " + (groupCard._totalCount - groupCard._visibleCount) + " 个版本"
+                                color: moreHov.containsMouse ? StyleTokens.accentLink : StyleTokens.textMuted
+                                font.pixelSize: StyleTokens.fontSizeSm
+                            }
+                            MouseArea {
+                                id: moreHov
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: { groupCard._visibleCount += 50 }
                             }
                         }
                     }
                 }
             }
-
             Item { Layout.fillWidth: true; height: 40 }
         }
     }
@@ -374,6 +463,7 @@ Rectangle {
             root.shaderDetailRawVersions = arr
             root.shaderDetailVersionMap = map
             verCountText._displayCount = arr.length
+            root._rebuildGrouped()
         }
         function onShaderVersionsProgress(done, total) {
             if (root.shaderDetailSlug === "") return

@@ -283,8 +283,8 @@ void UpdateManager::doCheck()
                             startFullDl();
                         }
                     },
-                    [startFullDl](const QString&) { startFullDl(); }
-                );
+                    [startFullDl](const QString&) { startFullDl(); },
+                    false);
             } else {
                 qCInfo(logApp) << "[UpdateManager] 无 compat.json，全量下载";
                 startFullDl();
@@ -296,8 +296,8 @@ void UpdateManager::doCheck()
                 emit toastMessage(tr("网络连接失败，请稍后重试"));
             setState(Idle);
             emit checkCompleted(false, QString());
-        }
-    );
+        },
+        false);
 }
 
 void UpdateManager::onCompatJsonReady(const QByteArray& body, const QString& tagName)

@@ -186,10 +186,13 @@ void JavaRuntimeInstaller::runInstallAfterScan()
     }
 
     // 安装清单：{版本, 类型, 标签}（成员 m_planItems，异步回调需要）
+    // ── 2026-08-17：全部改 JDK（JRE 裁剪了 jdk.crypto.ec 等模块，NeoForge 1.21.8+
+    //    认证库 com.nimbusds.jose.jwt 依赖 EC 模块，JRE 缺失会导致启动崩溃
+    //    "Module jdk.crypto.ec not found"。JDK 包含全部模块，一劳永逸。）
     m_planItems = {
-        { 8,  QStringLiteral("jre"), QStringLiteral("Java 8 (JRE)") },
-        { 17, QStringLiteral("jre"), QStringLiteral("Java 17 (JRE)") },
-        { 25, QStringLiteral("jre"), QStringLiteral("Java 25 (JRE)") },
+        { 8,  QStringLiteral("jdk"), QStringLiteral("Java 8 (JDK)") },
+        { 17, QStringLiteral("jdk"), QStringLiteral("Java 17 (JDK)") },
+        { 25, QStringLiteral("jdk"), QStringLiteral("Java 25 (JDK)") },
     };
     m_installedCount = 0;
     m_skippedCount = 0;
@@ -530,15 +533,47 @@ bool JavaRuntimeInstaller::isSpecialPath(const QString& binDir)
 
 bool JavaRuntimeInstaller::isRequired(int major, bool targetIsJdk) const
 {
-    Q_UNUSED(targetIsJdk)
-    // 规则：已有同 major 任意类型 → 不需要。
-    // JRE 已满足运行场景（游戏/Forge 安装器都只是跑 jar），
-    // 只有该 major 完全缺失时才安装。
+    // ── 2026-08-18：JRE 完整即满足，只有缺损 JRE 才需要 JDK ──
+    // 判断标准：JRE/JDK 必须含 jdk.crypto.ec 模块（NeoForge 1.21.8+ 认证库
+    // com.nimbusds.jose.jwt 依赖 EC 加密）。Adoptium JRE 被裁剪了该模块
+    // （--list-modules 仅 49 个，无 crypto.ec），用户已装的完整版 JRE
+    // （含 crypto.ec）无需再装 JDK。
     for (const auto& entry : m_detectedJavas) {
-        if (entry.toMap().value(QStringLiteral("major")).toInt() == major)
-            return false;
+        const QVariantMap e = entry.toMap();
+        if (e.value(QStringLiteral("major")).toInt() != major)
+            continue;
+        const QString path = e.value(QStringLiteral("path")).toString();
+        if (path.isEmpty()) continue;
+        if (targetIsJdk) {
+            // 目标 JDK：已有 JDK 或完整 JRE 都算满足
+            if (e.value(QStringLiteral("isJdk")).toBool())
+                return false;
+            if (hasCryptoEcModule(path))
+                return false;   // 完整 JRE（含 crypto.ec）→ 满足
+            continue;           // 缺损 JRE → 不满足，继续找/需要 JDK
+        }
+        return false;           // 目标 JRE：同 major 任意完整类型满足
     }
     return true;
+}
+
+/// 校验 java.exe 是否含 jdk.crypto.ec 模块
+/// - Java 9+：执行 java --list-modules，查 jdk.crypto.ec（模块系统）
+/// - Java 8：EC 实现（sun/ec）内置于 rt.jar，无模块系统 → 完整即视为含 EC
+bool JavaRuntimeInstaller::hasCryptoEcModule(const QString& javaExe)
+{
+    const int major = verifyJavaMajor(javaExe);
+    if (major <= 0)
+        return false;
+    if (major < 9)
+        return true;   // Java 8 无模块裁剪机制，rt.jar 内嵌 EC
+
+    QProcess proc;
+    proc.start(javaExe, {QStringLiteral("--list-modules")});
+    if (!proc.waitForFinished(8000))
+        return false;
+    const QString output = QString::fromUtf8(proc.readAllStandardOutput());
+    return output.contains(QLatin1String("jdk.crypto.ec"));
 }
 
 /// 已检测到的同 major Java 的显示名（"Java 17 (JDK)"）
@@ -588,15 +623,36 @@ void JavaRuntimeInstaller::installJavaAsync(int majorVersion, const QString& typ
     m_job.onDone = std::move(onDone);
 
     // 已存在（完整校验通过：版本正确 + 核心文件齐全）→ 直接完成
+    // ── 2026-08-18：JDK 或完整 JRE（含 jdk.crypto.ec）均可复用 ──
+    // 缺损 JRE（Adoptium 裁剪版，缺 crypto.ec）不能复用 → 重下 JDK。
+    bool cacheValid = false;
     if (QFile::exists(m_job.javaExe)
         && verifyJavaMajor(m_job.javaExe) == m_job.major
         && isJavaComplete(m_job.javaExe)) {
+        if (type == QLatin1String("jdk")) {
+            // JDK 或完整 JRE（含 crypto.ec 模块）都满足 NeoForge 需求
+            const QString javacExe = m_job.javaDir + QStringLiteral("/bin/javac.exe");
+            if (QFile::exists(javacExe)) {
+                cacheValid = true;   // 真 JDK
+            } else if (hasCryptoEcModule(m_job.javaExe)) {
+                cacheValid = true;   // 完整 JRE
+                qCInfo(logJava) << QStringLiteral("[Java安装] %1 缓存是完整 JRE（含 crypto.ec），可复用")
+                                       .arg(majorVersion);
+            } else {
+                qCInfo(logJava) << QStringLiteral("[Java安装] %1 缓存是缺损 JRE（缺 jdk.crypto.ec），需重下 JDK")
+                                       .arg(majorVersion);
+            }
+        } else {
+            cacheValid = true;
+        }
+    }
+    if (cacheValid) {
         finishJob(m_job.javaExe);
         return;
     }
     // 存在但残缺/版本不符（上次解压中断残留：bin 解压了但 lib/modules 缺失）→ 删除重装
     if (QFile::exists(m_job.javaExe)) {
-        qCWarning(logJava) << QStringLiteral("[Java安装] %1 缓存残缺（版本校验或完整性校验失败），删除重装")
+        qCWarning(logJava) << QStringLiteral("[Java安装] %1 缓存残缺（版本/完整性/类型校验失败），删除重装")
                                   .arg(m_job.major);
         QDir(m_job.javaDir).removeRecursively();
     }
@@ -610,10 +666,20 @@ void JavaRuntimeInstaller::installJavaAsync(int majorVersion, const QString& typ
         failJob(tr("Java %1 下载被其他进程锁定").arg(majorVersion));
         return;
     }
-    // 锁后复查：其他进程可能已装好（完整校验）
+    // 锁后复查：其他进程可能已装好（完整校验 + JDK/完整JRE 类型校验）
+    bool lockedCacheValid = false;
     if (QFile::exists(m_job.javaExe)
         && verifyJavaMajor(m_job.javaExe) == m_job.major
         && isJavaComplete(m_job.javaExe)) {
+        if (type == QLatin1String("jdk")) {
+            const QString javacExe = m_job.javaDir + QStringLiteral("/bin/javac.exe");
+            lockedCacheValid = QFile::exists(javacExe)
+                               || hasCryptoEcModule(m_job.javaExe);
+        } else {
+            lockedCacheValid = true;
+        }
+    }
+    if (lockedCacheValid) {
         finishJob(m_job.javaExe);
         return;
     }
@@ -883,10 +949,23 @@ bool JavaRuntimeInstaller::isJavaComplete(const QString& javaExe)
     const QString root = baseDir.filePath(QStringLiteral(".."));
 
     // 1. JVM 本体 DLL（Windows）
+    // ── 2026-08-18：兼容 JDK 8 结构 ──
+    // JRE 8: {root}/bin/server/jvm.dll；JDK 8: {root}/jre/bin/server/jvm.dll
+    // （JDK 8 自带 jre 子目录，Java 运行时在 jre 里，bin 下只有开发工具）
 #ifdef Q_OS_WIN
-    const QString jvmDll = binDir + QStringLiteral("/server/jvm.dll");
-    if (!QFile::exists(jvmDll))
-        return false;
+    {
+        const int major = verifyJavaMajor(javaExe);
+        if (major == 8) {
+            const QString jdk8Jvm = root + QStringLiteral("/jre/bin/server/jvm.dll");
+            const QString jre8Jvm = binDir + QStringLiteral("/server/jvm.dll");
+            if (!QFile::exists(jdk8Jvm) && !QFile::exists(jre8Jvm))
+                return false;
+        } else {
+            const QString jvmDll = binDir + QStringLiteral("/server/jvm.dll");
+            if (!QFile::exists(jvmDll))
+                return false;
+        }
+    }
 #endif
 
     // 2. release 文件（所有 Java 8+ 都有）

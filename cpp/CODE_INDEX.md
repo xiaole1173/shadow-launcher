@@ -29,6 +29,8 @@
 | 启动前检查（Java/版本文件/内存） | `src/backend/check_backend.{h,cpp}` |
 | 游戏完整性校验/修复 | `version_backend.cpp` L3420 `verifyVersion` / L3926 `cancelVerify` / L3968 `cleanCorruptVersion` / L4028 `repairVersion` |
 | 下载中心：Mod/资源包/光影/整合包搜索 | `src/backend/resource_backend.{h,cpp}`、`src/core/resource_fetch_engine.*`（司南）、`src/core/cf_api.*`（CF） |
+| 详情页跳转/复制胶囊条 | `qml/DetailLinkBar.qml` + 各详情页 `_linkItems/_copyItems/refreshLinks()` + `resource_backend.resolveProjectLinks()` |
+| MC百科映射（mod 中文名 ↔ Modrinth/CF slug） | `tools/gen_mcmod_map.py`（自研脚本，抓 sitemap+详情页产出）→ `qml/mcmod_map.json` → `resource_backend.loadMcmodMap()` |
 | 下载引擎（通用批量） | `src/core/file_downloader.*`（夸父）、`src/core/downloader.*`（旧单文件） |
 | 下载引擎（assets 资源） | `src/core/asset_downloader.*`（山海经） |
 | 版本安装管线（client+libs+assets） | `src/core/version_downloader.*`（盘古） |
@@ -139,7 +141,7 @@
 | `version_backend.h/.cpp` | 466 / 8287 | **版本管理大后端**：版本清单拉取/刷新（release/snapshot/old/aprilfool）、安装（走 VersionDownloader）、删除/重命名/克隆/迁移隔离、`verifyVersion`（游戏完整性校验）/`cancelVerify`/`cleanCorruptVersion`/`repairVersion`（修复，基于下载器 SHA1 校验重下缺失/损坏文件）、版本详情（Mod/资源包/存档列表异步）、installCards 模型、merged 安装上下文。 |
 | `launch_backend.h/.cpp` | 161 / 1480 | **启动后端**：组装 JVM/游戏参数、Token 刷新决策（`msTokenValid`/`shouldRefresh`）、进程启停（`launch`/`cancelLaunch`/`killGame*`）、在线/离线模式路由；**崩溃分析异步链路**：启动失败 → `crashAnalysisStarted` → `runCrashAnalysis`（QTimer 异步）→ `crashAnalysisReady`；`analyzeCrashNow`/`exportCrashLogs`/`openPath` Q_INVOKABLE。 |
 | `account_backend.h/.cpp` | 156 / 1207 | **账号后端**：离线登录（用户名/UUID/历史）、微软正版登录（MicrosoftAuth 封装：token 管理/后台刷新/过期判断）、皮肤下载/上传/缓存、披风（CapeInfo）、3D 头像渲染触发、离线皮肤。 |
-| `resource_backend.h/.cpp` | 247 / 1772 | **资源中心后端（下载页）**：Mod/资源包/光影/整合包搜索与详情（Modrinth+CurseForge 双源，分页池架构）、分类、版本列表、依赖解析、下载任务管理（下载队列/进度/取消/暂停/重试）、图标批量缓存。 |
+| `resource_backend.h/.cpp` | 247 / 1772 | **资源中心后端（下载页）**：Mod/资源包/光影/整合包搜索与详情（Modrinth+CurseForge 双源，分页池架构）、分类、版本列表、依赖解析、下载任务管理（下载队列/进度/取消/暂停/重试）、图标批量缓存。**2026-08-23 新增详情页跳转解析**：`resolveProjectLinks(title,slug,kind)`（kind→Modrinth/CF 路径映射 + CF 数字 id 判定 + MC百科映射 mcmod_map.json 解析，返回 mrUrl/cfUrl/mcmodUrl；不确定映射走百科搜索跳转）、`loadMcmodMap()`（qrc 加载 qml/mcmod_map.json，建 en/cf/mr 三向索引）、`resolveMcmodUrl()`。 |
 | `settings_backend.h/.cpp` | 245 / 1195 | **设置后端**：全部设置项读写（QSettings）、下载源/线程/限速、主题、语言、游戏目录、Java 默认、JVM/游戏参数、内存自动分配、背景图、协议同意状态等；scanJavaInstallations 完成回调保证每次扫描只 emit 一次 javaScanFinished；findAllJava 额外扫描启动器 java_cache（一键安装的便携 Java 可在设置-Java 选用）。 |
 | `java_backend.h/.cpp` | 136 / 438 | **Java 后端**：扫描系统 Java、版本检测（`java -version` 解析主版本）、自动选择、指定路径管理；Tuna Adoptium 目录浏览（版本/类型/架构/OS/文件五级）；**一键安装所需 Java**（转发 JavaRuntimeInstaller：前置检测 + 8/17/25 JRE 顺序安装 + 步骤/下载进度/速度信号）。 |
 | `java_runtime_installer.h/.cpp` | 155 / 900 | **一键安装 Java 运行时**：Tuna Adoptium ZIP 下载+解压到 java_cache/{ver}/（便携式不写注册表，同 主流启动器/主流启动器）；架构检测（x64/x32/aarch64/arm，ARM64 降级 x64 模拟）；**版本策略 8/17/25 全部 JRE**；**完整前置检测**（后台线程递归扫描，javac.exe 判定 JDK/JRE，已有同 major 任意类型→跳过）；**异步状态机安装**（列目录→downloadWithReply 实时进度→**后台线程解压**（UI 不冻结）→校验）；**完整性校验 isJavaComplete**（-version 能跑 ≠ 完整：检查 lib/modules(9+)/rt.jar(8)/jvm.dll/release）；安装链状态存成员（修复悬空引用崩溃）；**失败自愈**：残缺检测删除重装、自动重试 1 次、启动清理残留；路径统一 applicationDirPath。 |
@@ -231,6 +233,8 @@
 |---|---|---|
 | `update/SLUpdater.cpp` | — | 独立更新器进程（下载并替换主程序）。 |
 | `tools/`（仓库） | — | 加密生成脚本：`encrypt_cf_key.py`、`encrypt_addr.py`（不在 src 内，见 git）。 |
+| `tools/gen_mcmod_map.py` | 252 | **MC百科映射自研脚本（2026-08-23 新增）**：读 mcmod.cn sitemap1/2 → 并发抓详情页 → 解析 中文名(en)/CurseForge slug/Modrinth slug → 输出 `qml/mcmod_map.json`（紧凑数组）。断点缓存 `tools/_mcmod_map_resume.jsonl`；`--limit/--workers/--out/--no-resume`；失败不落盘下次自动重试。 |
+| `qml/mcmod_map.json` | — | MC百科映射数据（id/en/cf/mr，由 gen_mcmod_map.py 生成，进 qrc 打包）。只做“中文名 ↔ 平台 slug”归一映射，**不搬运百科站内数据**；无映射时详情页 MC百科按钮走搜索跳转兜底。 |
 
 ---
 
@@ -279,10 +283,11 @@
 
 | 文件 | 行数 | 功能 |
 |---|---|---|
-| `ModpackDetailPage.qml` | 457 | 整合包详情（版本列表/下载/导入）。 |
-| `ModDetailPage.qml` | 748 | Mod 详情（简介/版本/依赖/下载）。 |
-| `ResourcePackDetailPage.qml` | 494 | 资源包详情。 |
-| `ShaderDetailPage.qml` | 407 | 光影详情。 |
+| `ModpackDetailPage.qml` | 534 | 整合包详情（版本列表/下载/导入）。2026-08-23：分组改异步（_rebuildPackGrouped，Qt.callLater）+ 版本列表懒渲染（每组默认 30 条 + “还有 X 个版本”追加）+ 顶部统一跳转/复制胶囊。 |
+| `ModDetailPage.qml` | 1095 | Mod 详情（简介/版本/依赖/下载）。已含异步分组 _rebuildGrouped()+懒渲染（模板页）+ 跳转/复制胶囊（Modrinth/CF/MC百科/复制名称/复制链接）。 |
+| `ResourcePackDetailPage.qml` | 461 | 资源包详情。2026-08-23：同步分组改异步（_rebuildRpGrouped）+ 懒渲染 + 跳转/复制胶囊（Modrinth/CF/MC百科/复制名称/复制链接）。 |
+| `ShaderDetailPage.qml` | 499 | 光影详情。2026-08-23：同步分组改异步（_rebuildGrouped）+ 懒渲染 + 跳转/复制胶囊（Modrinth/CF/MC百科/复制名称/复制链接）。 |
+| `DataPackDetailPage.qml` | 607 | 数据包详情。2026-08-23：同步分组改异步（_rebuildGrouped）+ 懒渲染 + 跳转/复制胶囊（Modrinth/MC百科/复制名称/复制链接，无 CF）。 |
 | `ModpackImportOverlay.qml` | 328 | 整合包导入浮层（拖拽/选文件/自定义名）。 |
 | `InstallConfigOverlay.qml` | 151 | 安装配置浮层（版本名/加载器配置）。 |
 | `LaunchOverlay.qml` | 516 | 启动覆盖层（启动中状态/日志）。 |
@@ -295,6 +300,7 @@
 | `VersionCard.qml` | 115 | 版本卡片（列表项）。 |
 | `DetailVersionCard.qml` | 173 | 版本详情卡（概览）。 |
 | `DetailInfoCard.qml` | 110 | 通用信息卡（详情页统计项）。 |
+| `DetailLinkBar.qml` | 116 | **详情页统一跳转/复制胶囊条（2026-08-23 新增）**：Flow 布局，`links`=({label,url} 蓝边胶囊，Qt.openUrlExternally)、`copyItems`=({label,text} 棕边胶囊，backend.copyToClipboard + toastManager.show)。纯文本无预览图（硬规则：UI 禁用 emoji，图标一律 Lucide SVG）。五个详情页（Mod/光影/资源包/整合包/数据包）共用一处实现。 |
 | VersionSelectOverlay.qml | 404 | 版本选择浮层（单卡片占满整页：已安装版本列表 + 顶部工具行 标题/刷新/搜索/导入整合包/安装/排序/筛选；2026-08-07 左侧版本文件夹卡片已删）。**右键进版本设置（2026-08-13 修）**：右键版本条目 onPressed 打开设置同时 showVersionSelect=false（原只置 showVersionSettings=true，自定义背景透明下与设置浮层叠加可见）。 |
 | `VersionSettingsOverlay.qml` | 1490 | **版本设置浮层（实际生效）**：7 分区（概览0/启动配置1/内存2/Mod管理3/资源包4/存档5/工具6），各分区内容 + 顶部启动按钮。概览快捷入口 2026-08-03 分类重做：统一 ShadowButton + 文件夹/日志/其他分组；Mod 文件夹按钮 visible 内联白名单判定（lt ∈ Forge/Fabric/NeoForge/Quilt，与 sidebar Mod 管理同款写法，原版必隐藏）；光影包/config 按钮已移除。 |
 | `VersionLaunchSection.qml` | 599 | 启动配置分区（Java/参数/GPU）。 |
@@ -451,3 +457,8 @@
 | 2026-08-19 | **用户协议开源协议更正 MIT→AGPL-3.0 + 更新日期（commit 705f16b）**：官网 index.html 与启动器内嵌 qml/agreements/terms_of_service.html 的 3.1/3.2 条款「基于 MIT 开源协议发布」全部更正为 AGPL-3.0（实际开源协议），更新日期 2026-06-28 → 2026-08-19，生效日期保持 2026-06-28 不变（隐私协议/beta 协议经查不含开源协议条款，无同类错误，未改）。官网已上传服务器（/var/www/shadowlauncher.cn/index.html，md5 ec996511…，外部 HTTP 200 验证通过，HTML 不缓存无需 CF Purge）；启动器重编译 + pack.ps1 打包。 |
 
 | 2026-08-20 | **自定义 JVM 参数 GC 冲突修复（commit b69e912，内测 26.2 崩溃）**：内测人员安装 26.2 后启动即崩 Error occurred during initialization of VM / Multiple garbage collectors selected（退出码 1，三次复现）。根因：buildArgs 自动 GC 注入只检查版本 JSON（chainJvmArgs）是否已指定 GC，**从不检查用户自定义 JVM 参数 m_jvmArgs**——该用户自定义参数含 -XX:+UseZGC -XX:+UnlockExperimentalVMOptions，自动逻辑又注入 G1 组（-XX:+UseG1GC + 一串 G1 调优）→ 两个 GC 选择标志共存，JVM 拒绝初始化。修复：detectGcFlag lambda 统一检测 -XX:+Use/-XX:-Use 前缀 + 含 GC 字样，chainJvmArgs 与 m_jvmArgs（tokenize 后）任一命中即跳过自动注入并打日志。回归：LaunchDetailTest 新增用例 6（自定义 ZGC → 保留 ZGC / 不注入 G1 / 无 G1 调优参数；无自定义 → 仍自动注入单一 GC）6 断言 PASS；CMakeLists 给 LaunchDetailTest 补 src/core/minecraft_layout.cpp（resolveVersionGameDir 依赖）。已重编译 + pack.ps1 打包（zip full_sha256=5fb9f455…）。
+
+| 2026-08-23 | **详情页对齐主流启动器（版本过多优化 + 统一跳转/复制按钮）**：① 版本分组同步计算改异步——ModDetailPage（模板）/ResourcePackDetailPage(_rebuildRpGrouped)/ShaderDetailPage(_rebuildGrouped)/DataPackDetailPage(_rebuildGrouped)/ModpackDetailPage(_rebuildPackGrouped) 全部 Qt.callLater 分组 + _groupedCache 缓存 + _versionListEnter 入场淡入；② 版本列表懒渲染——每组默认前 30 条 + “还有 X 个版本”追加 50（五个详情页统一）；③ 新增 qml/DetailLinkBar.qml 统一胶囊条（左=跳转蓝胶囊/右=复制棕胶囊，backend.copyToClipboard + toastManager.show，纯文本无预览图），五个详情页注入 DetailInfoCard 底部；④ resource_backend 新增 resolveProjectLinks(title,slug,kind) + loadMcmodMap() + resolveMcmodUrl()（kind→路径映射，CF 数字 id 判定，MC百科 en/cf/mr 三向索引，无映射走百科搜索兜底），ShadowBackend 转发；⑤ 新增 tools/gen_mcmod_map.py 自研脚本抓 mcmod.cn sitemap 产出 qml/mcmod_map.json（只做 slug 归一映射，不搬运百科站内数据）；⑥ CMakeLists 注册 DetailLinkBar.qml + mcmod_map.json。硬规则遵守：UI 零 emoji、RowLayout 图标 Layout.preferredWidth/Height、不在代码/commit 中写“PCL2”。 |
+| 2026-08-24 | **v1.0.1 官网更新内容/公告页 + 左下角版本号可点 + 一次性启动公告 toast**：① 官网新增两个 VitePress 渲染页（/docs/notes/v1.0.1更新内容.html、/docs/notes/启动器公告.html，search:false 不进站内搜索、无导航入口，仅直链），已部署服务器并外部 200 验证；② MainWindow 左下角版本号改为可点击（MouseArea + hover 高亮，点击 Qt.openUrlExternally 打开官网 v1.0.1 更新内容页）；③ 新增 changelogUrl/announcementUrl 常量 + openChangelogPage/openAnnouncementPage + maybeShowStartupToasts（启动后延迟 800ms 弹两个常驻可点 toast：蓝色=更新内容、橙黄=启动器公告；点一次写 QSettings 标记后不再弹，一直不点每次启动都弹）；④ ToastManager 新增 style 参数（info 天蓝 / warning 橙黄，缺省 info 兼容旧调用）；⑤ shadow_backend 新增 Q_INVOKABLE readUiFlag/writeUiFlag（QSettings ui/flags/ 前缀持久化）。验证：Release 编译通过 + qmlcachegen 通过 + --screenshot 冒烟运行无 QML 报错、像素采样确认两个 toast 按蓝/橙黄渲染。 |
+| 2026-08-25 | **v1.0.1 正式发布（增量更新 + 全量包 + 官网版本号）+ toast 区分新装/更新**：① `maybeShowStartupToasts` 区分更新用户——蓝色更新内容 toast 仅更新弹（黄色公告 toast 新装+更新都弹）；② 更新判定用「更新留痕」而非版本号比对：`main_release.cpp` PreInit 检测到 `install_lock` 存在且 `state.json` 不存在（=SLUpdater 已完成替换）时在 exe 目录写隐藏标记 `.just_updated`，`shadow_backend` 新增 `Q_INVOKABLE consumeJustUpdatedFlag()`（读后即删、一次性消费）；③ 更新源官网 `downloads/latest.json` 切 v1.0.1：`compat.json` `update_mode=incremental`（只替换 exe；qt 6.8.3/epoch 1 均未变不触发全量）+ assets 三件（compat.json、ShadowLauncher.exe 增量 exe_sha256=308bce26…、ShadowLauncher_v1.0.1.zip 全量 full_sha256=05ec5ebe…）；④ `pack.ps1` 重新打包 v1.0.1 完整包（33MB）上传服务器，官网 index.html 版本号改 v1.0.1（hero badge / 下载区当前版本 / 下载链接三处）。验证：Release 编译通过、双场景（无/有 `.just_updated` 标记）截图像素确认蓝黄 toast 正确、外部 curl 200 + 服务器 sha256 与本地一致。 |
+| 2026-08-25 | **更新检查磁盘缓存缺陷修复（v1.0.0 用户 4ms 命中旧 latest.json 看不到 v1.0.1）**：① 根因——`http_client.cpp` 构造函数全局 `QNetworkDiskCache`(128MB) + `get()` 默认 `useCache=true` 走 Qt 启发式缓存（无 Cache-Control 响应 freshness=(Date-Last-Modified)*10%），latest.json 服务器 8-15 部署后 8-24 才被客户端缓存 → freshness≈1 天，期间 4ms 命中旧响应（实测缓存 data8/d/cdosvtdm.d 内 body 仍 tag v1.0.0、etag "…203"=515 字节）。② 客户端修复——`HttpClient::get` 加 `bool useCache=true` 末参，`buildRequest` 传参设 `CacheLoadControl=AlwaysNetwork`；`update_manager.cpp` 两处 get（latest.json + compat.json）传 `false` → 更新检查强制实时不走磁盘缓存。③ 服务器双保险——nginx 站点配置给 `location ~* \.json$` 加 `Cache-Control: no-cache, no-store, must-revalidate` + `expires -1`（deployed + reload + curl 验证）。④ 重新编译+打包+重新上传 v1.0.1（新 exe_sha256=65fde91a…、full_sha256=16decc20…、zip 34565964B）。已清本机 httpcache 供复测。**已知残留**：极少数「最近≈1 天内检查过更新」的 v1.0.0 用户本地缓存仍 fresh，需等 TTL 到期（≤1 天）才重新走网络；服务器无法远程清客户端本地缓存。 |

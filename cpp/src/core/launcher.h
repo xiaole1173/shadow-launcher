@@ -118,6 +118,9 @@ private:
     static bool evaluateRule(const QJsonObject& rule);
     /// 在版本目录中查找有效的版本 JSON（支持目录名≠文件名）
     static QString findVersionJson(const QString& verDir, const QString& dirName);
+    /// 该版本是否依赖 Forge/NeoForge 的 Jar-in-Jar（jij: URI 用 '~' 做分层分隔符）
+    static bool versionUsesJarInJar(const QString& versionId, const QJsonObject& versionJson,
+                                    const QString& gameDir);
     void ensureLegacyAssets(const QString& assetIndexId);
 
     QProcess* m_process = nullptr;
@@ -148,6 +151,7 @@ private:
     bool m_fullscreen = false;        // --fullscreen
     QString m_autoJoinServer;         // host[:port]
     QString m_windowTitleOverride;    // 游戏窗口标题覆盖
+    QTimer* m_titleTimer = nullptr;   // 标题持续覆盖定时器（进程退出后停止）
     QString m_preLaunchCommand;       // 启动前命令
     QString m_postExitCommand;        // 退出后命令
     bool m_is32BitJvm = false;        // Java 可执行文件是否为 32 位（-Xss 1m 补丁用）

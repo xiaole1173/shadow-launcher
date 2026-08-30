@@ -130,6 +130,7 @@ Rectangle {
                 placeholderText: root.searchPlaceholder
                 Layout.fillWidth: true
                 Layout.minimumWidth: 100
+                onAccepted: root.searchClicked()
             }
 
             Text { text: "版本"; color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: 28 }

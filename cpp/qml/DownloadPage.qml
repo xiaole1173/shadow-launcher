@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2025-2026 影 / Shadow / xiaole1173
 import QtQuick
 import QtQuick.Controls
@@ -682,6 +682,7 @@ Rectangle {
             var gv = page.modGameVersion ? [page.modGameVersion] : []
             var offset = pageNum * page.modPageSize
             backend.searchModsEx(q, page.modLoader, page.modCategory, gv, page.modEnvironment, "", offset, page.modPageSize, modFilterCard.sourceFilter)
+            console.log("[MOD-SEARCH] doModSearch path done (backend.searchModsEx returned)")
         }
 
         function prefetchModNextPage() {
@@ -785,7 +786,8 @@ Rectangle {
                         loader: r.loader || "",
                         loadersList: modTab.fmtLoaderList(r.loadersList),
                         clientSide: r.clientSide || "",
-                        source: r.source || "Modrinth"
+                        source: r.source || "Modrinth",
+                        zh: r.zh || ""
                     })
                 }
                 page.modSearching = false
@@ -813,7 +815,7 @@ Rectangle {
                 id: modFilterCard
                 Layout.fillWidth: true
                 cardType: "mod"
-                searchPlaceholder: qsTr("输入Mod名称...（仅支持英文搜索）")
+                searchPlaceholder: qsTr("输入Mod名称...（支持中英文名称和简介搜索）")
                 rawVersionIds: backend ? backend.versionIds : []
                 showPreReleases: page.modShowPreReleases
                 onPreReleaseToggled: { page.modShowPreReleases = showPreReleases; modTab.doModSearch() }
@@ -894,6 +896,7 @@ Rectangle {
                     delegate: DownloadCard {
                         width: modListView2.width - 8
                         title: model.title || ""
+                        zh: model.zh || ""
                         description: model.desc || ""
                         iconUrl: model.icon || ""
                         slug: model.slug || ""
@@ -905,6 +908,7 @@ Rectangle {
                         onClicked: {
                             page._modDetailSlug = model.slug
                             page._modDetailTitle = model.title || ""
+                            page._modDetailZh = model.zh || ""
                             page._modDetailDesc = model.desc || ""
                             page._modDetailIcon = model.icon || ""
                             page._modDetailIconRaw = model.iconRaw || ""
@@ -1105,7 +1109,7 @@ Rectangle {
                 id: shaderFilterCard
                 Layout.fillWidth: true
                 cardType: "shader"
-                searchPlaceholder: qsTr("输入光影名称...（仅支持英文搜索）")
+                searchPlaceholder: qsTr("输入光影名称...（支持英文名称和简介搜索）")
                 rawVersionIds: backend ? backend.versionIds : []
                 showPreReleases: page.shaderShowPreReleases
                 shaderCategory: shaderTab.shaderCategory
@@ -1161,6 +1165,7 @@ Rectangle {
                     delegate: DownloadCard {
                         width: shaderCardView.width
                         title: model.title || ""
+                        zh: model.zh || ""
                         description: model.desc || ""
                         iconUrl: model.icon || ""
                         slug: model.slug || ""
@@ -1227,7 +1232,7 @@ Rectangle {
                 id: rpFilterCard
                 Layout.fillWidth: true
                 cardType: "resourcepack"
-                searchPlaceholder: qsTr("输入资源包名称...（仅支持英文搜索）")
+                searchPlaceholder: qsTr("输入资源包名称...（支持英文名称和简介搜索）")
                 rawVersionIds: backend ? backend.versionIds : []
                 showPreReleases: page.rpShowPreReleases
                 rpCategory: page.rpCategoryFilter
@@ -1280,6 +1285,7 @@ Rectangle {
                     delegate: DownloadCard {
                         width: rpListView.width - 8
                         title: model.title || ""
+                        zh: model.zh || ""
                         description: model.desc || ""
                         iconUrl: model.icon || ""
                         slug: model.slug || ""
@@ -1674,6 +1680,7 @@ Rectangle {
     property bool _showModDetail: false
     property string _modDetailSlug: ""
     property string _modDetailTitle: ""
+    property string _modDetailZh: ""
     property string _modDetailDesc: ""
     property string _modDetailIcon: ""
     property string _modDetailIconRaw: ""
@@ -1717,6 +1724,7 @@ Rectangle {
                     item.mainWindow = mainWindow
                     item.modDetailSlug = page._modDetailSlug
                     item.modDetailTitle = page._modDetailTitle
+                    item.modDetailZh = page._modDetailZh
                     item.modDetailDesc = page._modDetailDesc
                     item.modDetailIcon = page._modDetailIcon
                     item.modDetailIconRaw = page._modDetailIconRaw
@@ -2022,7 +2030,7 @@ Rectangle {
                 id: packFilterCard
                 Layout.fillWidth: true
                 cardType: "modpack"
-                searchPlaceholder: qsTr("输入整合包名称...（仅支持英文搜索）")
+                searchPlaceholder: qsTr("输入整合包名称...（支持英文名称和简介搜索）")
                 rawVersionIds: backend ? backend.versionIds : []
                 modLoaderModel: [""].concat(Object.keys(packTab.packLoaderLabels).filter(function(k) { return k !== "" }))
                 modLoaderLabels: packTab.packLoaderLabels
@@ -2096,6 +2104,7 @@ Rectangle {
                     delegate: DownloadCard {
                         width: packListView.width - 8
                         title: model.title || ""
+                        zh: model.zh || ""
                         description: model.desc || ""
                         iconUrl: model.icon || ""
                         slug: model.slug || ""
@@ -2273,7 +2282,7 @@ Rectangle {
                 id: dpFilterCard
                 Layout.fillWidth: true
                 cardType: "datapack"
-                searchPlaceholder: qsTr("输入数据包名称...（仅支持英文搜索）")
+                searchPlaceholder: qsTr("输入数据包名称...（支持英文名称和简介搜索）")
                 rawVersionIds: backend ? backend.versionIds : []
                 modCatModel: {
                     var m = [""].concat(Object.keys(page.modCatLabels))
@@ -2345,6 +2354,7 @@ Rectangle {
                     delegate: DownloadCard {
                         width: dpListView.width - 8
                         title: model.title || ""
+                        zh: model.zh || ""
                         description: model.desc || ""
                         iconUrl: model.icon || ""
                         slug: model.slug || ""

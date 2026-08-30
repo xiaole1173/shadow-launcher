@@ -15,6 +15,9 @@ Rectangle {
     property string defaultText: ""
     property bool readOnly: false
     property bool enabled: true
+    // 失焦也提交（默认 false=仅回车触发 accepted；设置类输入框置 true，
+    // 解决“输入完不按回车就退出界面 → 值未保存”的问题）
+    property bool acceptOnFocusLoss: false
 
     // ── 密码模式 ──
     property bool passwordMode: false
@@ -35,6 +38,7 @@ Rectangle {
     // ── 信号 ──
     signal accepted()
     signal textEdited(string text)
+    signal userEdited(string text)
 
     // ── 内部状态 ──
     property bool _historyOpen: false
@@ -83,7 +87,9 @@ Rectangle {
             clip: true
 
             Keys.onReturnPressed: root.accepted()
+            onEditingFinished: { if (root.acceptOnFocusLoss) root.accepted() }
             onTextChanged: root.textEdited(text)
+            onTextEdited: root.userEdited(text)
 
             // ── 占位符 ──
             Text {

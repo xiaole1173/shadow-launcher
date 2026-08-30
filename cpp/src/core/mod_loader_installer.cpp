@@ -963,12 +963,35 @@ void ModLoaderInstaller::runOptifineInstaller(const QByteArray& jarData) {
     }
 
     if (foundJavaMajor < requiredJavaMajor) {
-        // setupTempMc 尚未调用，无需清理
-        QString msg = QStringLiteral("未找到满足版本要求的 Java（需要 %1+）").arg(requiredJavaMajor);
-        qCWarning(logLoader) << QStringLiteral("[安装] %1").arg(msg);
-        emit finished(false, msg);
-        m_running = false;
-        return;
+        // ── 2026-08-15：Java 自动补全（与 Forge/NeoForge 线一致）──
+        // findJavaPath 覆盖 PATH / java_cache / 常见安装目录
+        const QString foundPath = findJavaPath(requiredJavaMajor);
+        if (!foundPath.isEmpty()) {
+            javaExe = foundPath;
+            foundJavaMajor = requiredJavaMajor;
+            qCInfo(logLoader) << QStringLiteral("[安装] 通过 findJavaPath 找到 Java %1: %2")
+                                     .arg(requiredJavaMajor).arg(foundPath);
+        }
+    }
+
+    if (foundJavaMajor < requiredJavaMajor) {
+        // 仍没有 → 自动下载便携 Java 到 java_cache/{major}/
+        qCInfo(logLoader) << QStringLiteral("[安装] 未找到 Java %1+，尝试自动下载...").arg(requiredJavaMajor);
+        emit progressChanged(2, m_totalSteps, QStringLiteral("未找到 Java %1+，正在自动下载...").arg(requiredJavaMajor));
+        emit toastMessage(QStringLiteral("OptiFine 安装需要 Java %1，正在下载...").arg(QString::number(requiredJavaMajor)));
+        const QString dlPath = downloadAndExtractJava(requiredJavaMajor);
+        if (dlPath.isEmpty()) {
+            // setupTempMc 尚未调用，无需清理
+            QString msg = QStringLiteral("未找到满足版本要求的 Java（需要 %1+），且自动下载失败。请先在「设置 → Java」中下载 Java。").arg(requiredJavaMajor);
+            qCWarning(logLoader) << QStringLiteral("[安装] %1").arg(msg);
+            emit finished(false, msg);
+            m_running = false;
+            return;
+        }
+        javaExe = dlPath;
+        foundJavaMajor = requiredJavaMajor;
+        qCInfo(logLoader) << QStringLiteral("[安装] 自动下载 Java 完成: %1").arg(dlPath);
+        emit toastMessage(QStringLiteral("Java %1 安装完成，继续 OptiFine 安装流程...").arg(QString::number(requiredJavaMajor)));
     }
 
     QDir tempMcDir(setupTempMc()); // .minecraft path
@@ -2529,6 +2552,8 @@ QString ModLoaderInstaller::extractJavaWrapperPath() {
 // Forward declaration for Java version parsing used by findJavaPath and runBootstrapperProcess
 static int parseJavaMajorVersion(const QString& output);
 static int minJavaForMcInstaller(const QString& mcVersion);
+// JRE 完整性（jdk.crypto.ec 模块）检测，用于 downloadAndExtractJava 缓存复用判断
+static bool hasCryptoEcModuleLocal(const QString& javaExe);
 
 QString ModLoaderInstaller::findJavaPath(int minVersion) {
     // 1. Try PATH
@@ -2619,11 +2644,23 @@ QString ModLoaderInstaller::downloadAndExtractJava(int minVersion) {
     const QString baseDir = QCoreApplication::applicationDirPath() + QStringLiteral("/java_cache/");
     const QString javaDir = baseDir + QString::number(minVersion);
     const QString javaExe = javaDir + QStringLiteral("/bin/java.exe");
+    // ── 2026-08-18：JDK 或完整 JRE（含 jdk.crypto.ec）均可复用 ──
+    // 缺损 JRE（Adoptium 裁剪版）缺 crypto.ec，NeoForge 安装/启动会崩 → 重下 JDK。
+    auto cacheUsable = [&]() {
+        if (!QFile::exists(javaExe)) return false;
+        const QString javacExe = javaDir + QStringLiteral("/bin/javac.exe");
+        if (QFile::exists(javacExe)) return true;   // 真 JDK
+        return hasCryptoEcModuleLocal(javaExe);     // 完整 JRE
+    };
 
-    // Already downloaded?
-    if (QFile::exists(javaExe)) {
+    // Already downloaded? (JDK or complete JRE)
+    if (cacheUsable()) {
         qCInfo(logLoader) << QStringLiteral("[安装] Java %1 已存在于缓存").arg(minVersion);
         return javaExe;
+    }
+    if (QFile::exists(javaExe)) {
+        qCInfo(logLoader) << QStringLiteral("[安装] Java %1 缓存是缺损 JRE（缺 jdk.crypto.ec），重下 JDK").arg(minVersion);
+        QDir(javaDir).removeRecursively();
     }
 
     // File lock to prevent concurrent downloads to the same cache dir
@@ -2635,15 +2672,20 @@ QString ModLoaderInstaller::downloadAndExtractJava(int minVersion) {
         return {};
     }
     // Re-check after acquiring lock (other instance may have completed download)
-    if (QFile::exists(javaExe)) {
+    if (cacheUsable()) {
         qCInfo(logLoader) << QStringLiteral("[安装] Java %1 已被其他进程下载").arg(minVersion);
         return javaExe;
     }
+    if (QFile::exists(javaExe)) {
+        QDir(javaDir).removeRecursively();
+    }
 
     // Fetch directory listing from Tuna Adoptium mirror
-    // 类型用 jre（2026-08-04 确认）：Forge/NeoForge 安装器只 java -cp 跑 jar，
-    // JRE 足够且体积为 JDK 1/4；与一键安装 Java（全 JRE）共享 java_cache
-    const QString mirrorBase = QStringLiteral("https://mirrors.tuna.tsinghua.edu.cn/Adoptium/%1/jre/x64/windows/")
+    // ── 2026-08-17：JDK 替代 JRE ──
+    // JRE 被 Adoptium 裁剪（缺 jdk.crypto.ec 等模块），NeoForge 1.21.8+ 安装/启动
+    // 会 "Module jdk.crypto.ec not found" 崩溃。JDK 包含全部模块（体积约大 2 倍，
+    // 但保证所有加载器安装器可用）；与一键安装 Java（全 JDK）共享 java_cache。
+    const QString mirrorBase = QStringLiteral("https://mirrors.tuna.tsinghua.edu.cn/Adoptium/%1/jdk/x64/windows/")
                                    .arg(minVersion);
     QNetworkAccessManager* nam = HttpClient::instance().manager();
     QNetworkRequest req;
@@ -2776,6 +2818,8 @@ QString ModLoaderInstaller::downloadAndExtractJava(int minVersion) {
     }
 
     qCInfo(logLoader) << QStringLiteral("[安装] Java %1 已就绪").arg(minVersion);
+    // 通知上层刷新 Java 列表（findAllJava 含 java_cache，下载完成后即可被识别）
+    emit javaAutoInstalled(minVersion);
     return javaExe;
 }
 
@@ -2791,6 +2835,25 @@ static int parseJavaMajorVersion(const QString& output) {
     if (major == 1 && parts.size() > 1)
         major = parts[1].toInt();  // 1.8.0 → 8
     return major;
+}
+
+/// 校验 java.exe 是否含 jdk.crypto.ec 模块（2026-08-18）
+/// - Java 9+：执行 java --list-modules 查 jdk.crypto.ec（NeoForge 1.21.8+ 认证库依赖）
+/// - Java 8：EC 实现内置于 rt.jar，无模块系统 → 完整即视为含 EC
+static bool hasCryptoEcModuleLocal(const QString& javaExe)
+{
+    QProcess proc;
+    proc.start(javaExe, {QStringLiteral("-version")});
+    if (!proc.waitForFinished(5000)) return false;
+    const int major = parseJavaMajorVersion(QString::fromUtf8(proc.readAllStandardError()));
+    if (major <= 0) return false;
+    if (major < 9) return true;   // Java 8 无模块裁剪，rt.jar 内嵌 EC
+
+    QProcess modProc;
+    modProc.start(javaExe, {QStringLiteral("--list-modules")});
+    if (!modProc.waitForFinished(8000)) return false;
+    const QString output = QString::fromUtf8(modProc.readAllStandardOutput());
+    return output.contains(QLatin1String("jdk.crypto.ec"));
 }
 
 /**

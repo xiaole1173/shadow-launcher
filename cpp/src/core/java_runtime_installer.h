@@ -70,8 +70,15 @@ public:
 
     /// 单个版本是否需要安装（基于前置检测）
     /// major: 目标主版本；targetIsJdk: 目标是否 JDK
-    /// 规则：已有同 major 任意类型（JRE/JDK 均可）→ 不需要（JRE 已满足运行场景）
+    /// 规则（2026-08-18）：
+    ///   - 已有同 major JDK → 不需要
+    ///   - 已有同 major 完整 JRE（含 jdk.crypto.ec 模块）→ 不需要
+    ///   - 已有同 major 缺损 JRE（缺 jdk.crypto.ec，NeoForge 1.21.8+ 无法启动）→ 需要 JDK
     bool isRequired(int major, bool targetIsJdk) const;
+
+    /// 校验 java.exe 是否含 jdk.crypto.ec 模块（Java 9+ 执行 --list-modules 检测；
+    /// Java 8 的 EC 实现内置于 rt.jar，无模块系统 → 视为完整直接返回 true）
+    static bool hasCryptoEcModule(const QString& javaExe);
 
     /// 校验 java.exe 真实主版本号（java -version 解析）
     static int verifyJavaMajor(const QString& javaExe);

@@ -40,6 +40,51 @@ Window {
     property bool _pendingCrashAnalyze: false   // Loader 异步时挂起崩溃分析请求
     property var _pendingCrashResult: null      // Loader 异步时挂起崩溃分析结果
 
+    // ── 官网页面直链（2026-08-24：v1.0.1 更新内容 / 启动器公告）──
+    // 官网 VitePress 渲染，仅直链可访问（站点无导航入口、不进站内搜索）。
+    // 路径含中文，此处直接写 percent-encoded，避免 QUrl 编码歧义。
+    //   完整中文路径：/docs/notes/v1.0.1更新内容.html 、 /docs/notes/启动器公告.html
+    readonly property string changelogUrl: "https://shadowlauncher.cn/docs/notes/v1.0.1%E6%9B%B4%E6%96%B0%E5%86%85%E5%AE%B9.html"
+    readonly property string announcementUrl: "https://shadowlauncher.cn/docs/notes/%E5%90%AF%E5%8A%A8%E5%99%A8%E5%85%AC%E5%91%8A.html"
+
+    // 打开官网 v1.0.1 更新内容页（左下角版本号 / 蓝色启动 toast 共用）
+    function openChangelogPage() {
+        if (backend) backend.logUiMsg("打开官网 v1.0.1 更新内容页")
+        Qt.openUrlExternally(appWindow.changelogUrl)
+    }
+    // 打开官网启动器公告页（橙黄色启动 toast 用）
+    function openAnnouncementPage() {
+        if (backend) backend.logUiMsg("打开官网启动器公告页")
+        Qt.openUrlExternally(appWindow.announcementUrl)
+    }
+
+    // ── v1.0.1 启动公告 toast（2026-08-24）──
+    // 一次性：用户点击对应 toast 后写标记，此后不再弹出；一直不点击则每次启动都弹。
+    // 蓝色(info)=更新内容；橙黄色(warning)=启动器公告。
+    function maybeShowStartupToasts() {
+        if (!backend || !toastManager) return
+        // 仅 v1.0.1 展示本次公告 toast；版本升级后自然停用（后续版本另行配置）
+        if (backend.appVersion !== "v1.0.1") return
+        // 本次是否属于"更新后首次启动"（新装/同版本重启为 false）
+        var isUpdate = backend.consumeJustUpdatedFlag()
+        var changelogDone = backend.readUiFlag("startup/changelog_v101_clicked")
+        var announcementDone = backend.readUiFlag("startup/announcement_v101_clicked")
+        // 蓝色 toast（更新内容）：仅更新用户弹出
+        if (isUpdate && !changelogDone) {
+            toastManager.showAction("您已成功更新至v1.0.1，点击查看v1.0.1更新内容。", function() {
+                appWindow.openChangelogPage()
+                if (backend) backend.writeUiFlag("startup/changelog_v101_clicked", true)
+            }, "info")
+        }
+        // 黄色 toast（公告）：新装 + 更新都必须弹出
+        if (!announcementDone) {
+            toastManager.showAction("重要：《启动器进入“懒更新”策略通知和开发者的一些心里话》，请点击查看。", function() {
+                appWindow.openAnnouncementPage()
+                if (backend) backend.writeUiFlag("startup/announcement_v101_clicked", true)
+            }, "warning")
+        }
+    }
+
     function navLabel(key) {
         switch (key) {
             case "home": return qsTr("启动")
@@ -91,6 +136,8 @@ Window {
             runningListModel = backend.runningGames()
             console.log("[main] init done, t=" + Date.now())
         }
+        // v1.0.1 启动公告 toast（延迟触发，避免与窗口初始化竞争）
+        startupToastTimer.start()
     }
 
     function addOfflineHistory(name) {
@@ -119,6 +166,15 @@ Window {
         id: loadTimer
         interval: 100
         onTriggered: pageLoading = false
+    }
+
+    // v1.0.1 启动公告 toast（2026-08-24：延迟触发，待窗口与后端就绪）
+    Timer {
+        id: startupToastTimer
+        interval: 800
+        running: false
+        repeat: false
+        onTriggered: appWindow.maybeShowStartupToasts()
     }
 
     // 自动检测游戏文件变化（每30秒）
@@ -603,12 +659,27 @@ Window {
                         }
                     }
 
-                    // 版本号
-                    Text {
+                    // 版本号（2026-08-24：可点击 → 打开官网 v1.0.1 更新内容页）
+                    Item {
                         Layout.alignment: Qt.AlignHCenter
-                        text: backend ? backend.appVersion : ""
-                        font.pixelSize: StyleTokens.fontSizeXs
-                        color: StyleTokens.bgHover
+                        Layout.preferredWidth: versionLabel.implicitWidth + 20
+                        Layout.preferredHeight: 20
+                        Text {
+                            id: versionLabel
+                            anchors.centerIn: parent
+                            text: backend ? backend.appVersion : ""
+                            font.pixelSize: StyleTokens.fontSizeXs
+                            color: versionHover.containsMouse ? StyleTokens.accentLink : StyleTokens.bgHover
+                        }
+                        MouseArea {
+                            id: versionHover
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                if (backend) appWindow.openChangelogPage()
+                            }
+                        }
                     }
                 }
 

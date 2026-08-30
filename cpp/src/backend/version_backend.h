@@ -296,6 +296,8 @@ signals:
     void installComplete(const QString& installId);
     void logMessage(const QString& msg);
     void toastMessage(const QString& msg);
+    // 加载器安装期间自动下载便携 Java 完成（转发 ModLoaderInstaller::javaAutoInstalled）
+    void javaAutoInstalled(int majorVersion);
     void mcJsonReady(const QString& versionId);
 
     void verifyStarted();

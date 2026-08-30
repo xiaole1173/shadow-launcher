@@ -46,8 +46,9 @@ static const char* DEFAULT_JVM_ARGS[] = {
 };
 
 // ── 短路径转换（Windows 8.3 短文件名）──
-// 缓解非 ASCII 路径下 LWJGL/JNI 加载 native DLL 失败的问题
-// 使用短路径规避非 ASCII path 问题
+// 缓解 Java8/LWJGL2 世代非 ASCII 路径下加载 native DLL 失败的问题。
+// 注意：8.3 短名含 '~'，会破坏 Forge 的 jij: URI，因此只在 legacy（Java≤8 且非
+// Jar-in-Jar）场景使用；现代版本一律走完整路径（见 buildArgs 的 useShortPaths）。
 #ifdef Q_OS_WIN
 static QString toShortPath(const QString& path)
 {
@@ -754,6 +755,10 @@ void Launcher::onProcessFinished(int exitCode, QProcess::ExitStatus exitStatus)
 {
     Q_UNUSED(exitStatus)
 
+    // 停止窗口标题持续覆盖
+    if (m_titleTimer)
+        m_titleTimer->stop();
+
     // flush 全量 JVM 输出，确保崩溃分析/导出时文件完整
     if (m_jvmFullLog.isOpen())
         m_jvmFullLog.flush();
@@ -1019,10 +1024,14 @@ static QString resolveLibraryPathForName(const QString& mavenName, const QString
 
 static QStringList buildClasspath(const QString& versionId, const QJsonObject& versionJson,
                                    const QString& gameDir,
-                                   const QSet<QString>& moduleExcludePaths = {})
+                                   const QSet<QString>& moduleExcludePaths = {},
+                                   bool useShortPaths = true)
 {
     QStringList cp;
-    QString libsDir = toShortPath(gameDir) + QStringLiteral("/libraries");
+    // 短路径策略：仅 legacy（Java ≤ 8 且无 Jar-in-Jar）用 8.3 短路径；
+    // 现代版本用完整路径（避免 8.3 短名里的 '~' 破坏 Forge 的 jij: URI）。
+    QString libsDir = (useShortPaths ? toShortPath(gameDir) : gameDir)
+                      + QStringLiteral("/libraries");
 
     // Precompute version jar path (added LAST — see end of function)
     QString versionJar = gameDir + QStringLiteral("/versions/") + versionId
@@ -1251,11 +1260,24 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
     // Add chain JVM args after memory flags, before user/default flags
     // Replace NeoForge template variables (${library_directory}, ${classpath_separator}, etc.)
     // Minecraft 26.2+ also uses ${natives_directory}, ${classpath}, etc.
-    // Convert to short paths on Windows to mitigate non-ASCII path issues with LWJGL/JNI
-    // (短路径策略)
-    const QString gameDirShort = toShortPath(m_gameDir);
-    const QString libDir = gameDirShort + QStringLiteral("/libraries");
-    const QString nativesDir = gameDirShort + QStringLiteral("/versions/") + versionId
+    // ── 短路径策略（2026-08-29 修正）──
+    // 8.3 短路径段必然含 '~'，而 Forge 1.19.3+/NeoForge 的 Jar-in-Jar 用 'jij:' URI
+    // （分隔符就是 '~'，见 JarJarFileSystems 的 URI_SPLIT_REGEX）。--gameDir/-cp 一旦
+    // 是短路径，mods 扫描出来的 jij: URI 就会被 '~' 拆坏 → 内嵌库（如 MixinExtras）
+    // 加载失败 → 崩（实锤：落幕曲 ending_library StyleMixin @Local 糖报
+    // "Invalid descriptor ... LocalBooleanRef"）。短路径只对 Java8/LWJGL2 世代
+    // （≤1.12.2）的非 ASCII native 加载有价值，现代版本一律用完整路径。
+    const bool usesJarInJar = versionUsesJarInJar(versionId, versionJson, m_gameDir);
+    const bool useShortPaths = (m_javaMajorVersion <= 8) && !usesJarInJar;
+    if (usesJarInJar && QDir::toNativeSeparators(m_versionGameDir).contains(QLatin1Char('~'))) {
+        qCWarning(logLaunch) << QStringLiteral(
+            "[启动] 警告：Jar-in-Jar 版本运行目录含 '~'（%1），Forge 的 jij: URI 会被拆坏，"
+            "游戏可能崩溃。请把游戏目录换成不含 '~' 的纯英文路径。")
+            .arg(QDir::toNativeSeparators(m_versionGameDir));
+    }
+    const QString gameDirForLaunch = useShortPaths ? toShortPath(m_gameDir) : m_gameDir;
+    const QString libDir = gameDirForLaunch + QStringLiteral("/libraries");
+    const QString nativesDir = gameDirForLaunch + QStringLiteral("/versions/") + versionId
                                + QStringLiteral("/natives");
 #ifdef Q_OS_WIN
     const QString classpathSep(QStringLiteral(";"));
@@ -1448,7 +1470,7 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
     }
 
     // ── Classpath from version JSON ──
-    QStringList cp = buildClasspath(versionId, versionJson, m_gameDir, moduleExclude);
+    QStringList cp = buildClasspath(versionId, versionJson, m_gameDir, moduleExclude, useShortPaths);
 
     // ── Forge 1.16.x universal jar ──
     // 版本 JSON 的 libraries 只引用 installer stub (212KB)，不含 universal jar (2.5MB)
@@ -1742,9 +1764,9 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
             // 当版本隔离启用时，m_versionGameDir 指向 versions/{id}/game（或 versions/{id}）
             // 当版本隔离关闭时，m_versionGameDir == m_gameDir（根目录），行为不变
             arg.replace(QStringLiteral("${game_directory}"),
-                        toShortPath(m_versionGameDir));
+                        useShortPaths ? toShortPath(m_versionGameDir) : m_versionGameDir);
             arg.replace(QStringLiteral("${assets_root}"),
-                        gameDirShort + QStringLiteral("/assets"));
+                        gameDirForLaunch + QStringLiteral("/assets"));
             arg.replace(QStringLiteral("${assets_index_name}"), assetIndexId);
             arg.replace(QStringLiteral("${auth_uuid}"), m_authUuid.isEmpty() ? QStringLiteral("00000000-0000-0000-0000-000000000000") : m_authUuid);
             arg.replace(QStringLiteral("${auth_access_token}"), m_authToken.isEmpty() ? QStringLiteral("0") : m_authToken);
@@ -1752,7 +1774,7 @@ QStringList Launcher::buildArgs(const QString& versionId, int maxMemoryMB,
             arg.replace(QStringLiteral("${version_type}"),
                         versionJson[QStringLiteral("type")].toString(QStringLiteral("release")));
             arg.replace(QStringLiteral("${game_assets}"),
-                        gameDirShort + QStringLiteral("/assets/virtual/") + assetIndexId);  // legacy/pre-1.6
+                        gameDirForLaunch + QStringLiteral("/assets/virtual/") + assetIndexId);  // legacy/pre-1.6
             arg.replace(QStringLiteral("${user_properties}"), QStringLiteral("{}"));
             arg.replace(QStringLiteral("${auth_session}"), m_authToken.isEmpty() ? QStringLiteral("0") : m_authToken);  // pre-1.6
             arg.replace(QStringLiteral("${resolution_width}"), QString::number(m_resWidth));
@@ -1907,29 +1929,45 @@ void Launcher::runPreLaunchCommand()
 {
     if (m_preLaunchCommand.trimmed().isEmpty()) return;
     // 异步执行，不阻塞主线程（对齐主流启动器实现 preLaunchCommand；主流启动器 用 Loader 同步但我们绝不阻塞 UI）
-    QProcess* p = new QProcess(this);
+    QProcess* p = new QProcess;  // 不挂靠 Launcher 生命周期，避免启动器销毁时连带 kill
     p->setWorkingDirectory(m_versionGameDir.isEmpty() ? m_gameDir : m_versionGameDir);
     connect(p, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-            this, [p](int code, QProcess::ExitStatus) {
+            p, [p](int code, QProcess::ExitStatus) {
                 qCInfo(logLaunch) << QStringLiteral("[启动] 启动前命令完成 退出码=%1").arg(code);
                 p->deleteLater();
             });
     qCInfo(logLaunch) << QStringLiteral("[启动] 执行启动前命令: %1").arg(m_preLaunchCommand);
-    p->start(m_preLaunchCommand);
+    // 经 shell 执行整条命令（支持参数/空格/引号/内建/批处理/重定向）。
+    // Windows 用 setNativeArguments 把命令行原样交给 cmd.exe（不做 Qt 逐参数引用），
+    // 否则含双引号/空格的路径会在多层转义后被改坏，导致“找不到文件”。
+#ifdef Q_OS_WIN
+    p->setProgram(QStringLiteral("cmd.exe"));
+    p->setNativeArguments(QStringLiteral("/c ") + m_preLaunchCommand);
+    p->start();
+#else
+    p->start(QStringLiteral("/bin/sh"), { QStringLiteral("-c"), m_preLaunchCommand });
+#endif
 }
 
 void Launcher::runPostExitCommand()
 {
     if (m_postExitCommand.trimmed().isEmpty()) return;
-    QProcess* p = new QProcess(this);
+    QProcess* p = new QProcess;  // 不挂靠 Launcher 生命周期，否则 launchFinished 后 Launcher 被销毁、此进程被连带 kill
     p->setWorkingDirectory(m_versionGameDir.isEmpty() ? m_gameDir : m_versionGameDir);
     connect(p, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-            this, [p](int code, QProcess::ExitStatus) {
+            p, [p](int code, QProcess::ExitStatus) {
                 qCInfo(logLaunch) << QStringLiteral("[启动] 退出后命令完成 退出码=%1").arg(code);
                 p->deleteLater();
             });
     qCInfo(logLaunch) << QStringLiteral("[启动] 执行退出后命令: %1").arg(m_postExitCommand);
-    p->start(m_postExitCommand);
+    // 同 runPreLaunchCommand：原样交给 shell，避免引号/空格被多层转义改坏
+#ifdef Q_OS_WIN
+    p->setProgram(QStringLiteral("cmd.exe"));
+    p->setNativeArguments(QStringLiteral("/c ") + m_postExitCommand);
+    p->start();
+#else
+    p->start(QStringLiteral("/bin/sh"), { QStringLiteral("-c"), m_postExitCommand });
+#endif
 }
 
 void Launcher::applyWindowTitleOverride()
@@ -1937,43 +1975,48 @@ void Launcher::applyWindowTitleOverride()
     if (m_windowTitleOverride.trimmed().isEmpty()) return;
     if (m_pid <= 0) return;
 #ifdef Q_OS_WIN
-    // 尽力而为：轮询 FindWindow 找到游戏主窗口（主流启动器 Watcher 语义），最多 10 秒
-    qCInfo(logLaunch) << QStringLiteral("[启动] 尝试修改游戏窗口标题: %1").arg(m_windowTitleOverride);
-    QTimer* timer = new QTimer(this);
-    timer->setInterval(500);
-    int* remaining = new int(20);  // 20 × 500ms = 10s
-    connect(timer, &QTimer::timeout, this, [this, timer, remaining]() {
-        (*remaining)--;
-        HWND hwnd = nullptr;
-        // 按 PID 找窗口（EnumWindows + GetWindowThreadProcessId）
-        struct EnumCtx { DWORD pid; HWND hwnd; };
-        EnumCtx ctx{ static_cast<DWORD>(m_pid), nullptr };
-        EnumWindows([](HWND h, LPARAM lp) -> BOOL {
-            EnumCtx* c = reinterpret_cast<EnumCtx*>(lp);
-            DWORD wpid = 0;
-            GetWindowThreadProcessId(h, &wpid);
-            if (wpid == c->pid && IsWindowVisible(h)) {
-                c->hwnd = h;
-                return FALSE;
-            }
-            return TRUE;
-        }, reinterpret_cast<LPARAM>(&ctx));
-        if (ctx.hwnd) {
-            SetWindowTextW(ctx.hwnd, reinterpret_cast<LPCWSTR>(m_windowTitleOverride.utf16()));
-            qCInfo(logLaunch) << QStringLiteral("[启动] 游戏窗口标题已修改");
-            timer->stop();
-            delete remaining;
-            timer->deleteLater();
-            return;
-        }
-        if (*remaining <= 0) {
-            qCDebug(logLaunch) << QStringLiteral("[启动] 窗口标题修改超时，放弃（游戏可能无窗口模式）");
-            timer->stop();
-            delete remaining;
-            timer->deleteLater();
-        }
-    });
-    timer->start();
+    // 持续覆盖：整个游戏运行期间周期性把标题改回目标值。只改一次很快会被游戏/Mod
+    // 在加载过程中的多次重写覆盖掉，因此需要反复校验并纠正。
+    // 窗口按类名识别（GLFW=新版 LWJGL3、LWJGL=旧版、SunAwtFrame=老旧 AWT），
+    // 避免误改辅助窗口或 GLFW 消息窗。
+    qCInfo(logLaunch) << QStringLiteral("[启动] 持续应用游戏窗口标题: %1").arg(m_windowTitleOverride);
+
+    if (!m_titleTimer) {
+        m_titleTimer = new QTimer(this);
+        m_titleTimer->setInterval(150);
+        const QString target = m_windowTitleOverride;
+        connect(m_titleTimer, &QTimer::timeout, this, [this, target]() {
+            if (m_pid <= 0) return;
+            struct Ctx { DWORD pid; HWND hwnd; };
+            Ctx ctx{ static_cast<DWORD>(m_pid), nullptr };
+            EnumWindows([](HWND h, LPARAM lp) -> BOOL {
+                Ctx* c = reinterpret_cast<Ctx*>(lp);
+                if (!IsWindowVisible(h)) return TRUE;
+                wchar_t cls[64] = { 0 };
+                GetClassNameW(h, cls, 63);
+                const QString cn = QString::fromWCharArray(cls);
+                const bool isGame = cn == QLatin1String("GLFW30")
+                                 || cn == QLatin1String("LWJGL")
+                                 || cn == QLatin1String("SunAwtFrame");
+                if (!isGame) return TRUE;
+                DWORD wpid = 0;
+                GetWindowThreadProcessId(h, &wpid);
+                if (wpid == c->pid) {
+                    c->hwnd = h;
+                    return FALSE;
+                }
+                return TRUE;
+            }, reinterpret_cast<LPARAM>(&ctx));
+
+            if (!ctx.hwnd) return;
+            wchar_t cur[256] = { 0 };
+            GetWindowTextW(ctx.hwnd, cur, 256);
+            if (target == QString::fromWCharArray(cur))
+                return;  // 已是目标标题，跳过，避免无谓重设引起闪烁
+            SetWindowTextW(ctx.hwnd, reinterpret_cast<LPCWSTR>(target.utf16()));
+        });
+    }
+    m_titleTimer->start();
 #endif
 }
 
@@ -2398,6 +2441,48 @@ QString Launcher::findVersionJson(const QString& verDir, const QString& dirName)
         }
     }
     return QString();
+}
+
+// ── Jar-in-Jar 检测（现代 Forge 1.19.3+ / NeoForge）──
+// 这些 loader 的 jij: URI 用 '~' 做分层分隔符（JarJarFileSystems.URI_SPLIT_REGEX = "~"）。
+// Windows 8.3 短路径段（如 SHADOW~1.1）必然含 '~'，短路径从 --gameDir 污染 mods 扫描后，
+// jij: URI 会被拆坏 → 内嵌库（MixinExtras 等）加载失败。含 JarJar 库的版本必须禁用短路径。
+bool Launcher::versionUsesJarInJar(const QString& versionId, const QJsonObject& versionJson,
+                                   const QString& gameDir)
+{
+    auto hasJarJarLib = [](const QJsonObject& json) {
+        const QJsonArray libs = json[QStringLiteral("libraries")].toArray();
+        for (const QJsonValue& v : libs) {
+            const QJsonObject lib = v.toObject();
+            const QString name = lib[QStringLiteral("name")].toString();
+            // net.minecraftforge:JarJarSelector / JarJarFileSystems / JarJarMetadata
+            if (name.startsWith(QStringLiteral("net.minecraftforge:JarJar")))
+                return true;
+        }
+        return false;
+    };
+
+    QJsonObject cur = versionJson;
+    QString id = versionId;
+    QStringList visited;
+    while (true) {
+        if (hasJarJarLib(cur)) return true;
+        const QString parentId = cur[QStringLiteral("inheritsFrom")].toString();
+        if (parentId.isEmpty() || parentId == id || visited.contains(parentId))
+            return false;
+        visited.append(parentId);
+        const QString parentJsonPath = findVersionJson(
+            gameDir + QStringLiteral("/versions/") + parentId, parentId);
+        if (parentJsonPath.isEmpty()) return false;
+        QFile pf(parentJsonPath);
+        if (!pf.open(QIODevice::ReadOnly)) return false;
+        QJsonParseError pe;
+        const QJsonDocument pd = QJsonDocument::fromJson(pf.readAll(), &pe);
+        pf.close();
+        if (pe.error != QJsonParseError::NoError) return false;
+        cur = pd.object();
+        id = parentId;
+    }
 }
 
 void Launcher::ensureOptionsTxt()

@@ -4,6 +4,9 @@
 #include <QObject>
 #include <QString>
 #include <QVariantList>
+#include <QHash>
+#include <QList>
+#include <QPair>
 #include <functional>
 
 namespace ShadowLauncher {
@@ -100,6 +103,15 @@ public:
     Q_INVOKABLE void retryModFileDownload(int downloadId);
     /// 2026-08-15：版本级前置依赖（详情页悬停 tooltip）
     Q_INVOKABLE void fetchVersionDependencies(const QString& slug, const QString& versionId);
+    /// 汉化：英文名 → 中文名（查汉化表；无中文或与英文相同则返回空串，供 QML 用）
+    Q_INVOKABLE QString resolveModZh(const QString& title) const;
+
+    /// 详情页「转到 XX / 复制链接」统一链接解析（2026-08-23）。
+    /// kind: mod | resourcepack | shader | modpack | datapack
+    /// 纯数字 slug 视为 CurseForge id，否则视为 Modrinth slug。
+    /// 返回 { mrUrl, cfUrl, mcmodUrl } —— 空串表示该信源不可用；
+    /// mcmodUrl 命中 class-id 索引返回 class 页直达，否则回退 mcmod.cn 搜索链接。
+    Q_INVOKABLE QVariantMap resolveProjectLinks(const QString& title, const QString& slug, const QString& kind) const;
 
     /// CF 详情页前置依赖解析：先取 CF 名称/图标，再按名称在 Modrinth 检索映射
     /// （命中 → Modrinth slug/title/icon，点击进 Modrinth 详情；未命中 → 保留 CF 数据）
@@ -166,6 +178,17 @@ private:
     ModManager* m_modMgr = nullptr;
     ResourceFetchEngine* m_fetchEngine = nullptr;
     CfApi* m_cfApi = nullptr;
+
+    // ── Mod 常用名汉化（qml/mod_zh.json）：英文名 → 中文名；中文名/别名 → 英文名 ──
+    QHash<QString, QString> m_zhByTitle;   // normalize(en) → zh
+    QHash<QString, QString> m_enByZh;      // zh 或 alias → en
+
+    // ── MC 百科 class-id 索引（qml/mcmod_map.json，tools/gen_mcmod_map.py 生成，仅存 id/en/cf/mr 极简映射）──
+    QHash<QString, int> m_mcmodByEn;    // normalize(en) → classId
+    QHash<QString, int> m_mcmodByCf;    // lowercase(cf slug) → classId
+    QHash<QString, int> m_mcmodByMr;    // lowercase(mr slug) → classId
+    QHash<QString, QString> m_cfByEn;   // normalize(en) → lowercase(cf 字母 slug)，供 CF 数字id → 字母 slug 反查
+    QList<QPair<QString, int>> m_mcmodEnPairs;  // (normalize(en), classId) 用于保守的包含匹配
 
     // ── 双源聚合状态（代次号防并发搜索污染）──
     int m_searchGen = 0;
@@ -280,6 +303,20 @@ private:
 
     // Mod/Shader 搜索结果解析（字段与 QML 端约定一致，两路径共用）
     QVariantList parseSearchResponseItems(const QJsonArray& results) const;
+
+    // 汉化：加载 qml/mod_zh.json 并建映射；中文搜索词反推英文名
+    void loadModTranslations();
+    // MC 百科 class-id 索引：加载 qml/mcmod_map.json；并解析出直达 class 页或搜索链接
+    void loadMcmodMap();
+    QString resolveMcmodUrl(const QString& title, const QString& slug) const;
+    QString resolveZhQuery(const QString& query) const;
+    // 中文模糊：返回所有 zh/别名 匹配 query 的英文名（精确>前缀>包含，取最短，最多 maxCount 个）
+    QStringList resolveZhQueries(const QString& query, int maxCount) const;
+    // 中文多候选聚合：多英文名并发搜 Modrinth 后合并去重（一次拉全，不分页续拉）
+    void startZhAggregatedModSearch(const QStringList& ens, const QString& origQuery,
+        const QString& loader, const QString& category, const QStringList& gameVersions,
+        const QString& environment, const QString& license, int page, int limit);
+    void finishZhAggregatedModSearch(int gen);
 };
 
 } // namespace ShadowLauncher

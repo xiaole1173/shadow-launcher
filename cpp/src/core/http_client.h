@@ -98,7 +98,8 @@ public:
     // ── API 请求（单连接，零变化）──
     void get(const QString& url,
              std::function<void(int status, const QByteArray& body)> callback,
-             std::function<void(const QString& error)> onError = nullptr);
+             std::function<void(const QString& error)> onError = nullptr,
+             bool useCache = true);
 
     // ── 文件传输（>4MB 自动多线程分片）──
     // expectedSize/expectedSha1：可选完整性校验（不符自动重下一次）

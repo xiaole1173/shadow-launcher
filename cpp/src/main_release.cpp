@@ -170,6 +170,19 @@ int main(int argc, char *argv[])
         // If lock exists but no state.json → SLUpdater completed, cleanup
         if (lockExists && !stateExists) {
             OutputDebugStringA("[PreInit] 安装锁存在但无待安装更新，清理锁\n");
+            // ── 2026-08-25：更新完成后的首次启动，写一次性标记（exe 目录 .just_updated），
+            //    供 QML 区分"新装/更新用户"——蓝色更新内容 toast 仅更新用户弹出。──
+            {
+                std::wstring markerPath = appDirW + L"\\.just_updated";
+                HANDLE hMark = CreateFileW(markerPath.c_str(), GENERIC_WRITE, 0, nullptr,
+                                           CREATE_ALWAYS, FILE_ATTRIBUTE_HIDDEN, nullptr);
+                if (hMark != INVALID_HANDLE_VALUE) {
+                    const char ack[] = "updated";
+                    DWORD written = 0;
+                    WriteFile(hMark, ack, (DWORD)(sizeof(ack) - 1), &written, nullptr);
+                    CloseHandle(hMark);
+                }
+            }
             DeleteFileW(lockPath.c_str());
             // 全量更新残留的 extracted 目录一并清理（SLUpdater 只删 state/lock）
             QDir(QString::fromWCharArray((appDirW + L"\\_update\\extracted").c_str())).removeRecursively();

@@ -22,6 +22,10 @@
 #include <functional>
 #include <memory>
 #include <vector>
+#include <QtConcurrent>
+#include <QFutureWatcher>
+#include <QThreadPool>
+#include <QPair>
 
 namespace ShadowLauncher {
 
@@ -1023,108 +1027,102 @@ void ModManager::fetchModVersions(const QStringList& slugs)
                 [this, slug, i, results, processOne](int status, const QByteArray& data) {
                     QJsonDocument doc = QJsonDocument::fromJson(data);
                     QJsonArray verObjs = doc.array();
-                    QSet<QString> seen;
-                    QStringList allGameVersions;
 
-                    for (const QJsonValue& vv : verObjs) {
-                        QJsonObject ver = vv.toObject();
-                        QJsonArray gvs = ver.value(QStringLiteral("game_versions")).toArray();
-                        for (const QJsonValue& gv : gvs) {
-                            QString gvStr = gv.toString();
-                            if (!seen.contains(gvStr)) {
-                                seen.insert(gvStr);
-                                allGameVersions.append(gvStr);
-                            }
-                        }
-                    }
+                    // Build detailMap keyed by "gameVersion|loader|versionNumber" so that
+                    // multi-loader mods (Iris: Fabric + NeoForge, etc.) show all loader
+                    // variants per game version, and all versions are kept.
+                    // ── 2026-08-18：O(n) 单遍历 + QtConcurrent 后台线程 ──
+                    // 旧实现是"遍历所有 MC 版本 × 遍历所有版本"的双层嵌套循环（4300 个版本
+                    // × 几十个 MC 版本 = 几十万次迭代），且直接在 QML 信号回调（主线程）
+                    // 同步执行 → 打开 simple-voice-chat 等大 Mod 详情页时主线程卡死。
+                    // 现在：单次遍历 verObjs，每个版本展开其 game_versions 生成条目；
+                    // 合成（含去重、按 MC 版本分类）在 QtConcurrent 后台线程执行，
+                    // 完成后回主线程发信号。QML 侧无需再对 raw 做分组重算。
+                    const QJsonArray verObjsArr = verObjs;
+                    auto buildFuture = QtConcurrent::run([this, slug, verObjsArr]() {
+                        // 后台线程：纯数据合成，无 QObject 触碰
+                        QVariantMap detailMap;
+                        QStringList compositeVersions;
+                        QSet<QString> dedupComposite;
 
-                    std::sort(allGameVersions.begin(), allGameVersions.end(),
-                        [](const QString& a, const QString& b) {
-                            auto parse = [](const QString& v) -> std::tuple<int,int,int> {
-                                auto pts = v.split('.');
-                                return {
-                                    pts.size() > 0 ? pts[0].toInt() : 0,
-                                    pts.size() > 1 ? pts[1].toInt() : 0,
-                                    pts.size() > 2 ? pts[2].toInt() : 0
-                                };
-                            };
-                            return parse(a) > parse(b);
-                        });
-
-                    // Build detailMap keyed by "gameVersion|loader" so that
-                    // multi-loader mods (Iris: Fabric + NeoForge, etc.) show
-                    // all loader variants per game version.
-                    QVariantMap detailMap;
-                    QStringList compositeVersions;
-                    QSet<QString> dedupComposite;
-
-                    for (const QString& gv : allGameVersions) {
-                        for (const QJsonValue& vv : verObjs) {
+                        for (const QJsonValue& vv : verObjsArr) {
                             QJsonObject ver = vv.toObject();
+                            const QString versionNumber = ver["version_number"].toString();
+                            const QString versionId = ver["id"].toString();
+                            const QString datePublished = ver["date_published"].toString();
+                            const QString versionType = ver["version_type"].toString();
+                            const int downloads = ver["downloads"].toInt();
                             QJsonArray gvs = ver["game_versions"].toArray();
-                            bool found = false;
-                            for (const QJsonValue& g : gvs) {
-                                if (g.toString() == gv) { found = true; break; }
-                            }
-                            if (found) {
-                                QJsonArray loaders = ver["loaders"].toArray();
-                                QStringList loaderList;
-                                for (const QJsonValue& l : loaders) loaderList << l.toString();
-                                QString primaryLoader = loaderList.isEmpty() ? QString() : loaderList.first();
+                            QJsonArray loaders = ver["loaders"].toArray();
+                            QStringList loaderList;
+                            for (const QJsonValue& l : loaders) loaderList << l.toString();
+                            const QString primaryLoader = loaderList.isEmpty() ? QString() : loaderList.first();
 
-                                // ── 2026-08-15：全部版本保留（不再按 gv|loader 去重）──
-                                // 用户质疑：同一 MC 版本同 loader 的多个版本（如 26.1.2|fabric
-                                // 的 0.9.1-release / 0.9.2-alpha.4）都该可选。QML 端已按 MC 主
-                                // 版本分组+折叠渲染，天然支持多行。key 用 gv|loader|version_number
-                                // 保证唯一；原始"先到先得去重"曾把 release 顶掉（0.9.1 缺失）。
-                                const QString versionNumber = ver["version_number"].toString();
-                                const QString uniqueKey = gv + QStringLiteral("|")
-                                    + primaryLoader + QStringLiteral("|") + versionNumber;
+                            // 主文件（primary 优先，否则第一个）
+                            QString fileUrl, fileName;
+                            qint64 fileSize = 0;
+                            QString fileSha1;
+                            QJsonArray files = ver["files"].toArray();
+                            QJsonObject pickedFile;
+                            bool hasFile = false;
+                            for (int fi = 0; fi < files.size(); ++fi) {
+                                QJsonObject f = files.at(fi).toObject();
+                                if (f["primary"].toBool()) { pickedFile = f; hasFile = true; break; }
+                            }
+                            if (!hasFile && !files.isEmpty()) {
+                                pickedFile = files.at(0).toObject();
+                                hasFile = true;
+                            }
+                            if (hasFile) {
+                                fileUrl = pickedFile["url"].toString();
+                                fileName = pickedFile["filename"].toString();
+                                fileSize = static_cast<qint64>(pickedFile["size"].toDouble());
+                                fileSha1 = pickedFile["hashes"].toObject()["sha1"].toString();
+                            }
+
+                            for (const QJsonValue& g : gvs) {
+                                const QString gv = g.toString();
+                                if (gv.isEmpty()) continue;
+                                const QString uniqueKey = gv + QLatin1Char('|')
+                                    + primaryLoader + QLatin1Char('|') + versionNumber;
                                 if (dedupComposite.contains(uniqueKey))
-                                    continue;   // 防御：同一 (gv, ver) 只发一次
+                                    continue;   // 防御：同一 (gv, loader, ver) 只发一次
                                 dedupComposite.insert(uniqueKey);
                                 compositeVersions.append(uniqueKey);
 
                                 QVariantMap detail;
-                                detail["version_number"] = ver["version_number"].toString();
+                                detail["version_number"] = versionNumber;
                                 detail["name"] = ver["name"].toString();
-                                detail["downloads"] = ver["downloads"].toInt();
-                                detail["date_published"] = ver["date_published"].toString();
-                                detail["version_type"] = ver["version_type"].toString();
-                                detail["id"] = ver["id"].toString();
+                                detail["downloads"] = downloads;
+                                detail["date_published"] = datePublished;
+                                detail["version_type"] = versionType;
+                                detail["id"] = versionId;
                                 detail["game_version"] = gv;  // plain MC version for QML display
-                                // Primary file
-                                QJsonArray files = ver["files"].toArray();
-                                for (const QJsonValue& fv : files) {
-                                    QJsonObject f = fv.toObject();
-                                    if (f["primary"].toBool()) {
-                                        detail["url"] = f["url"].toString();
-                                        detail["filename"] = f["filename"].toString();
-                                        detail["size"] = static_cast<qint64>(f["size"].toDouble());
-                                        QJsonObject hashes = f["hashes"].toObject();
-                                        detail["sha1"] = hashes["sha1"].toString();
-                                        break;
-                                    }
-                                }
-                                if (!detail.contains("url") && !files.isEmpty()) {
-                                    QJsonObject f = files.first().toObject();
-                                    detail["url"] = f["url"].toString();
-                                    detail["filename"] = f["filename"].toString();
-                                    detail["size"] = static_cast<qint64>(f["size"].toDouble());
-                                    QJsonObject hashes = f["hashes"].toObject();
-                                    detail["sha1"] = hashes["sha1"].toString();
+                                detail["game_versions"] = QVariant(gvs);
+                                if (!fileUrl.isEmpty()) {
+                                    detail["url"] = fileUrl;
+                                    detail["filename"] = fileName;
+                                    detail["size"] = fileSize;
+                                    detail["sha1"] = fileSha1;
                                 }
                                 detail["loaders"] = loaderList;
                                 detailMap[uniqueKey] = detail;
-                                // Continue iterating — don't break, collect all loader
-                                // variants for this game version
                             }
                         }
-                    }
+                        return QPair<QStringList, QVariantMap>(compositeVersions, detailMap);
+                    });
 
-                    (*results)[slug] = compositeVersions;
-                    emit modVersionsPartial(slug, compositeVersions, detailMap);
-                    processOne();
+                    // 后台合成完成后回主线程发信号（QVariantList/QStringList 可跨线程排队）
+                    auto *watcher = new QFutureWatcher<QPair<QStringList, QVariantMap>>(this);
+                    QObject::connect(watcher, &QFutureWatcher<QPair<QStringList, QVariantMap>>::finished,
+                        this, [this, watcher, slug, processOne, results]() {
+                            const auto pair = watcher->result();
+                            watcher->deleteLater();
+                            (*results)[slug] = pair.first;
+                            emit modVersionsPartial(slug, pair.first, pair.second);
+                            processOne();
+                        });
+                    watcher->setFuture(buildFuture);
                 },
                 [this, slug, processOne](const QString& err) {
                     Q_UNUSED(err); Q_UNUSED(slug);
@@ -1437,10 +1435,25 @@ void ModManager::fetchViaSinan(const QString& url, bool cacheable,
                                std::function<void(int, const QByteArray&)> done,
                                std::function<void(const QString&)> fail)
 {
+    const QString kMirror = QStringLiteral("https://mod.mcimirror.top/modrinth/v2");
+    const QString kOfficial = QStringLiteral("https://api.modrinth.com/v2");
+
+    // 司南镜像缺数据（如 xaerolib 版本端点 404）→ 降级官方 api.modrinth.com 重试一次（2026-08-23）
+    auto onFail = [this, url, kMirror, kOfficial, cacheable, done, fail](const QString& err) {
+        if (url.startsWith(kMirror)) {
+            const QString official = QString(url).replace(kMirror, kOfficial);
+            qCInfo(logApp) << QStringLiteral("司南镜像失败，降级官方: %1 (%2)").arg(url.left(80), err.left(60));
+            if (m_fetchEngine) m_fetchEngine->getJson(official, cacheable, done, fail);
+            else HttpClient::instance().get(official, done, fail);
+        } else if (fail) {
+            fail(err);
+        }
+    };
+
     if (m_fetchEngine) {
-        m_fetchEngine->getJson(url, cacheable, std::move(done), std::move(fail));
+        m_fetchEngine->getJson(url, cacheable, done, onFail);
     } else {
-        HttpClient::instance().get(url, std::move(done), std::move(fail));
+        HttpClient::instance().get(url, done, onFail);
     }
 }
 

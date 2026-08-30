@@ -40,21 +40,51 @@ Rectangle {
     property bool modpackLoading: false
     property var modpackGrouped: []
     property var modpackExpandedGroups: []
+    property bool _versionListEnter: false
+
+    // 2026-08-23：整合包分组改异步（Qt.callLater），并触发版本列表入场动画
+    function _rebuildPackGrouped() {
+        Qt.callLater(function() {
+            modpackGrouped = buildGroups(modpackRawVersions, modpackVersionMap)
+            if (modpackGrouped.length > 0) _versionListEnter = true
+        })
+    }
 
     // ── 下载弹窗状态 ──
     property var _pendingVersion: null
     property bool _showNameDialog: false
 
+    // ── 详情页跳转/复制按钮（整合包无 MC 百科）──
+    property var _linkItems: []
+    property var _copyItems: []
+    function refreshLinks() {
+        if (!backend || !modpackDetailSlug) { _linkItems = []; _copyItems = []; return }
+        var r = backend.resolveProjectLinks(modpackDetailTitle, modpackDetailSlug, "modpack")
+        var links = []
+        if (r.mrUrl) links.push({ label: "Modrinth", url: r.mrUrl })
+        if (r.cfUrl) links.push({ label: "CurseForge", url: r.cfUrl })
+        var name = modpackDetailTitle || modpackDetailSlug
+        var zh = backend.resolveModZh(modpackDetailTitle)
+        if (zh && zh !== name) name = zh + " " + name
+        _linkItems = links
+        _copyItems = [
+            { label: "复制名称", text: name }
+        ]
+    }
+    onModpackDetailTitleChanged: if (backend) refreshLinks()
+
     signal goBack()
 
     // ── 加载版本 ──
     onModpackDetailSlugChanged: {
+        refreshLinks()
         if (modpackDetailSlug && backend) {
             modpackLoading = true
             modpackRawVersions = []
             modpackVersionMap = {}
             modpackGrouped = []
             modpackExpandedGroups = []
+            _versionListEnter = false
             backend.fetchModpackVersions(modpackDetailSlug)
         }
     }
@@ -99,7 +129,7 @@ Rectangle {
             }
             root.modpackRawVersions = arr
             root.modpackVersionMap = map
-            root.modpackGrouped = buildGroups(arr, map)
+            root._rebuildPackGrouped()
         }
     }
 
@@ -256,10 +286,23 @@ Rectangle {
                     }
                     Item { Layout.fillWidth: true }
                 }
+
+                // ── 跳转 / 复制按钮 ──
+                DetailLinkBar {
+                    Layout.fillWidth: true
+                    Layout.topMargin: 2
+                    backend: root.backend
+                    toastManager: root.toastManager
+                    links: root._linkItems
+                    copyItems: root._copyItems
+                }
             }
 
             // ── 版本列表 ──
             Text {
+                visible: _versionListEnter
+                opacity: _versionListEnter ? 1 : 0
+                Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
                 text: "版本列表"
                 color: StyleTokens.textSecondary
                 font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold
@@ -279,51 +322,85 @@ Rectangle {
                 }
             }
 
-            Repeater {
-                model: root.modpackGrouped
-                delegate: ExpandableGroupCard {
-                    id: groupCard
-                    Layout.fillWidth: true
-                    title: "MC " + modelData.major
-                    subtitle: modelData.versions.length + " 个版本"
-                    expanded: root.isGroupExpanded(modelData.major) || root.modpackGrouped.length === 1
-                    onToggled: root.toggleGroup(modelData.major)
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 8
+                visible: _versionListEnter
 
-                    // 错峰入场（与 Mod 详情页一致）
-                    opacity: 0
-                    Timer {
-                        interval: index * 80 + 100
-                        running: !root.modpackLoading
-                        repeat: false
-                        onTriggered: groupCard.opacity = 1
-                    }
-                    Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutBack; easing.overshoot: 0.2 } }
+                Repeater {
+                    model: root.modpackGrouped
+                    delegate: ExpandableGroupCard {
+                        id: groupCard
+                        Layout.fillWidth: true
+                        title: "MC " + modelData.major
+                        subtitle: modelData.versions.length + " 个版本"
+                        expanded: root.isGroupExpanded(modelData.major) || root.modpackGrouped.length === 1
+                        onToggled: root.toggleGroup(modelData.major)
 
-                    Repeater {
-                        model: modelData.versions
-                        delegate: DetailVersionCard {
-                            required property string modelData
-                            // 与 Mod 详情页一致：右缩进 24px（内容区左侧留白，视觉不贴边）
-                            width: parent.width - 24
-                            x: 24
-                            versionLabel: (root.modpackVersionMap[modelData] && root.modpackVersionMap[modelData].versionNumber) || modelData
-                            tags: {
-                                var d = root.modpackVersionMap[modelData] || {}
-                                var t = []
-                                var lds = d.loaders || []
-                                for (var li = 0; li < lds.length; li++) {
-                                    var l = String(lds[li])
-                                    t.push({text: l.charAt(0).toUpperCase() + l.slice(1),
-                                            color: "#b0b8c8", bg: "#1e2230"})
+                        property int _visibleCount: 30
+                        readonly property int _totalCount: modelData.versions.length
+                        readonly property bool _hasMore: _visibleCount < _totalCount
+
+                        opacity: 0
+                        Timer {
+                            interval: index * 80 + 100
+                            running: _versionListEnter
+                            repeat: false
+                            onTriggered: groupCard.opacity = 1
+                        }
+                        Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutBack; easing.overshoot: 0.2 } }
+
+                        Repeater {
+                            model: groupCard.expanded ? modelData.versions.slice(0, groupCard._visibleCount) : []
+                            delegate: DetailVersionCard {
+                                required property string modelData
+                                width: parent.width - 24
+                                x: 24
+                                versionLabel: (root.modpackVersionMap[modelData] && root.modpackVersionMap[modelData].versionNumber) || modelData
+                                tags: {
+                                    var d = root.modpackVersionMap[modelData] || {}
+                                    var t = []
+                                    var lds = d.loaders || []
+                                    for (var li = 0; li < lds.length; li++) {
+                                        var l = String(lds[li])
+                                        t.push({text: l.charAt(0).toUpperCase() + l.slice(1),
+                                                color: "#b0b8c8", bg: "#1e2230"})
+                                    }
+                                    return t
                                 }
-                                return t
+                                infoLines: [
+                                    {label: "日期", value: root.fmtDate(root.modpackVersionMap[modelData] ? root.modpackVersionMap[modelData].date : "")},
+                                    {label: "大小", value: root.fmtSize(root.modpackVersionMap[modelData] ? root.modpackVersionMap[modelData].size : 0)}
+                                ]
+                                hasDownload: true
+                                onDownloadClicked: root.requestDownload(modelData)
                             }
-                            infoLines: [
-                                {label: "日期", value: root.fmtDate(root.modpackVersionMap[modelData] ? root.modpackVersionMap[modelData].date : "")},
-                                {label: "大小", value: root.fmtSize(root.modpackVersionMap[modelData] ? root.modpackVersionMap[modelData].size : 0)}
-                            ]
-                            hasDownload: true
-                            onDownloadClicked: root.requestDownload(modelData)
+                        }
+
+                        // ── 懒渲染：还有 X 个版本 ──
+                        Rectangle {
+                            visible: groupCard.expanded && groupCard._hasMore
+                            width: parent.width - 48
+                            x: 24
+                            height: 30
+                            radius: StyleTokens.radiusMd
+                            color: moreHov.containsMouse ? "#3a50b0" : "transparent"
+                            border.color: "#2a3a68"
+                            border.width: 1
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                            Text {
+                                anchors.centerIn: parent
+                                text: "还有 " + (groupCard._totalCount - groupCard._visibleCount) + " 个版本"
+                                color: moreHov.containsMouse ? StyleTokens.accentLink : StyleTokens.textMuted
+                                font.pixelSize: StyleTokens.fontSizeSm
+                            }
+                            MouseArea {
+                                id: moreHov
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: { groupCard._visibleCount += 50 }
+                            }
                         }
                     }
                 }

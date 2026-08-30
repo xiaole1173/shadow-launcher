@@ -13,6 +13,12 @@ Rectangle {
 
     signal accepted()
 
+    // 诊断：统一入口，打印日志便于排查 Enter 是否被检测到
+    function emitAccepted() {
+        console.log("[SearchBox] Enter accepted, text=" + JSON.stringify(root.text))
+        root.accepted()
+    }
+
     Layout.fillWidth: true
     height: 28
     radius: StyleTokens.radiusSm
@@ -41,7 +47,8 @@ Rectangle {
         font.pixelSize: StyleTokens.fontSizeSm
         selectByMouse: true
 
-        Keys.onReturnPressed: root.accepted()
+        Keys.onReturnPressed: root.emitAccepted()
+        Keys.onEnterPressed: root.emitAccepted()
 
         Text {
             id: placeholder

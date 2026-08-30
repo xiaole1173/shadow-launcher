@@ -201,13 +201,17 @@ Rectangle {
 
             // Progress area
             Rectangle {
-                Layout.fillWidth: true; height: msLoginForm.msInProgress ? 80 : 0
+                Layout.fillWidth: true
+                height: msLoginForm.msInProgress ? msProgressCol.implicitHeight + 24 : 0
                 visible: msLoginForm.msInProgress
                 color: StyleTokens.bgSecondary; radius: StyleTokens.radiusLg; border.color: StyleTokens.bgElevated
                 Behavior on height { NumberAnimation { duration: 300 } }
 
                 ColumnLayout {
-                    anchors.centerIn: parent; spacing: 10; width: parent.width - 24
+                    id: msProgressCol
+                    anchors.top: parent.top; anchors.topMargin: 12
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: parent.width - 24; spacing: 10
 
                     // Status text
                     Text {
@@ -220,16 +224,19 @@ Rectangle {
 
                     // Loading bar
                     Rectangle {
+                        id: loadTrack
                         Layout.fillWidth: true; Layout.preferredHeight: 3; radius: StyleTokens.radiusSm
                         color: StyleTokens.bgInput
                         Rectangle {
+                            id: loadBar
                             height: 3; radius: StyleTokens.radiusSm; color: StyleTokens.accentLight
                             width: parent.width * 0.4
+                            property real travel: Math.max(0, loadTrack.width - loadBar.width)
                             SequentialAnimation on x {
                                 running: msLoginForm.msInProgress
                                 loops: Animation.Infinite
-                                NumberAnimation { from: 0; to: 140; duration: 1200; easing.type: Easing.InOutSine }
-                                NumberAnimation { from: 140; to: 0; duration: 1200; easing.type: Easing.InOutSine }
+                                NumberAnimation { from: 0; to: loadBar.travel; duration: 1200; easing.type: Easing.InOutSine }
+                                NumberAnimation { from: loadBar.travel; to: 0; duration: 1200; easing.type: Easing.InOutSine }
                             }
                         }
                     }

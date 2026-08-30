@@ -17,12 +17,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "ShadowTeam"
             VALUE "FileDescription", "Shadow Launcher"
-            VALUE "FileVersion", "1.0.1-beta"
+            VALUE "FileVersion", "1.0.1"
             VALUE "InternalName", "ShadowLauncher"
             VALUE "LegalCopyright", "ShadowTeam"
             VALUE "OriginalFilename", "ShadowLauncher.exe"
             VALUE "ProductName", "Shadow Launcher"
-            VALUE "ProductVersion", "1.0.1-beta"
+            VALUE "ProductVersion", "1.0.1"
         END
     END
     BLOCK "VarFileInfo"

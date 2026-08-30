@@ -180,12 +180,13 @@ void HttpClient::abortDownload(DownloadHandle* handle)
 
 void HttpClient::get(const QString& url,
                      std::function<void(int, const QByteArray&)> callback,
-                     std::function<void(const QString&)> onError)
+                     std::function<void(const QString&)> onError,
+                     bool useCache)
 {
     qCInfo(logDownload).noquote() << QStringLiteral("[驿道] 发起网络请求 %1 方式=GET 超时=%2ms")
                                      .arg(url).arg(m_config.totalTimeoutMs);
 
-    QNetworkRequest req = buildRequest(m_config, QUrl(url));
+    QNetworkRequest req = buildRequest(m_config, QUrl(url), useCache);
     QNetworkReply* reply = m_manager->get(req);
 
     auto timer = std::make_shared<QElapsedTimer>();

@@ -406,10 +406,9 @@ Rectangle {
                 Text { text: qsTr("自动进服（全局默认）"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary; Layout.topMargin: 8 }
                 InputBox {
                     Layout.fillWidth: true
-                    placeholderText: qsTr("服务器地址，如 play.example.com:25565（留空不自动进服）")
                     text: (backend) ? (backend.autoJoinServer || "") : ""
-                    onAccepted: {
-                        if (backend) backend.setAutoJoinServer(text.trim())
+                    onUserEdited: function(t) {
+                        if (backend) backend.setAutoJoinServer(t.trim())
                     }
                 }
 
@@ -428,10 +427,9 @@ Rectangle {
                 Text { text: qsTr("窗口标题"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary; Layout.topMargin: 8 }
                 InputBox {
                     Layout.fillWidth: true
-                    placeholderText: qsTr("启动后修改游戏窗口标题（留空不修改）")
                     text: (backend) ? (backend.windowTitleOverride || "") : ""
-                    onAccepted: {
-                        if (backend) backend.setWindowTitleOverride(text.trim())
+                    onUserEdited: function(t) {
+                        if (backend) backend.setWindowTitleOverride(t.trim())
                     }
                 }
 
@@ -439,19 +437,17 @@ Rectangle {
                 Text { text: qsTr("启动前命令"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary; Layout.topMargin: 8 }
                 InputBox {
                     Layout.fillWidth: true
-                    placeholderText: qsTr("如：start D:\\tools\\sync.bat（留空不执行）")
                     text: (backend) ? (backend.preLaunchCommand || "") : ""
-                    onAccepted: {
-                        if (backend) backend.setPreLaunchCommand(text.trim())
+                    onUserEdited: function(t) {
+                        if (backend) backend.setPreLaunchCommand(t.trim())
                     }
                 }
                 Text { text: qsTr("退出后命令"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary; Layout.topMargin: 8 }
                 InputBox {
                     Layout.fillWidth: true
-                    placeholderText: qsTr("如：start D:\\tools\\backup.bat（留空不执行）")
                     text: (backend) ? (backend.postExitCommand || "") : ""
-                    onAccepted: {
-                        if (backend) backend.setPostExitCommand(text.trim())
+                    onUserEdited: function(t) {
+                        if (backend) backend.setPostExitCommand(t.trim())
                     }
                 }
                 Text { text: qsTr("以上默认值可在版本设置-启动配置中按版本单独覆盖"); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textMuted }

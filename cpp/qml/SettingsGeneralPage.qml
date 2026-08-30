@@ -986,7 +986,6 @@ Rectangle {
                             Label { text: qsTr("自动进服（全局默认）"); color: root.colorSecondary; font.pixelSize: StyleTokens.fontSizeMd }
                             InputBox {
                                 Layout.fillWidth: true
-                                placeholderText: qsTr("服务器地址，如 play.example.com:25565（留空不自动进服）")
                                 text: root.backend ? (root.backend.autoJoinServer || "") : ""
                                 onAccepted: {
                                     if (root.backend) root.backend.setAutoJoinServer(text.trim())

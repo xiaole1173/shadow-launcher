@@ -502,6 +502,10 @@ public:
     /// CF 详情页前置依赖解析（Modrinth 优先映射），结果经 cfDependenciesResolved 回传
     Q_INVOKABLE void resolveCfDependencies(const QString& modId, const QVariantList& deps);
     Q_INVOKABLE void fetchCfDependencies(const QString& modId);
+    /// 汉化反查：英文名 → 中文名（依赖卡用），转发 resource 层
+    Q_INVOKABLE QString resolveModZh(const QString& title) const;
+    /// 详情页「转到 XX / 复制链接」统一链接解析（转发 resource 层），返回 { mrUrl, cfUrl, mcmodUrl }
+    Q_INVOKABLE QVariantMap resolveProjectLinks(const QString& title, const QString& slug, const QString& kind) const;
 
     // Mod file download
     Q_INVOKABLE int downloadModFile(const QString& url, const QString& savePath, const QString& displayName,
@@ -833,6 +837,11 @@ public:
     Q_INVOKABLE int diagAutoLangComboIdx() const;
     Q_INVOKABLE void setAutoLangModeFromCombo(int idx);
     Q_INVOKABLE void logUiMsg(const QString& msg);
+    // ── UI 一次性标记（QSettings 持久化；2026-08-24 v1.0.1 一次性启动公告 toast 用）──
+    Q_INVOKABLE bool readUiFlag(const QString& key) const;
+    Q_INVOKABLE void writeUiFlag(const QString& key, bool value);
+    // 更新后首次启动判定（蓝色"更新内容"toast 仅更新用户弹出；一次性消费；2026-08-25）
+    Q_INVOKABLE bool consumeJustUpdatedFlag();
     CheckBackend* check() const { return m_check; }
     VersionBackend* version() const { return m_version; }
     LaunchBackend* launchBackend() const { return m_launch; }

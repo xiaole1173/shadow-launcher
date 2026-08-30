@@ -90,6 +90,38 @@ Rectangle {
         }
     }
 
+    // ── 通用版本比较：支持纯数字（47.0.14）与字母+数字混合（HD_U_G8 / HD_U_G10）──
+    function versionTokens(v) {
+        var s = String(v)
+        var toks = s.match(/[A-Za-z]+|\d+/g)
+        return toks || []
+    }
+    // 升序语义：a < b → 负数。数字段按数值，字母段按字典序。
+    function compareVersionTokens(a, b) {
+        var ta = versionTokens(a), tb = versionTokens(b)
+        var n = Math.max(ta.length, tb.length)
+        for (var i = 0; i < n; i++) {
+            var x = i < ta.length ? ta[i] : null
+            var y = i < tb.length ? tb[i] : null
+            if (x === null && y === null) return 0
+            if (x === null) return -1   // a 更短 → 更小（如 HD_U_G8 vs HD_U_G8_pre1）
+            if (y === null) return 1
+            var xn = /^\d+$/.test(x), yn = /^\d+$/.test(y)
+            if (xn && yn) {
+                var diff = parseInt(x, 10) - parseInt(y, 10)
+                if (diff !== 0) return diff
+                if (x !== y) return x < y ? -1 : 1  // 前导零兜底
+            } else if (xn) {
+                return 1   // 数字段 > 字母段
+            } else if (yn) {
+                return -1
+            } else {
+                if (x !== y) return x < y ? -1 : 1
+            }
+        }
+        return 0
+    }
+
     function annotateTypes(inputList) {
         var result = []
         for (var i = 0; i < inputList.length; i++) {
@@ -101,21 +133,14 @@ Rectangle {
             else if (v.indexOf("preview") >= 0 || v.indexOf("_pre") >= 0) m.type = "preview"
             else if (v.indexOf("alpha") >= 0) m.type = "alpha"
             else if (v.indexOf("beta") >= 0 || v.indexOf("-pre") >= 0 || v.indexOf("rc") >= 0) m.type = "beta"
-            else m.type = item.type || "release"
+            else m.type = (item.type === "recommended") ? "release" : (item.type || "release")  // recommended 并入 release
             result.push(m)
         }
         var typeOrder = { release: 0, beta: 1, snapshot: 2, preview: 3, alpha: 4 }
         result.sort(function(a, b) {
             if (typeOrder[a.type] !== typeOrder[b.type]) return typeOrder[a.type] - typeOrder[b.type]
-            // 数字版本比较（修复 localeCompare 字符串比较导致 36.2.4 > 36.2.34 的错误）
-            var ap = String(a.version).split('.').map(function(x) { return parseInt(x, 10) || 0 })
-            var bp = String(b.version).split('.').map(function(x) { return parseInt(x, 10) || 0 })
-            for (var k = 0; k < Math.max(ap.length, bp.length); k++) {
-                var an = k < ap.length ? ap[k] : 0
-                var bn = k < bp.length ? bp[k] : 0
-                if (an !== bn) return bn - an  // 降序
-            }
-            return 0
+            // 降序：最新在前
+            return compareVersionTokens(b.version, a.version)
         })
         var foundLatest = false
         for (var j = 0; j < result.length; j++) {

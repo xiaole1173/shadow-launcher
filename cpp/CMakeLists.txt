@@ -300,7 +300,10 @@ qt6_add_resources(ShadowLauncher "qml_resources"
         qml/SettingsExperimentalPage.qml
         qml/UsefulWebsitesPage.qml
         qml/websites_data.js
+        qml/DetailLinkBar.qml
         qml/animation_tokens.json
+        qml/mod_zh.json
+        qml/mcmod_map.json
         qml/qmldir
 )
 target_include_directories(ShadowLauncher PRIVATE src)

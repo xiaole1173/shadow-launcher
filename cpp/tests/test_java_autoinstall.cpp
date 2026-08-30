@@ -32,8 +32,9 @@ int main(int argc, char** argv)
 
     fprintf(stderr, "=== START installJavaAsync major=%d ===\n", major);
     // 模拟启动流程：QTimer::singleShot 模拟“启动检查在等”
+    // ── 2026-08-18：jre → jdk（JRE 缺 jdk.crypto.ec，NeoForge 启动崩溃）──
     QTimer::singleShot(0, [&]() {
-        inst.installJavaAsync(major, QStringLiteral("jre"),
+        inst.installJavaAsync(major, QStringLiteral("jdk"),
             [&](bool ok, const QString& err, const QString& exe) {
                 fprintf(stderr, "=== DONE ok=%d err=%s exe=%s elapsed=%lldms mainThread=%d ===\n",
                         ok ? 1 : 0, err.toUtf8().constData(), exe.toUtf8().constData(),

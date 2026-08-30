@@ -34,7 +34,8 @@ int main(int argc, char** argv)
     // ── 场景 a：已缓存 → 直接完成，cancelInstall 不误删 ──
     fprintf(stderr, "=== TEST a: cached Java %d ===\n", cachedMajor);
     phase = 0;
-    inst.installJavaAsync(cachedMajor, QStringLiteral("jre"),
+    // ── 2026-08-18：jdk（JRE 缺 jdk.crypto.ec；缓存命中要求真 JDK）──
+    inst.installJavaAsync(cachedMajor, QStringLiteral("jdk"),
         [&](bool ok, const QString& err, const QString& exe) {
             fprintf(stderr, "[a] onDone ok=%d err=%s exe=%s\n", ok ? 1 : 0,
                     err.toUtf8().constData(), exe.toUtf8().constData());
@@ -45,7 +46,7 @@ int main(int argc, char** argv)
             // 场景 a 完成 → 测场景 b
             phase = 1;
             fprintf(stderr, "=== TEST b: fake Java %d (获取列表失败 → 清理) ===\n", fakeMajor);
-            inst.installJavaAsync(fakeMajor, QStringLiteral("jre"),
+            inst.installJavaAsync(fakeMajor, QStringLiteral("jdk"),
                 [&](bool ok2, const QString& err2, const QString&) {
                     fprintf(stderr, "[b] onDone ok=%d err=%s\n", ok2 ? 1 : 0, err2.toUtf8().constData());
                     const bool zipGone = !QFile::exists(QCoreApplication::applicationDirPath()

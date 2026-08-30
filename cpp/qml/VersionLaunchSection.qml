@@ -190,7 +190,10 @@ Item {
                         onClicked: {
                             if (root._mode === 0) return
                             root._mode = 0
-                            if (backend) backend.setVersionJvmArgsMode(currentSelectedVersion, 0)
+                            if (backend) {
+                                backend.setVersionJvmArgsMode(currentSelectedVersion, 0)
+                                backend.setVersionGameArgsMode(currentSelectedVersion, 0)
+                            }
                         }
                     }
                 }
@@ -217,6 +220,7 @@ Item {
                             root._mode = 1
                             if (backend) {
                                 backend.setVersionJvmArgsMode(currentSelectedVersion, 1)
+                                backend.setVersionGameArgsMode(currentSelectedVersion, 1)
                                 if (_perVerJvmArgs === "") {
                                     _perVerJvmArgs = _globalJvmArgs
                                     backend.setVersionJvmArgs(currentSelectedVersion, _perVerJvmArgs)
@@ -409,12 +413,12 @@ Item {
                     activeFocusOnPress: root._mode === 1
                     wrapMode: TextEdit.Wrap
                     selectByMouse: true
-                    onTextChanged: root._validateJvmArgs(text)
-                    onEditingFinished: {
-                        if (root._mode !== 1) return
-                        var newVal = text
-                        root._perVerJvmArgs = newVal
-                        if (backend) backend.setVersionJvmArgs(currentSelectedVersion, newVal)
+                    onTextChanged: {
+                        root._validateJvmArgs(text)
+                        if (root._mode === 1) {
+                            root._perVerJvmArgs = text
+                            if (backend) backend.setVersionJvmArgs(currentSelectedVersion, text)
+                        }
                     }
                 }
             }
@@ -571,11 +575,13 @@ Item {
                     text: root._effectiveGameArgs()
                     readOnly: root._mode === 0
                     activeFocusOnPress: root._mode === 1
-                    onEditingFinished: {
+                    onTextEdited: {
                         if (root._mode !== 1) return
-                        var newVal = text
-                        root._perVerGameArgs = newVal
-                        if (backend) backend.setVersionGameArgs(currentSelectedVersion, newVal)
+                        root._perVerGameArgs = text
+                        if (backend) {
+                            backend.setVersionGameArgsMode(currentSelectedVersion, 1)
+                            backend.setVersionGameArgs(currentSelectedVersion, text)
+                        }
                     }
                 }
             }
@@ -682,13 +688,12 @@ Item {
                     }
                     InputBox {
                         Layout.fillWidth: true
-                        placeholderText: qsTr("服务器地址，如 play.example.com:25565（留空不自动进服）")
                         text: root._resolvedAutoJoinServer()
                         readOnly: root._mode === 0
                         enabled: root._mode === 1
-                        onAccepted: {
+                        onUserEdited: function(t) {
                             if (root._mode !== 1) return
-                            if (backend) backend.setVersionAutoJoinServer(currentSelectedVersion, text.trim())
+                            if (backend) backend.setVersionAutoJoinServer(currentSelectedVersion, t.trim())
                         }
                     }
 
@@ -732,15 +737,14 @@ Item {
                     }
                     InputBox {
                         Layout.fillWidth: true
-                        placeholderText: qsTr("如：我的世界 生存服")
                         text: root._resolvedWindowTitle()
                         readOnly: root._mode === 0
                         enabled: root._mode === 1
-                        onAccepted: {
+                        onUserEdited: function(t) {
                             if (root._mode !== 1) return
                             if (backend) {
                                 backend.setVersionWindowTitleMode(currentSelectedVersion, 1)
-                                backend.setVersionWindowTitle(currentSelectedVersion, text.trim())
+                                backend.setVersionWindowTitle(currentSelectedVersion, t.trim())
                             }
                         }
                     }
@@ -760,15 +764,14 @@ Item {
                     }
                     InputBox {
                         Layout.fillWidth: true
-                        placeholderText: qsTr("如：start D:\\tools\\sync.bat（留空不执行）")
                         text: root._resolvedPreLaunchCommand()
                         readOnly: root._mode === 0
                         enabled: root._mode === 1
-                        onAccepted: {
+                        onUserEdited: function(t) {
                             if (root._mode !== 1) return
                             if (backend) {
                                 backend.setVersionPreLaunchMode(currentSelectedVersion, 1)
-                                backend.setVersionPreLaunchCommand(currentSelectedVersion, text.trim())
+                                backend.setVersionPreLaunchCommand(currentSelectedVersion, t.trim())
                             }
                         }
                     }
@@ -788,15 +791,14 @@ Item {
                     }
                     InputBox {
                         Layout.fillWidth: true
-                        placeholderText: qsTr("如：start D:\\tools\\backup.bat（留空不执行）")
                         text: root._resolvedPostExitCommand()
                         readOnly: root._mode === 0
                         enabled: root._mode === 1
-                        onAccepted: {
+                        onUserEdited: function(t) {
                             if (root._mode !== 1) return
                             if (backend) {
                                 backend.setVersionPostExitMode(currentSelectedVersion, 1)
-                                backend.setVersionPostExitCommand(currentSelectedVersion, text.trim())
+                                backend.setVersionPostExitCommand(currentSelectedVersion, t.trim())
                             }
                         }
                     }

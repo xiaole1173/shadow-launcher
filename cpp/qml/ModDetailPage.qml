@@ -32,9 +32,37 @@ Rectangle {
     // CF 详情（slug 为纯数字 modId）：下载量数据不可靠 → 卡片不显示（2026-08-15）
     property bool _isCfDetail: /^\d+$/.test(modDetailSlug)
     property string modDetailTitle: ""
+    property string modDetailZh: ""    // 中文名（列表卡片传入；空则回退英文 title）
+    // 详情页显示标题：中文（英文）组合，与列表卡片一致
+    readonly property string displayTitle: {
+        if (modDetailZh !== "" && modDetailTitle !== "" && modDetailZh !== modDetailTitle)
+            return modDetailZh + "（" + modDetailTitle + "）"
+        return modDetailZh !== "" ? modDetailZh : (modDetailTitle || modDetailSlug || "")
+    }
     property string modDetailDesc: ""
     property string modDetailIcon: ""
     property string modDetailIconRaw: ""
+
+    // ── 详情页跳转/复制按钮（统一胶囊，详情页与列表卡一致映射）──
+    property var _linkItems: []
+    property var _copyItems: []
+    function refreshLinks() {
+        if (!backend || !modDetailSlug) { _linkItems = []; _copyItems = []; return }
+        var r = backend.resolveProjectLinks(modDetailTitle, modDetailSlug, "mod")
+        var links = []
+        if (r.mrUrl) links.push({ label: "Modrinth", url: r.mrUrl })
+        if (r.cfUrl) links.push({ label: "CurseForge", url: r.cfUrl })
+        if (r.mcmodUrl) links.push({ label: "MC 百科", url: r.mcmodUrl })
+        var name = modDetailTitle || modDetailSlug
+        var zh = modDetailZh !== "" ? modDetailZh : backend.resolveModZh(modDetailTitle)
+        if (zh && zh !== name) name = zh + " " + name
+        _linkItems = links
+        _copyItems = [
+            { label: "复制名称", text: name }
+        ]
+    }
+    onModDetailTitleChanged: if (backend) refreshLinks()
+
     property bool modDetailLoading: false
     property var modDetailRawVersions: []
     property var modDetailVersionMap: ({})
@@ -113,10 +141,11 @@ Rectangle {
         function onDependenciesResolved(slug, deps) {
             if (slug !== modDetailSlug) return
             modDetailDepsLoading = false
-            modDetailDependencies = deps || []
-            showDeps = (deps && deps.length > 0)
+            var enriched = enrichDeps(deps)
+            modDetailDependencies = enriched
+            showDeps = enriched.length > 0
             // 写入缓存：返回上一级再进入时秒开（2026-08-07 修复）
-            _depsCache[slug] = modDetailDependencies
+            _depsCache[slug] = enriched
         }
     }
 
@@ -126,6 +155,17 @@ Rectangle {
         function onIconReady(url, localPath) {
             if (modDetailIconRaw && url === modDetailIconRaw)
                 modDetailIcon = localPath
+            // 依赖卡图标：司南引擎下载完成后更新对应项，重新赋值数组触发刷新
+            var arr = modDetailDependencies
+            var changed = false
+            for (var i = 0; i < arr.length; i++) {
+                if (arr[i].icon_url === url) {
+                    arr[i].icon = localPath
+                    changed = true
+                }
+            }
+            if (changed)
+                modDetailDependencies = arr.slice()
         }
     }
     function resolveDetailIcon() {
@@ -135,7 +175,13 @@ Rectangle {
 
     // ── Trigger version fetch ──
     onModDetailSlugChanged: {
+        refreshLinks()
         if (modDetailSlug && backend) {
+            // 切换详情：滚动复位 + 版本计数瞬时归零（避免旧内容残留、计数动画拖尾）
+            contentFlick.contentY = 0
+            countBehavior.enabled = false
+            verCountText._displayCount = 0
+            countBehavior.enabled = true
             var isCf = /^\d+$/.test(modDetailSlug)
             // ── CurseForge 详情（slug 为纯数字 modId）──
             if (isCf) {
@@ -146,7 +192,7 @@ Rectangle {
                     modDetailVersionMap = cachedCf.map
                     expandedGroups = []
                     showTestVersions = false
-                    _versionListEnter = true
+                    _rebuildGrouped()
                 } else {
                     modDetailLoading = true
                     modDetailRawVersions = []
@@ -165,7 +211,7 @@ Rectangle {
                     modDetailVersionMap = cached.map
                     expandedGroups = []
                     showTestVersions = false
-                    _versionListEnter = true
+                    _rebuildGrouped()
                 } else {
                     modDetailLoading = true
                     modDetailRawVersions = []
@@ -182,8 +228,9 @@ Rectangle {
                 // 缓存命中：直接显示，不重新请求（返回上一级时秒开）
                 var cachedDeps = _depsCache[modDetailSlug]
                 if (cachedDeps) {
-                    modDetailDependencies = cachedDeps
-                    showDeps = (cachedDeps && cachedDeps.length > 0)
+                    // 重新 resolve 图标本地缓存（首次未命中时已触发下载，二次进入秒开）
+                    modDetailDependencies = enrichDeps(cachedDeps)
+                    showDeps = modDetailDependencies.length > 0
                     modDetailDepsLoading = false
                 } else {
                     modDetailDepsLoading = true
@@ -202,6 +249,29 @@ Rectangle {
     }
 
     // ── Helpers ──
+    // 依赖数据统一加工：中文名反查 + 图标换镜像域名 + 走司南引擎本地缓存（icon 字段，命中秒开/未命中空）
+    function enrichDeps(deps) {
+        var enriched = []
+        var arr = deps || []
+        for (var i = 0; i < arr.length; i++) {
+            var d = arr[i]
+            var e = {}
+            for (var k in d) e[k] = d[k]
+            // 中文名反查
+            var zh = (backend && d.title) ? backend.resolveModZh(d.title) : ""
+            if (zh) e.zh = zh
+            // 图标：换镜像域名（与列表卡一致），再走司南引擎本地缓存
+            if (e.icon_url) {
+                e.icon_url = e.icon_url.replace("cdn.modrinth.com", "mod.mcimirror.top")
+                                       .replace("cdn-alt.modrinth.com", "mod.mcimirror.top")
+                e.icon = backend ? backend.resolveIconUrl(e.icon_url) : ""
+            } else {
+                e.icon = ""
+            }
+            enriched.push(e)
+        }
+        return enriched
+    }
     function stripSuffix(v) {
         var re = /-(?:snapshot|pre|rc|alpha|beta)[\d.\-]*$/i
         var m = v.match(re)
@@ -219,7 +289,22 @@ Rectangle {
         return ""
     }
     function isTestVersion(v) {
-        return /^\d{1,2}w\d{2}[a-z]$/i.test(v)
+        // ── 2026-08-18：测试版规则全覆盖 ──
+        // 标准快照：25w14a、21w19a、20w14i（^\d{1,2}w\d{2}[a-z]$）
+        // 愚人节特殊快照：
+        //   20w14∞        — ∞ 符号后缀
+        //   20w14infinite  — 单词后缀
+        //   22w13oneblockatatime — 单词后缀
+        //   23w13a_or_b    — a_or_b 后缀
+        //   24w14potato    — potato 后缀
+        //   25w14craftmine — craftmine 后缀
+        //   1.RV-Pre1      — 愚人节 RV 版本
+        // 预发布/候选（1.17-pre1 / 1.17-rc1）由 stripSuffix 剥离，此处不重复
+        if (/^\d{1,2}w\d{2}[a-z]+(?:_or_b)?$/i.test(v)) return true   // 标准 + 单词/或后缀
+        if (/^\d{1,2}w\d{2}[a-z]+$/i.test(v)) return true             // 冗余安全
+        if (/^\d{1,2}w\d{2}∞$/.test(v)) return true                   // ∞ 符号
+        if (/^1\.RV(-pre\d+)?$/i.test(v)) return true                 // 愚人节 RV
+        return false
     }
     function testMajor(v) {
         var m = v.match(/^(\d{1,2}w)/i)
@@ -250,50 +335,68 @@ Rectangle {
 
     property bool showTestVersions: false
 
-    property var grouped: {
-        var groups = {}
-        var raw = modDetailRawVersions || []
-        var map = modDetailVersionMap || {}
-        for (var i = 0; i < raw.length; i++) {
-            var v = raw[i]
-            var d = map[v]
-            // Use C++-provided game_version if available, else strip composite-key loader suffix
-            var gv = d ? (d.gameVersion || stripLoader(v)) : stripLoader(v)
-            var gvs = d ? (d.gameVersions || []) : []
-            if (gvs.length === 0) gvs = [gv]
-            var first = gvs[0] || gv
-            var base = stripSuffix(first)
-            if (!showTestVersions && isTestVersion(base)) continue
-            var major
-            if (isTestVersion(base)) {
-                major = testMajor(base)
-            } else {
-                var parts = base.split(".")
-                major = parts.length >= 2 ? parts[0] + "." + parts[1] : base
+    // ── 2026-08-18：grouped 计算降频 + 懒渲染 ──
+    // 旧实现是 property 绑定：modDetailRawVersions（最多 4300 项）每次变化都同步
+    // 全量重算 grouped（O(n) JS 循环 + 每项 map 查表 + 分组排序），在数据到达的
+    // 同一帧阻塞主线程 → 详情页卡死。改为显式 _rebuildGrouped()：数据就绪后
+    // Qt.callLater 延迟一帧批量计算一次（期间 UI 保持 spinner），结果存缓存，
+    // 不再由绑定驱动反复求值。
+    property var grouped: _groupedCache
+    property var _groupedCache: []
+    property bool _groupedComputing: false
+
+    function _rebuildGrouped() {
+        if (_groupedComputing) return   // 已排队，防重入
+        _groupedComputing = true
+        Qt.callLater(function() {
+            _groupedComputing = false
+            var groups = {}
+            var raw = modDetailRawVersions || []
+            var map = modDetailVersionMap || {}
+            for (var i = 0; i < raw.length; i++) {
+                var v = raw[i]
+                var d = map[v]
+                var gv = d ? (d.gameVersion || stripLoader(v)) : stripLoader(v)
+                var gvs = d ? (d.gameVersions || []) : []
+                if (gvs.length === 0) gvs = [gv]
+                var first = gvs[0] || gv
+                var base = stripSuffix(first)
+                if (!showTestVersions && isTestVersion(base)) continue
+                var major
+                if (isTestVersion(base)) {
+                    major = testMajor(base)
+                } else {
+                    var parts = base.split(".")
+                    major = parts.length >= 2 ? parts[0] + "." + parts[1] : base
+                }
+                if (!groups[major]) groups[major] = []
+                groups[major].push(v)
             }
-            if (!groups[major]) groups[major] = []
-            groups[major].push(v)
-        }
-        for (var k in groups) {
-            groups[k].sort(function(a,b){
-                var da = getVersionDetail(a); var db = getVersionDetail(b)
-                var dateA = da ? da.date : ""; var dateB = db ? db.date : ""
-                if (dateA > dateB) return -1; if (dateA < dateB) return 1; return 0
+            for (var k in groups) {
+                groups[k].sort(function(a,b){
+                    var da = getVersionDetail(a); var db = getVersionDetail(b)
+                    var dateA = da ? da.date : ""; var dateB = db ? db.date : ""
+                    if (dateA > dateB) return -1; if (dateA < dateB) return 1; return 0
+                })
+            }
+            var result = []
+            for (var kk in groups) { result.push({major: kk, versions: groups[kk]}) }
+            result.sort(function(a,b){
+                var aTest = /w$/i.test(a.major), bTest = /w$/i.test(b.major)
+                if (aTest && !bTest) return -1
+                if (!aTest && bTest) return 1
+                if (aTest && bTest) { return parseInt(a.major) - parseInt(b.major) }
+                var as = a.major.split("."), bs = b.major.split(".")
+                var am = parseInt(as[0])||0, bm = parseInt(bs[0])||0
+                if (am !== bm) return bm - am
+                return (parseInt(bs[1])||0) - (parseInt(as[1])||0)
             })
-        }
-        var result = []
-        for (var kk in groups) { result.push({major: kk, versions: groups[kk]}) }
-        result.sort(function(a,b){
-            var aTest = /w$/i.test(a.major), bTest = /w$/i.test(b.major)
-            if (aTest && !bTest) return -1
-            if (!aTest && bTest) return 1
-            if (aTest && bTest) { return parseInt(a.major) - parseInt(b.major) }
-            var as = a.major.split("."), bs = b.major.split(".")
-            var am = parseInt(as[0])||0, bm = parseInt(bs[0])||0
-            if (am !== bm) return bm - am
-            return (parseInt(bs[1])||0) - (parseInt(as[1])||0)
+            _groupedCache = result
+            // 版本计数回填（缓存命中路径不走 onModVersionsPartial，需在此更新）
+            verCountText._displayCount = raw.length
+            // 数据就绪 → 触发入场
+            if (raw.length > 0) _versionListEnter = true
         })
-        return result
     }
     property var expandedGroups: []
 
@@ -355,6 +458,7 @@ Rectangle {
                         modNavStack = stack
                         modDetailSlug = prev.slug
                         modDetailTitle = prev.title
+                        modDetailZh = prev.zh || ""
                         modDetailDesc = prev.desc || ""
                         modDetailIcon = prev.icon || ""
                     } else {
@@ -367,7 +471,7 @@ Rectangle {
 
             // Title
             Text {
-                text: modDetailTitle || modDetailSlug || ""
+                text: displayTitle
                 font.pixelSize: StyleTokens.fontSizeLg; font.weight: Font.Bold; color: StyleTokens.textSecondary
                 Layout.fillWidth: true
                 elide: Text.ElideRight; horizontalAlignment: Text.AlignHCenter
@@ -396,7 +500,7 @@ Rectangle {
             DetailInfoCard {
                 id: infoCard
                 cardIcon: root.modDetailIcon !== "" ? root.modDetailIcon : (root.modDetailIconRaw ? root.resolveDetailIcon() : "")
-                cardTitle: root.modDetailTitle
+                cardTitle: root.displayTitle
                 cardDesc: root.modDetailDesc
 
                 // Stats
@@ -414,6 +518,7 @@ Rectangle {
                         text: qsTr("版本数量: ") + _displayCount
                         color: "#7888a8"; font.pixelSize: StyleTokens.fontSizeSm
                         Behavior on _displayCount {
+                            id: countBehavior
                             NumberAnimation { duration: 2000; easing.type: Easing.OutCubic }
                         }
                     }
@@ -421,10 +526,13 @@ Rectangle {
 
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: 24
+                    spacing: 8
                     Rectangle {
                         id: testToggleBtn
-                        width: testBtn.implicitWidth + 14; height: 22; radius: StyleTokens.radiusSm
+                        Layout.preferredWidth: Math.max(64, testBtn.implicitWidth + 14)
+                        Layout.preferredHeight: 22
+                        Layout.alignment: Qt.AlignVCenter
+                        radius: StyleTokens.radiusSm
                         color: showTestVersions ? "#1a3a68" : StyleTokens.bgSecondary
                         border.color: (testHov.containsMouse || showTestVersions) ? "#3a5ed0" : StyleTokens.borderLight
                         border.width: (testHov.containsMouse || showTestVersions) ? 1.5 : 1
@@ -452,8 +560,18 @@ Rectangle {
                                 testToggleBtn._eScale = 0.9
                                 testRestoreTimer.restart()
                                 showTestVersions = !showTestVersions
+                                _rebuildGrouped()   // 2026-08-18：切换后异步重建分组
                             }
                         }
+                    }
+
+                    // ── 跳转 / 复制按钮（DetailLinkBar 纯文本胶囊，与测试版开关同行）──
+                    DetailLinkBar {
+                        Layout.fillWidth: true
+                        backend: root.backend
+                        toastManager: root.toastManager
+                        links: root._linkItems
+                        copyItems: root._copyItems
                     }
                 }
             }
@@ -461,7 +579,7 @@ Rectangle {
             // ── 前置模组提醒 ──
             Item {
                 Layout.fillWidth: true
-                height: (showDeps && !modDetailLoading) ? (20 + 8 + modDetailDependencies.length * (48 + 8)) : 0
+                Layout.preferredHeight: (showDeps && !modDetailLoading) ? depSection.implicitHeight : 0
                 visible: showDeps && !modDetailLoading && modDetailDependencies.length > 0
                 clip: true
 
@@ -526,7 +644,7 @@ Rectangle {
                                         anchors.fill: parent
                                         fillMode: Image.PreserveAspectCrop
                                         asynchronous: true; cache: true
-                                        source: modelData.icon_url || ""
+                                        source: modelData.icon || modelData.icon_url || ""
                                         sourceSize.width: 60; sourceSize.height: 60
                                     }
                                 }
@@ -535,10 +653,16 @@ Rectangle {
                                     anchors.verticalCenter: parent.verticalCenter
                                     spacing: 2
                                     Text {
-                                        text: modelData.title || modelData.project_id || ""
+                                        text: {
+                                            var t = modelData.title || modelData.project_id || ""
+                                            if (modelData.zh && modelData.zh !== modelData.title)
+                                                return modelData.zh + "（" + t + "）"
+                                            return t
+                                        }
                                         color: depHover.containsMouse ? "#f5d080" : "#f0c060"
                                         font.pixelSize: StyleTokens.fontSizeMd
                                         font.weight: Font.Medium
+                                        elide: Text.ElideRight
                                     }
                                     Text {
                                         text: modelData.dependency_type === "required" ? "\u5FC5\u9700\u524D\u7F6E" : "\u53EF\u9009\u524D\u7F6E"
@@ -559,13 +683,15 @@ Rectangle {
                                         stack.push({
                                             slug: modDetailSlug,
                                             title: modDetailTitle,
+                                            zh: modDetailZh,
                                             desc: modDetailDesc,
                                             icon: modDetailIcon
                                         })
                                         modNavStack = stack
                                         modDetailTitle = modelData.title
+                                        modDetailZh = modelData.zh || ""
                                         modDetailDesc = modelData.description || ""
-                                        modDetailIcon = modelData.icon_url || ""
+                                        modDetailIcon = modelData.icon || modelData.icon_url || ""
                                         modDetailSlug = modelData.slug
                                     }
                                 }
@@ -650,6 +776,12 @@ Rectangle {
                         expanded: isExpanded(modelData.major)
                         onToggled: toggleGroup(modelData.major)
 
+                        // ── 2026-08-18：懒渲染（大 Mod 分组展开不卡主线程）──
+                        // 每组默认只渲染前 30 个版本，点“还有 X 个版本”追加 50 个。
+                        property int _visibleCount: 30
+                        readonly property int _totalCount: modelData.versions.length
+                        readonly property bool _hasMore: _visibleCount < _totalCount
+
                         // ── 错峰入场 ──
                         opacity: 0
                         Timer {
@@ -661,7 +793,14 @@ Rectangle {
                         Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutBack; easing.overshoot: 0.2 } }
 
                     Repeater {
-                        model: modelData.versions
+                        // ── 2026-08-18：懒渲染 ──
+                        // 大 Mod（如 simple-voice-chat 4300 版本）展开分组时一次性创建
+                        // 全部 delegate 会卡死主线程。每分组只渲染前 _visibleCount 个
+                        //（未展开时为空数组 → 零 delegate），超出部分由分组底部的
+                        // “还有 X 个版本”按钮点击加载更多。
+                        model: groupCard.expanded
+                            ? modelData.versions.slice(0, groupCard._visibleCount)
+                            : []
                         // ── 2026-08-15：版本卡片外包悬停层（前置依赖 tooltip）──
                         // 外包 Item 保持原布局（width/x），Popup 挂 root 防 clip 裁剪，
                         // 翻转逻辑仿 StatsPage（右侧溢出时翻到左侧）
@@ -767,6 +906,33 @@ Rectangle {
                         }
                 }
             }
+
+                // ── 2026-08-18：懒渲染“还有 X 个版本”（大 Mod 分组点击追加）──
+                Rectangle {
+                    visible: groupCard.expanded && groupCard._hasMore
+                    width: parent ? parent.width - 56 : 0
+                    anchors.left: parent ? parent.left : undefined
+                    anchors.leftMargin: 24
+                    height: 30
+                    radius: StyleTokens.radiusMd
+                    color: moreHov.containsMouse ? "#1a2440" : "transparent"
+                    border.color: moreHov.containsMouse ? "#3a50b0" : "transparent"
+                    border.width: 1
+                    Behavior on color { ColorAnimation { duration: 150 } }
+                    Text {
+                        anchors.centerIn: parent
+                        text: "还有 " + (groupCard._totalCount - groupCard._visibleCount) + " 个版本"
+                        color: moreHov.containsMouse ? StyleTokens.accentLink : StyleTokens.textMuted
+                        font.pixelSize: StyleTokens.fontSizeSm
+                    }
+                    MouseArea {
+                        id: moreHov; anchors.fill: parent; hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            groupCard._visibleCount += 50
+                        }
+                    }
+                }
             }
             }
             }  // ColumnLayout
@@ -821,7 +987,8 @@ Rectangle {
             verCountText._displayCount = arr.length
             // ── 存入缓存 ──
             root._versionCache[root.modDetailSlug] = { raw: arr, map: map }
-            if (arr.length > 0) root._versionListEnter = true
+            // ── 2026-08-18：异步重建分组（Qt.callLater 延迟一帧，主线程不卡）──
+            root._rebuildGrouped()
 
             // CF 详情前置模组已在 onModDetailSlugChanged 走 fetchCfDependencies
             // （/mods/{id} latestFiles 提取；镜像与官方双源均带依赖，2026-08-07 实测）
@@ -829,10 +996,11 @@ Rectangle {
         function onCfDependenciesResolved(modId, deps) {
             if (modId !== root.modDetailSlug) return
             root.modDetailDepsLoading = false
-            root.modDetailDependencies = deps || []
-            root.showDeps = (deps && deps.length > 0)
+            var enriched = root.enrichDeps(deps)
+            root.modDetailDependencies = enriched
+            root.showDeps = enriched.length > 0
             // 写入缓存：返回上一级再进入时秒开（2026-08-07 修复）
-            root._depsCache[modId] = root.modDetailDependencies
+            root._depsCache[modId] = enriched
         }
         // ── 2026-08-15：版本级前置依赖（悬停 tooltip）──
         // 结果总是缓存；仅当仍悬停该版本时更新 UI（快速悬停多个版本时旧结果不覆盖）

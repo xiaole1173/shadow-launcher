@@ -45,6 +45,7 @@ Rectangle {
 
     // ── 公共 API ──
     property string title: ""
+    property string zh: ""                 // 中文名（后端附加；命中汉化表时非空，否则空）
     property string description: ""
     property string iconUrl: ""
     property string slug: ""
@@ -94,10 +95,6 @@ Rectangle {
                 asynchronous: true; cache: true
                 sourceSize.width: 88; sourceSize.height: 88
                 source: root.iconUrl || ""
-                onStatusChanged: {
-                    if (status === Image.Ready) iconFb.visible = false
-                    else if (status === Image.Error) iconFb.visible = true
-                }
             }
             Text {
                 id: iconFb
@@ -105,7 +102,8 @@ Rectangle {
                 text: root.title ? root.title[0] : "?"
                 color: StyleTokens.accentHover
                 font.pixelSize: StyleTokens.fontSizeXl; font.bold: true
-                visible: !root.iconUrl
+                // 纯绑定：无 URL 或加载失败时显示占位（避免手动赋值破坏绑定导致与图标重叠）
+                visible: !root.iconUrl || iconImg.status === Image.Error
             }
         }
 
@@ -119,13 +117,26 @@ Rectangle {
             RowLayout {
                 Layout.fillWidth: true; spacing: 6
 
+                // 标题：中文名（有 zh）否则英文名；英文名以浅色小字括号跟在后面
                 Text {
-                    text: root.title || ""
+                    text: root.zh ? root.zh : (root.title || "")
                     color: "#d0d4e0"
                     font.pixelSize: StyleTokens.fontSizeMd; font.bold: true
                     elide: Text.ElideRight
-                    Layout.fillWidth: true
+                    Layout.fillWidth: root.zh === ""
+                    Layout.preferredWidth: root.zh ? Math.min(implicitWidth, 240) : 0
                 }
+
+                Text {
+                    visible: root.zh !== "" && root.title !== "" && root.zh !== root.title
+                    text: "(" + root.title + ")"
+                    color: "#788090"
+                    font.pixelSize: StyleTokens.fontSizeXs
+                    elide: Text.ElideRight
+                    Layout.preferredWidth: Math.min(implicitWidth, 160)
+                }
+
+                Item { Layout.fillWidth: root.zh !== "" }
 
                 RowLayout {
                     spacing: 3

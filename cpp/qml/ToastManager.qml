@@ -25,29 +25,34 @@ Item {
     // 2026-08-15：showAction 的动作回调表（toastId -> function）
     property var _actionHandlers: ({})
 
-    function show(message, duration) {
+    function show(message, duration, style) {
         if (!message || message === "") return
         if (!duration || duration <= 0) duration = root.defaultDuration
+        if (!style) style = "info"
         var tid = toastIdCounter++
         // 插入到开头 → 新 toast 出现在最上方
         toastModel.insert(0, {
             "msg": message,
             "duration": duration,
             "toastId": tid,
-            "isAction": false
+            "isAction": false,
+            "style": style
         })
     }
 
     // ── 2026-08-15：常驻可点击 toast（duration=0 不自动消失）──
     // 整个 toast 为点击区域，点击任意位置触发 onAction。
-    function showAction(message, onAction) {
+    // 2026-08-24：新增 style 参数（"info" 天蓝 / "warning" 橙黄），缺省 info，兼容旧调用
+    function showAction(message, onAction, style) {
         if (!message || message === "") return
+        if (!style) style = "info"
         var tid = toastIdCounter++
         toastModel.insert(0, {
             "msg": message,
             "duration": 0,
             "toastId": tid,
-            "isAction": true
+            "isAction": true,
+            "style": style
         })
         if (onAction) root._actionHandlers[tid] = onAction
     }
@@ -73,6 +78,8 @@ Item {
                 width: toastRect.width
                 height: 34
                 clip: false
+                // 2026-08-24：toast 样式（"info" 天蓝 / "warning" 橙黄）
+                readonly property bool _isWarning: model.style === "warning"
 
                 Rectangle {
                     id: toastRect
@@ -80,7 +87,8 @@ Item {
                     width: Math.min(toastLabel.implicitWidth + 24, 420)
                     radius: StyleTokens.radiusSm
                     // 整条可点：hover 轻微高亮作为反馈（2026-08-15 简化）
-                    color: model.isAction && actionMouse.containsMouse ? "#1d2a3a" : StyleTokens.infoBg
+                    // 2026-08-24：warning 样式用橙黄背景
+                    color: model.isAction && actionMouse.containsMouse ? (delegateItem._isWarning ? "#2a2508" : "#1d2a3a") : (delegateItem._isWarning ? StyleTokens.warningBg : StyleTokens.infoBg)
                     // 起始位置: 在 delegate 右侧外部（用于弹性滑入动画）
                     x: toastRect.width + 80
 
@@ -90,7 +98,7 @@ Item {
                         anchors.top: parent.top
                         anchors.bottom: parent.bottom
                         width: 3
-                        color: StyleTokens.info
+                        color: delegateItem._isWarning ? StyleTokens.warning : StyleTokens.info
                         radius: StyleTokens.radiusXs
                     }
 
