@@ -627,19 +627,41 @@ void ModpackExporter::exportVersion(const QString& versionId, const QString& dis
             QFile f(jsonPath);
             if (f.open(QIODevice::ReadOnly)) {
                 const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
-                // MC 版本：继承的原版优先（旧版 Forge JSON 有 inheritsFrom），
-                // 否则从安装名去掉加载器后缀（26.2-forge-65.1.0 → 26.2）
+                const QJsonArray libs = root.value(QStringLiteral("libraries")).toArray();
+                // ── MC 版本解析（2026-09-04 修复）──
+                // 原实现只靠 inheritsFrom / 版本名裁剪，且裁剪 marker 缺 "-fabric-" ——
+                // 形如 "26.2-fabric-0.19.5-fabric-api-0.152.1+26.2" 的版本名匹配不到
+                // → mcVersion 保留整个版本名写入 mrpack/CF manifest 的 minecraft 依赖
+                // → 重新导入时 installVersion(长名) 在清单中不存在 → MC+加载器下载瘫痪。
+                // 现在：inheritsFrom → libraries 反推（自包含版本最可靠）→ 版本名裁剪（全分隔符）。
                 mcVersion = root.value(QStringLiteral("id")).toString();
                 const QString inherited = root.value(QStringLiteral("inheritsFrom")).toString();
                 if (!inherited.isEmpty()) {
                     mcVersion = inherited;
                 } else {
-                    for (const char* marker : {"-forge-", "-neoforge-", "-fabric-loader-", "-quilt-loader-"}) {
-                        const int idx = mcVersion.indexOf(QLatin1String(marker));
-                        if (idx > 0) { mcVersion = mcVersion.left(idx); break; }
+                    // 2) libraries 反推：自包含（扁平化）版本有 net.minecraft:client/server 库
+                    QString mcFromLibs;
+                    for (const auto& lv : libs) {
+                        const QString nm = lv.toObject().value(QStringLiteral("name")).toString();
+                        if (nm.startsWith(QStringLiteral("net.minecraft:client:"))
+                            || nm.startsWith(QStringLiteral("net.minecraft:server:"))) {
+                            const QStringList pp = nm.split(QLatin1Char(':'));
+                            if (pp.size() >= 3) { mcFromLibs = pp.at(2); break; }
+                        }
+                    }
+                    if (!mcFromLibs.isEmpty()) {
+                        mcVersion = mcFromLibs;
+                    } else {
+                        // 3) 版本名裁剪：覆盖 forge/neoforge/fabric-loader/fabric/quilt-loader/quilt，取最靠左命中
+                        int bestIdx = -1;
+                        for (const char* marker : {"-forge-", "-neoforge-", "-fabric-loader-", "-fabric-",
+                                                   "-quilt-loader-", "-quilt-"}) {
+                            const int idx = mcVersion.indexOf(QLatin1String(marker));
+                            if (idx > 0 && (bestIdx < 0 || idx < bestIdx)) bestIdx = idx;
+                        }
+                        if (bestIdx > 0) mcVersion = mcVersion.left(bestIdx);
                     }
                 }
-                const QJsonArray libs = root.value(QStringLiteral("libraries")).toArray();
                 for (const auto& lv : libs) {
                     const QString name = lv.toObject().value(QStringLiteral("name")).toString();
                     // group:artifact:version[:classifier]——版本段是第 3 段
