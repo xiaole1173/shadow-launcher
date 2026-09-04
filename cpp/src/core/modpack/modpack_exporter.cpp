@@ -8,6 +8,10 @@
 // ZipArchive 单工作线程串行调用（miniz 内部持 FILE* 状态）。
 
 #include "modpack_exporter.h"
+#include "../cf_key_crypto.h"
+#if __has_include("../cf_api_key_local.h")
+#include "../cf_api_key_local.h"
+#endif
 
 #include "zip_archive.h"
 #include "../../utils/logger.h"
@@ -43,7 +47,9 @@ ModpackExporter::ModpackExporter(QObject* parent) : QObject(parent) {}
 void ModpackExporter::setGameDir(const QString& dir)
 {
     m_gameDir = dir;
-    // CF API Key 自动加载（与 ModpackImporter 同款）：环境变量 → {gameDir}/config/cf_api_key.json
+    // CF API Key 自动加载：环境变量 → {gameDir}/config/cf_api_key.json → 内嵌加密 Key（与 CfApi 同源）。
+    // ⚠ 2026-09-04 修复：此前漏接内嵌 Key（cf_api_key_local.h），CF 搜索/下载有内置 Key 但导出没有 →
+    // 导出 CF 阶段误判「未配置 CurseForge API Key」→ 弹确认框（且确认框接线 bug 曾导致卡死）。
     if (m_cfApiKey.isEmpty()) {
         QString key = qEnvironmentVariable("SHADOW_CF_API_KEY");
         if (!key.isEmpty()) {
@@ -57,6 +63,16 @@ void ModpackExporter::setGameDir(const QString& dir)
                 const QJsonObject obj = QJsonDocument::fromJson(f.readAll()).object();
                 m_cfApiKey = obj.value(QStringLiteral("apiKey")).toString();
             }
+        }
+        // 内嵌加密 Key 兜底（解密与应用标识同源；未生成 cf_api_key_local.h 时为空）
+        if (m_cfApiKey.isEmpty()) {
+#if defined(SHADOW_CF_ENC_IKM_HEX)
+            m_cfApiKey = CfKeyCrypto::decryptEmbeddedCfKey(
+                SHADOW_CF_ENC_IKM_HEX, SHADOW_CF_ENC_SALT_HEX,
+                SHADOW_CF_ENC_NONCE_HEX, SHADOW_CF_ENC_CIPHER_HEX, SHADOW_CF_ENC_TAG_HEX);
+#endif
+            if (m_cfApiKey.isEmpty())
+                qCWarning(logMod) << "[导出] 未找到 CF API Key（环境变量/配置文件/内嵌 Key 均缺失），CF 在线来源不可用";
         }
     }
 }
