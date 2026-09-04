@@ -1642,15 +1642,15 @@ function _showToast(msg) {
 
 
     // ── 导出联网失败确认（全屏弹窗，同主流启动器）──
-    // 注意：opened 不能用绑定（绑定属性无法被按钮赋值关闭）——用信号驱动赋值。
+    // ⚠ 2026-08-30 修复：ConfirmDialog 可见性由 opened 驱动（visible: opened 绑定），
+    // 必须用 opened 控制；此前用 visible 直接赋值会破坏内部绑定 → 点「取消」时 opened
+    // 无变化 → closed 不触发 → continueAfterLookupFailure(false) 永不调用 → 导出 worker
+    // 无限死等（实测卡在「Modrinth 查询完成」后、取消导出按钮被全屏遮罩挡住无法点击）。
     property bool _lookupAccepted: false
-    // ConfirmDialog 组件靠外部 visible 控制（MainWindow Loader 同款模式）——
-    // 实例化默认隐藏，信号到达才显示；按钮关闭走 closed → visible=false
     ConfirmDialog {
         id: exportLookupDialog
         title: qsTr("联网获取文件信息失败")
         message: ""
-        visible: false
         onAccept: {
             // 确认按钮会先置 opened=false（触发 closed）再调 onAccept——
             // 用标志区分，防 onClosed 的 false 覆盖这里的 true
@@ -1659,19 +1659,18 @@ function _showToast(msg) {
                 exportSection.backend.modpackExporter.continueAfterLookupFailure(true)
         }
         onClosed: {
-            exportLookupDialog.visible = false
             if (!versionSettingsOverlay._lookupAccepted
                 && exportSection && exportSection.backend && exportSection.backend.modpackExporter)
                 exportSection.backend.modpackExporter.continueAfterLookupFailure(false)
             versionSettingsOverlay._lookupAccepted = false
         }
     }
-    // 导出分区联网失败 → 显示确认弹窗
+    // 导出分区联网失败 → 显示确认弹窗（opened 驱动显示/隐藏）
     Connections {
         target: exportSection
         function onLookupDecisionRequested(message) {
             exportLookupDialog.message = message
-            exportLookupDialog.visible = true
+            exportLookupDialog.opened = true
         }
     }
 }

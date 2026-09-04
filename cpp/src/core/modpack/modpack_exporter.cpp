@@ -77,8 +77,16 @@ bool ModpackExporter::waitLookupDecision(int platform, const QString& detail)
     // 轮询等待 continueAfterLookupFailure 写入结果（主流启动器 弹窗询问语义）。
     m_lookupContinue.storeRelaxed(-1);
     emit lookupFailed(platform, detail);
+    // ── 兜底（2026-08-30）：确认框异常（弹窗丢失/接线错误）时最多等 90s，
+    // 超时自动继续（未查到直装），避免 worker 无限死等导致导出永久卡住。──
+    QElapsedTimer guard;
+    guard.start();
     while (m_lookupContinue.loadRelaxed() < 0) {
         if (m_cancel.loadRelaxed()) return false;
+        if (guard.elapsed() > 90000) {
+            qCWarning(logMod) << "[导出] 联网失败确认超时（90s），自动继续（未查到直装）";
+            return true;
+        }
         QThread::msleep(50);
     }
     return m_lookupContinue.loadRelaxed() == 1;
