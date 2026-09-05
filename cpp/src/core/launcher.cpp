@@ -265,7 +265,10 @@ Launcher::Launcher(QObject* parent)
 
 Launcher::~Launcher()
 {
-    if (isRunning()) {
+    // 启动器退出时游戏应独立存活（Java 与启动器无父子依赖）。
+    // detach() 已标记 m_detached，此时不再 forceKill；
+    // 仅当用户主动停止游戏、或 Launcher 因其它原因销毁而进程仍在时，才强制结束。
+    if (isRunning() && !m_detached) {
         forceKill();
     }
 }
@@ -586,6 +589,38 @@ void Launcher::killProcess()
         forceKill();
     } else if (m_process) {
         m_process->kill();
+    }
+}
+
+/// 启动器退出时调用：把运行中的游戏进程与启动器解耦。
+/// 游戏是独立 java 进程，关闭启动器不应连带关闭它。
+void Launcher::detach()
+{
+    if (m_detached) return;
+    m_detached = true;
+    qCInfo(logLaunch) << QStringLiteral("[启动] 分离游戏进程 PID=%1（启动器退出后游戏继续运行）")
+                             .arg(m_pid);
+
+    // 1) 断开信号：分离后游戏输出/退出不再回调启动器（避免访问即将销毁的对象）
+    if (m_process)
+        disconnect(m_process, nullptr, this, nullptr);
+    disconnect(this, nullptr, nullptr, nullptr);
+
+    // 2) 停止窗口标题覆盖轮询
+    if (m_titleTimer) {
+        m_titleTimer->stop();
+        m_titleTimer = nullptr;
+    }
+
+    // 3) 关闭 stdout/stderr 读端：游戏继续运行时写端失效即静默失败，
+    //    不会因管道缓冲存满而阻塞 java；同时关闭全量日志文件句柄。
+    if (m_process) {
+        m_process->closeReadChannel(QProcess::StandardOutput);
+        m_process->closeReadChannel(QProcess::StandardError);
+    }
+    if (m_jvmFullLog.isOpen()) {
+        m_jvmFullLog.close();
+        m_jvmFullLogPath.clear();
     }
 }
 

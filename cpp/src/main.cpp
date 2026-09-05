@@ -41,6 +41,7 @@
 #include "utils/logger.h"
 #include "version.h"   // 2026-08-15：SHADOW_DISPLAY_VERSION（原 CMake 宏，现头文件）
 #include "backend/shadow_backend.h"
+#include "backend/launch_backend.h"  // detachAllGames（退出时分离游戏进程）
 #include "core/http_client.h"
 #include "core/screenshot_server.h"
 
@@ -811,6 +812,10 @@ int main(int argc, char *argv[])
     // crash can skip it, leaving a zombie easytier-core.exe that keeps the
     // virtual network alive and pollutes peer-center caches (ghost hosts).
     QObject::connect(&app, &QCoreApplication::aboutToQuit, backend, [backend]() {
+        // 关闭启动器不应连带关闭游戏：游戏是独立 java 进程，先分离再退出。
+        if (backend->launchBackend()) {
+            backend->launchBackend()->detachAllGames();
+        }
         if (backend->multiplayer()) {
             qCInfo(logApp) << QStringLiteral("[退出] 清理联机会话");
             // Synchronous: leaveRoom defers heavy cleanup via singleShot(0) which

@@ -43,6 +43,7 @@
 #include "utils/logger.h"
 #include "version.h"   // 2026-08-15：SHADOW_DISPLAY_VERSION（原 CMake 宏，现头文件）
 #include "backend/shadow_backend.h"
+#include "backend/launch_backend.h"  // detachAllGames（退出时分离游戏进程）
 #include "core/http_client.h"
 
 #include "core/screenshot_server.h"
@@ -896,6 +897,13 @@ int main(int argc, char *argv[])
             backend->installVersion(dlVersion);
         });
     }
+
+    // 关闭启动器不应连带关闭游戏：游戏是独立 java 进程，退出前先分离。
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, backend, [backend]() {
+        if (backend->launchBackend()) {
+            backend->launchBackend()->detachAllGames();
+        }
+    });
 
     return app.exec();
 }

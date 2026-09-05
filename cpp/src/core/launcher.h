@@ -33,6 +33,9 @@ public:
                const QString& resolvedJarPath = QString());
     void cancel();
     void killProcess();
+    /// 启动器退出时分离游戏进程（游戏是独立 Java 进程，应继续运行）。
+    /// 分离后析构不再 forceKill，且不再读写游戏输出。
+    void detach();
     qint64 pid() const { return m_pid; }
     bool isRunning() const { return m_process && m_process->state() != QProcess::NotRunning; }
 
@@ -135,6 +138,7 @@ private:
     QString m_authToken;
     bool m_isOnline = false;
     bool m_cancelling = false;
+    bool m_detached = false;  // 已分离（detach）：析构不再 forceKill
     int m_autoLangMode = 1;  // 0=off, 1=system locale, 2=IP region
     QStringList m_outputRing;  // ring buffer of raw stdout/stderr lines (for crash analysis)
     QString m_jvmFullLogPath;  // full JVM output log path ("" if not opened)

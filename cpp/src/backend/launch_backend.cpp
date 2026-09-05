@@ -188,6 +188,27 @@ void LaunchBackend::killGameProcess()
     emit logMessage(tr("已强制结束所有游戏进程"));
 }
 
+// 启动器退出（aboutToQuit）时调用：把运行中的游戏与启动器解耦。
+// 游戏是独立 java 进程，关闭启动器不应连带关闭它；Launcher 对象仍随
+// 本类 children 销毁，但 detach() 后其析构不再 forceKill。
+void LaunchBackend::detachAllGames()
+{
+    if (m_runningLaunchers.isEmpty()) {
+        m_activeLauncher = nullptr;
+        return;
+    }
+    qCInfo(logLaunch) << QStringLiteral("[退出] 分离 %1 个运行中的游戏进程（启动器退出后游戏继续运行）")
+                             .arg(m_runningLaunchers.size());
+    for (Launcher* launcher : m_runningLaunchers) {
+        launcher->detach();
+    }
+    m_runningLaunchers.clear();
+    m_activeLauncher = nullptr;
+    m_launching = false;
+    emit runningCountChanged();
+    emit isRunningChanged();
+}
+
 void LaunchBackend::setAuthInfo(const QString& username, const QString& uuid,
                            const QString& accessToken, bool isOnline)
 {
