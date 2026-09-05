@@ -612,15 +612,25 @@ void Launcher::detach()
         m_titleTimer = nullptr;
     }
 
-    // 3) 关闭 stdout/stderr 读端：游戏继续运行时写端失效即静默失败，
-    //    不会因管道缓冲存满而阻塞 java；同时关闭全量日志文件句柄。
+    // 3) 关闭管道：stdin 写端 + stdout/stderr 读端。游戏继续运行时写端
+    //    失效即静默失败，不会因管道缓冲存满而阻塞 java。
     if (m_process) {
+        m_process->closeWriteChannel();
         m_process->closeReadChannel(QProcess::StandardOutput);
         m_process->closeReadChannel(QProcess::StandardError);
     }
     if (m_jvmFullLog.isOpen()) {
         m_jvmFullLog.close();
         m_jvmFullLogPath.clear();
+    }
+
+    // 4) 关键：QProcess 的析构函数会对"仍在运行"的子进程调用 kill() +
+    //    waitForFinished()（Qt 文档明确）。所以绝不能让它随 Launcher 析构被 delete——
+    //    把它摘出对象树并放弃持有（对象泄漏，随本进程退出由 OS 回收），
+    //    游戏进程才能真正独立存活。
+    if (m_process) {
+        m_process->setParent(nullptr);
+        m_process = nullptr;
     }
 }
 
