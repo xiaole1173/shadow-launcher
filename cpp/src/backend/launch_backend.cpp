@@ -36,6 +36,48 @@
 
 namespace ShadowLauncher {
 
+namespace {
+
+// 取进程创建时间（自 epoch 毫秒）。用于 detach 后下次启动校验 PID 是否复用。
+// 失败返回 -1。
+qint64 processCreationTimeMs(qint64 pid)
+{
+#ifdef Q_OS_WIN
+    HANDLE h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, (DWORD)pid);
+    if (!h) return -1;
+    FILETIME createT, exitT, kernelT, userT;
+    qint64 r = -1;
+    if (GetProcessTimes(h, &createT, &exitT, &kernelT, &userT)) {
+        ULARGE_INTEGER ul;
+        ul.LowPart = createT.dwLowDateTime;
+        ul.HighPart = createT.dwHighDateTime;
+        // FILETIME：1601-01-01 起 100ns 单位 → 转为 epoch 毫秒
+        r = qint64(ul.QuadPart - 116444736000000000ULL) / 10000;
+    }
+    CloseHandle(h);
+    return r;
+#else
+    Q_UNUSED(pid);
+    return -1;
+#endif
+}
+
+QString detachedGamesFilePath(const QString& gameDir)
+{
+    return gameDir + QStringLiteral("/shadow-detached-games.json");
+}
+
+void writeDetachedGamesJson(const QString& path, const QJsonArray& arr)
+{
+    QFile f(path);
+    if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        f.write(QJsonDocument(arr).toJson(QJsonDocument::Compact));
+        f.close();
+    }
+}
+
+} // namespace
+
 // ============================================================
 // Constructor / Destructor
 // ============================================================
@@ -199,14 +241,80 @@ void LaunchBackend::detachAllGames()
     }
     qCInfo(logLaunch) << QStringLiteral("[退出] 分离 %1 个运行中的游戏进程（启动器退出后游戏继续运行）")
                              .arg(m_runningLaunchers.size());
+    QJsonArray persisted;
     for (Launcher* launcher : m_runningLaunchers) {
+        qint64 pid = launcher->pid();
+        QString ver = launcher->property("launchVersion").toString();
         launcher->detach();
+        if (pid > 0) {
+            QJsonObject o;
+            o.insert(QStringLiteral("pid"), double(pid));
+            o.insert(QStringLiteral("version"), ver);
+            o.insert(QStringLiteral("created"), double(processCreationTimeMs(pid)));
+            persisted.append(o);
+        }
     }
     m_runningLaunchers.clear();
     m_activeLauncher = nullptr;
     m_launching = false;
+    // 持久化 detach 的进程，供下次启动 adoptDetachedGames 接管
+    if (!m_gameDir.isEmpty()) {
+        writeDetachedGamesJson(detachedGamesFilePath(m_gameDir), persisted);
+    }
     emit runningCountChanged();
     emit isRunningChanged();
+}
+
+// 启动后调用：接管上次退出时 detach 后仍存活的游戏进程。
+// 无 QProcess 对象，仅凭 PID（+创建时间校验）建立 ghost Launcher，
+// 恢复 runningCount / 强制结束按钮；用户点强制结束后走 forceKill（纯 Win32）。
+void LaunchBackend::adoptDetachedGames()
+{
+    if (m_gameDir.isEmpty()) return;
+    const QString path = detachedGamesFilePath(m_gameDir);
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) return;
+    QJsonArray arr = QJsonDocument::fromJson(f.readAll()).array();
+    f.close();
+
+    QJsonArray alive;
+    int adopted = 0;
+    for (const QJsonValue& v : arr) {
+        QJsonObject o = v.toObject();
+        qint64 pid = qint64(o.value(QStringLiteral("pid")).toDouble());
+        QString ver = o.value(QStringLiteral("version")).toString();
+        qint64 recordedCreated = qint64(o.value(QStringLiteral("created")).toDouble());
+        if (pid <= 0) continue;
+
+        qint64 nowCreated = processCreationTimeMs(pid);
+        if (nowCreated < 0) continue;  // 进程已不存在
+        // 双方都有创建时间时比对，避免 PID 被新进程复用后误接管
+        if (recordedCreated > 0 && nowCreated > 0 && recordedCreated != nowCreated)
+            continue;
+
+        Launcher* launcher = new Launcher(this);
+        launcher->setProperty("launchVersion", ver);
+        launcher->adoptDetachedProcess(pid);
+        m_runningLaunchers.append(launcher);
+
+        QJsonObject keep;
+        keep.insert(QStringLiteral("pid"), double(pid));
+        keep.insert(QStringLiteral("version"), ver);
+        keep.insert(QStringLiteral("created"), double(nowCreated));
+        alive.append(keep);
+        ++adopted;
+    }
+
+    if (adopted > 0) {
+        qCInfo(logLaunch) << QStringLiteral("[启动] 接管 %1 个上次分离后仍存活的游戏进程")
+                                 .arg(adopted);
+        writeDetachedGamesJson(path, alive);
+        emit runningCountChanged();
+        emit isRunningChanged();
+    } else if (!arr.isEmpty()) {
+        // 全部已退出：清理残留记录
+        writeDetachedGamesJson(path, QJsonArray());
+    }
 }
 
 void LaunchBackend::setAuthInfo(const QString& username, const QString& uuid,

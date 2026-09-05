@@ -46,6 +46,8 @@ public:
     Q_INVOKABLE void killGameByPid(qint64 pid);  // kill one game by PID
     /// 退出启动器时调用：分离所有运行中的游戏进程，游戏继续独立运行。
     void detachAllGames();
+    /// 启动后调用：接管上次退出时 detach 后仍存活的游戏进程（恢复强制结束按钮）。
+    Q_INVOKABLE void adoptDetachedGames();
     Q_INVOKABLE QVariantList runningGames() const;  // [{version,pid,displayVersion}, ...]
     Q_INVOKABLE int getAutoMemory();
     Q_INVOKABLE int getAutoMemoryForVersion(const QString& versionId);   // 按模组数/版本类型分层 + 阶梯预分配

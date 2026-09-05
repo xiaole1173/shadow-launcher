@@ -634,6 +634,15 @@ void Launcher::detach()
     }
 }
 
+/// 接管一个已脱离启动器的游戏进程（detach 后下次启动恢复强制结束）。
+/// 此时没有 QProcess 对象——仅凭 PID 用 forceKill（纯 Win32 TerminateProcess）
+/// 即可结束进程树；m_detached=true 保证该 Launcher 若被析构不会误杀（正常应走 killGameByPid）。
+void Launcher::adoptDetachedProcess(qint64 pid)
+{
+    m_pid = pid;
+    m_detached = true;
+}
+
 // ============================================================
 // Private Slots
 // ============================================================

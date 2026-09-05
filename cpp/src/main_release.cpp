@@ -592,6 +592,12 @@ int main(int argc, char *argv[])
         checkpoint(QStringLiteral("Root objects verified"));
     }
 
+    // 接管上次退出时 detach 后仍存活的游戏进程（恢复右下角"强制关闭"按钮与结束能力）。
+    // QML 已加载完成，emit runningCountChanged 会同步刷新运行列表。
+    if (backend->launchBackend()) {
+        backend->launchBackend()->adoptDetachedGames();
+    }
+
     qCInfo(logApp) << QStringLiteral("事件循环已启动")
                    << "— total startup:" << startupTimer.elapsed() << "ms";
 
