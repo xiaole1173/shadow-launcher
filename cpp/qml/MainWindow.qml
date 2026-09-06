@@ -40,16 +40,16 @@ Window {
     property bool _pendingCrashAnalyze: false   // Loader 异步时挂起崩溃分析请求
     property var _pendingCrashResult: null      // Loader 异步时挂起崩溃分析结果
 
-    // ── 官网页面直链（2026-08-24：v1.0.1 更新内容 / 启动器公告）──
+    // ── 官网页面直链（2026-09-06：v1.0.2 更新内容 / 启动器公告）──
     // 官网 VitePress 渲染，仅直链可访问（站点无导航入口、不进站内搜索）。
     // 路径含中文，此处直接写 percent-encoded，避免 QUrl 编码歧义。
-    //   完整中文路径：/docs/notes/v1.0.1更新内容.html 、 /docs/notes/启动器公告.html
-    readonly property string changelogUrl: "https://shadowlauncher.cn/docs/notes/v1.0.1%E6%9B%B4%E6%96%B0%E5%86%85%E5%AE%B9.html"
+    //   完整中文路径：/docs/notes/v1.0.2更新内容.html 、 /docs/notes/启动器公告.html
+    readonly property string changelogUrl: "https://shadowlauncher.cn/docs/notes/v1.0.2%E6%9B%B4%E6%96%B0%E5%86%85%E5%AE%B9.html"
     readonly property string announcementUrl: "https://shadowlauncher.cn/docs/notes/%E5%90%AF%E5%8A%A8%E5%99%A8%E5%85%AC%E5%91%8A.html"
 
-    // 打开官网 v1.0.1 更新内容页（左下角版本号 / 蓝色启动 toast 共用）
+    // 打开官网 v1.0.2 更新内容页（左下角版本号 / 蓝色启动 toast 共用）
     function openChangelogPage() {
-        if (backend) backend.logUiMsg("打开官网 v1.0.1 更新内容页")
+        if (backend) backend.logUiMsg("打开官网 v1.0.2 更新内容页")
         Qt.openUrlExternally(appWindow.changelogUrl)
     }
     // 打开官网启动器公告页（橙黄色启动 toast 用）
@@ -659,7 +659,7 @@ Window {
                         }
                     }
 
-                    // 版本号（2026-08-24：可点击 → 打开官网 v1.0.1 更新内容页）
+                    // 版本号（2026-09-06：可点击 → 打开官网 v1.0.2 更新内容页）
                     Item {
                         Layout.alignment: Qt.AlignHCenter
                         Layout.preferredWidth: versionLabel.implicitWidth + 20

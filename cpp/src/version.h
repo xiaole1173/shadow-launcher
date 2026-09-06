@@ -7,4 +7,4 @@
 // 改版本号会触发 vcxproj 预处理宏变化 → MSBuild 全量重编整个项目（实测每次
 // 切版本编译数分钟，严重拖慢更新验证）。
 // 现在只需改本文件并重编引用它的少数文件（main_release/main/app_backend）。
-#define SHADOW_DISPLAY_VERSION "v1.0.1"
+#define SHADOW_DISPLAY_VERSION "v1.0.2"
