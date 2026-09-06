@@ -58,22 +58,23 @@ Window {
         Qt.openUrlExternally(appWindow.announcementUrl)
     }
 
-    // ── v1.0.1 启动公告 toast（2026-08-24）──
+    // ── v1.0.2 启动 toast（2026-09-06：沿用 v1.0.1 结构）──
     // 一次性：用户点击对应 toast 后写标记，此后不再弹出；一直不点击则每次启动都弹。
     // 蓝色(info)=更新内容；橙黄色(warning)=启动器公告。
     function maybeShowStartupToasts() {
         if (!backend || !toastManager) return
-        // 仅 v1.0.1 展示本次公告 toast；版本升级后自然停用（后续版本另行配置）
-        if (backend.appVersion !== "v1.0.1") return
+        // 仅 v1.0.2 展示本次 toast；版本升级后自然停用（后续版本另行配置）
+        if (backend.appVersion !== "v1.0.2") return
         // 本次是否属于"更新后首次启动"（新装/同版本重启为 false）
         var isUpdate = backend.consumeJustUpdatedFlag()
-        var changelogDone = backend.readUiFlag("startup/changelog_v101_clicked")
+        var changelogDone = backend.readUiFlag("startup/changelog_v102_clicked")
+        // 公告（黄 toast）标志沿用 v101：公告内容未更新，v1.0.1 已点过的用户 v1.0.2 不重复弹
         var announcementDone = backend.readUiFlag("startup/announcement_v101_clicked")
         // 蓝色 toast（更新内容）：仅更新用户弹出
         if (isUpdate && !changelogDone) {
-            toastManager.showAction("您已成功更新至v1.0.1，点击查看v1.0.1更新内容。", function() {
+            toastManager.showAction("您已成功更新至v1.0.2，点击查看v1.0.2更新内容。", function() {
                 appWindow.openChangelogPage()
-                if (backend) backend.writeUiFlag("startup/changelog_v101_clicked", true)
+                if (backend) backend.writeUiFlag("startup/changelog_v102_clicked", true)
             }, "info")
         }
         // 黄色 toast（公告）：新装 + 更新都必须弹出
@@ -136,7 +137,7 @@ Window {
             runningListModel = backend.runningGames()
             console.log("[main] init done, t=" + Date.now())
         }
-        // v1.0.1 启动公告 toast（延迟触发，避免与窗口初始化竞争）
+        // v1.0.2 启动 toast（延迟触发，避免与窗口初始化竞争）
         startupToastTimer.start()
     }
 
@@ -168,7 +169,7 @@ Window {
         onTriggered: pageLoading = false
     }
 
-    // v1.0.1 启动公告 toast（2026-08-24：延迟触发，待窗口与后端就绪）
+    // v1.0.2 启动 toast（2026-09-06：延迟触发，待窗口与后端就绪）
     Timer {
         id: startupToastTimer
         interval: 800
