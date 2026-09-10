@@ -113,7 +113,7 @@ Rectangle {
                 width: backLabel.implicitWidth + 24
                 height: 36
                 radius: StyleTokens.radiusLg
-                color: backMouse.containsMouse ? "#1A2434" : "transparent"
+                color: backMouse.containsMouse ? StyleTokens.accentSubtle : "transparent"
 
                 RowLayout {
                     anchors.centerIn: parent
@@ -121,7 +121,7 @@ Rectangle {
                     Text {
                         text: "←"
                         font.pixelSize: StyleTokens.fontSizeLg
-                        color: backMouse.containsMouse ? StyleTokens.accent : "#B4BAC6"
+                        color: backMouse.containsMouse ? StyleTokens.accent : StyleTokens.textTertiary
                         Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                     }
                     Text {
@@ -129,7 +129,7 @@ Rectangle {
                         text: qsTr("启动")
                         font.pixelSize: StyleTokens.fontSizeMd
                         font.weight: Font.Medium
-                        color: backMouse.containsMouse ? StyleTokens.accent : "#B4BAC6"
+                        color: backMouse.containsMouse ? StyleTokens.accent : StyleTokens.textTertiary
                         Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                     }
                 }
@@ -183,7 +183,7 @@ Rectangle {
                         width: sidebarList.width - 16
                         height: 38
                         radius: StyleTokens.radiusMd
-                        color: page.currentSection === section ? "#1A1D24" : "transparent"
+                        color: page.currentSection === section ? StyleTokens.accentSubtle : "transparent"
 
                         Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
 
@@ -207,7 +207,7 @@ Rectangle {
                             text: label
                             font.pixelSize: StyleTokens.fontSizeMd
                             font.weight: page.currentSection === section ? Font.DemiBold : Font.Normal
-                            color: page.currentSection === section ? "#F1F3F6" : "#B4BAC6"
+                            color: page.currentSection === section ? StyleTokens.textPrimary : StyleTokens.textTertiary
 
                             Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                         }
@@ -252,7 +252,7 @@ Rectangle {
                             text: qsTr("快捷方式")
                             font.pixelSize: StyleTokens.fontSizeMd
                             font.weight: Font.DemiBold
-                            color: "#7E8596"
+                            color: StyleTokens.textSubtle
                             Layout.leftMargin: 4
                             Layout.topMargin: 8
                         }
@@ -275,7 +275,7 @@ Rectangle {
                                     height: 42
                                     radius: StyleTokens.radiusLg
                                     color: "transparent"
-                                    border.color: shortcutMouse.containsMouse ? StyleTokens.accent : "#2A2F3A"
+                                    border.color: shortcutMouse.containsMouse ? StyleTokens.accent : StyleTokens.accentSubtle
                                     border.width: 1
                                     scale: shortcutMouse.containsMouse ? 1.04 : 1.0
 
@@ -289,7 +289,7 @@ Rectangle {
                                         Text {
                                             text: modelData.label
                                             font.pixelSize: StyleTokens.fontSizeMd
-                                            color: shortcutMouse.containsMouse ? StyleTokens.accent : "#B4BAC6"
+                                            color: shortcutMouse.containsMouse ? StyleTokens.accent : StyleTokens.textTertiary
                                             Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                                         }
                                     }
@@ -310,7 +310,7 @@ Rectangle {
                             text: qsTr("高级管理")
                             font.pixelSize: StyleTokens.fontSizeMd
                             font.weight: Font.DemiBold
-                            color: "#7E8596"
+                            color: StyleTokens.textSubtle
                             Layout.leftMargin: 4
                             Layout.topMargin: 8
                         }
@@ -320,7 +320,7 @@ Rectangle {
                             height: 40
                             radius: StyleTokens.radiusLg
                             color: "transparent"
-                            border.color: deleteBtnMouse.containsMouse ? StyleTokens.error : "#2A2F3A"
+                            border.color: deleteBtnMouse.containsMouse ? StyleTokens.error : StyleTokens.accentSubtle
                             border.width: 1
                             scale: deleteBtnMouse.containsMouse ? 1.04 : 1.0
 
@@ -333,13 +333,13 @@ Rectangle {
                                 Text {
                                     text: "[删除]"
                                     font.pixelSize: StyleTokens.fontSizeLg
-                                    color: deleteBtnMouse.containsMouse ? StyleTokens.error : "#B4BAC6"
+                                    color: deleteBtnMouse.containsMouse ? StyleTokens.error : StyleTokens.textTertiary
                                     Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                                 }
                                 Text {
                                     text: qsTr("删除此版本")
                                     font.pixelSize: StyleTokens.fontSizeMd
-                                    color: deleteBtnMouse.containsMouse ? StyleTokens.error : "#B4BAC6"
+                                    color: deleteBtnMouse.containsMouse ? StyleTokens.error : StyleTokens.textTertiary
                                     Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                                 }
                             }
@@ -358,7 +358,7 @@ Rectangle {
                             text: qsTr("特殊登录选项")
                             font.pixelSize: StyleTokens.fontSizeMd
                             font.weight: Font.DemiBold
-                            color: "#7E8596"
+                            color: StyleTokens.textSubtle
                             Layout.leftMargin: 4
                             Layout.topMargin: 8
                         }
@@ -371,13 +371,13 @@ Rectangle {
                                 text: qsTr("第三方登录")
                                 font.pixelSize: StyleTokens.fontSizeSm
                                 font.weight: Font.DemiBold
-                                color: "#7E8596"
+                                color: StyleTokens.textSubtle
                             }
 
                             Text {
                                 text: qsTr("第三方登录允许您使用自定义认证服务器进行游戏。\n注意：第三方登录将优先于普通登录方式。")
                                 font.pixelSize: StyleTokens.fontSizeSm
-                                color: "#7E8596"
+                                color: StyleTokens.textSubtle
                                 Layout.fillWidth: true
                                 wrapMode: Text.WordWrap
                                 lineHeight: 1.5
@@ -392,7 +392,7 @@ Rectangle {
                             Text {
                                 text: qsTr("认证方式")
                                 font.pixelSize: StyleTokens.fontSizeMd
-                                color: "#B4BAC6"
+                                color: StyleTokens.textTertiary
                                 Layout.preferredWidth: 70
                             }
 
@@ -417,7 +417,7 @@ Rectangle {
                             Layout.rightMargin: 40
                             visible: page._authlibMode === "authlib"
                             placeholderText: "Authlib-Injector 服务器地址..."
-                            placeholderTextColor: "#5A6173"
+                            placeholderTextColor: StyleTokens.textMuted
                             color: StyleTokens.textPrimary
                             font.pixelSize: StyleTokens.fontSizeMd
                             leftPadding: 12
@@ -427,7 +427,7 @@ Rectangle {
                             background: Rectangle {
                                 radius: StyleTokens.radiusLg
                                 color: StyleTokens.surfaceLight
-                                border.color: authlibUrlField.activeFocus ? StyleTokens.accent : "#2A2F3A"
+                                border.color: authlibUrlField.activeFocus ? StyleTokens.accent : StyleTokens.accentSubtle
                                 border.width: 1
                                 Behavior on border.color { ColorAnimation { duration: 200 } }
                             }
@@ -443,7 +443,7 @@ Rectangle {
                             Layout.rightMargin: 40
                             visible: page._authlibMode === "custom"
                             placeholderText: "自定义认证服务器地址..."
-                            placeholderTextColor: "#5A6173"
+                            placeholderTextColor: StyleTokens.textMuted
                             color: StyleTokens.textPrimary
                             font.pixelSize: StyleTokens.fontSizeMd
                             leftPadding: 12
@@ -453,7 +453,7 @@ Rectangle {
                             background: Rectangle {
                                 radius: StyleTokens.radiusLg
                                 color: StyleTokens.surfaceLight
-                                border.color: customUrlField.activeFocus ? StyleTokens.accent : "#2A2F3A"
+                                border.color: customUrlField.activeFocus ? StyleTokens.accent : StyleTokens.accentSubtle
                                 border.width: 1
                                 Behavior on border.color { ColorAnimation { duration: 200 } }
                             }
@@ -468,7 +468,7 @@ Rectangle {
                             width: 80
                             height: 34
                             radius: StyleTokens.radiusLg
-                            color: applyAuthMouse.containsMouse ? "#2563EB" : StyleTokens.accent
+                            color: applyAuthMouse.containsMouse ? StyleTokens.accent : StyleTokens.accent
                             scale: applyAuthMouse.containsMouse ? 1.04 : 1.0
 
                             Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
@@ -526,7 +526,7 @@ Rectangle {
                         Text {
                             text: qsTr("校验游戏文件，确保所有必要的文件都存在且未被修改。")
                             font.pixelSize: StyleTokens.fontSizeMd
-                            color: "#7E8596"
+                            color: StyleTokens.textSubtle
                             Layout.fillWidth: true
                             wrapMode: Text.WordWrap
                             lineHeight: 1.5
@@ -537,7 +537,7 @@ Rectangle {
                             Layout.preferredWidth: 140
                             height: 40
                             radius: StyleTokens.radiusLg
-                            color: integrityBtnMouse.containsMouse ? "#2563EB" : StyleTokens.accent
+                            color: integrityBtnMouse.containsMouse ? StyleTokens.accent : StyleTokens.accent
                             scale: integrityBtnMouse.containsMouse ? 1.04 : 1.0
 
                             Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
@@ -595,7 +595,7 @@ Rectangle {
                                         : "校验中... ") + backend.verifyChecked + "/" + backend.verifyTotal)
                                     : "正在收集文件信息..."
                                 font.pixelSize: StyleTokens.fontSizeSm
-                                color: "#7E8596"
+                                color: StyleTokens.textSubtle
                             }
 
                             // Cancel button
@@ -632,14 +632,14 @@ Rectangle {
                                 text: qsTr("校验结果")
                                 font.pixelSize: StyleTokens.fontSizeMd
                                 font.weight: Font.DemiBold
-                                color: "#B4BAC6"
+                                color: StyleTokens.textTertiary
                             }
 
                             Text {
                                 text: (backend && backend.verifyResultText) ? backend.verifyResultText : "暂无校验结果"
                                 font.pixelSize: StyleTokens.fontSizeSm
                                 color: (backend && backend.verifyFinished !== undefined && backend.verifyFinished && backend.verifyResultText)
-                                    ? StyleTokens.success : "#7E8596"
+                                    ? StyleTokens.success : StyleTokens.textSubtle
                                 wrapMode: Text.WordWrap
                                 Layout.fillWidth: true
                             }
@@ -660,7 +660,7 @@ Rectangle {
                                     spacing: 1
                                     delegate: Text {
                                         text: "失败: " + modelData
-                                        color: "#c06060"
+                                        color: StyleTokens.textDanger
                                         font.pixelSize: StyleTokens.fontSizeSm
                                         font.family: StyleTokens.fontFamilyMono
                                         width: parent.width
@@ -673,7 +673,7 @@ Rectangle {
                                     anchors.right: parent.right
                                     anchors.margins: 4
                                     text: page.verifyFailedFiles.length > 8 ? ("... 共 " + page.verifyFailedFiles.length + " 个损坏文件") : ""
-                                    color: "#806060"
+                                    color: StyleTokens.statusOff
                                     font.pixelSize: StyleTokens.fontSizeXs
                                     visible: page.verifyFailedFiles.length > 8
                                 }
@@ -694,7 +694,7 @@ Rectangle {
                                     anchors.centerIn: parent
                                     text: qsTr("清理损坏文件")
                                     font.pixelSize: StyleTokens.fontSizeSm
-                                    color: "#ff8080"
+                                    color: StyleTokens.errorLight
                                 }
 
                                 MouseArea {
@@ -746,7 +746,7 @@ Rectangle {
                             // Hint below buttons
                             Text {
                                 text: qsTr("提示: 修复仅重新下载损坏/缺失的文件，已通过校验的文件不会重复下载")
-                                color: "#807880"
+                                color: StyleTokens.textSubtle
                                 font.pixelSize: StyleTokens.fontSizeSm
                                 wrapMode: Text.WordWrap
                                 Layout.fillWidth: true
@@ -785,7 +785,7 @@ Rectangle {
                         Text {
                             text: qsTr("管理版本安装的资源包，启用或禁用以自定义游戏体验。")
                             font.pixelSize: StyleTokens.fontSizeMd
-                            color: "#7E8596"
+                            color: StyleTokens.textSubtle
                             Layout.fillWidth: true
                             wrapMode: Text.WordWrap
                             lineHeight: 1.5
@@ -800,7 +800,7 @@ Rectangle {
                                 height: 36
                                 radius: StyleTokens.radiusLg
                                 color: "transparent"
-                                border.color: openFolderMouse.containsMouse ? StyleTokens.accent : "#2A2F3A"
+                                border.color: openFolderMouse.containsMouse ? StyleTokens.accent : StyleTokens.accentSubtle
                                 border.width: 1
                                 scale: openFolderMouse.containsMouse ? 1.04 : 1.0
 
@@ -811,7 +811,7 @@ Rectangle {
                                     anchors.centerIn: parent
                                     text: qsTr("[打开] 打开文件夹")
                                     font.pixelSize: StyleTokens.fontSizeSm
-                                    color: openFolderMouse.containsMouse ? StyleTokens.accent : "#B4BAC6"
+                                    color: openFolderMouse.containsMouse ? StyleTokens.accent : StyleTokens.textTertiary
                                     Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                                 }
 
@@ -829,7 +829,7 @@ Rectangle {
                                 height: 36
                                 radius: StyleTokens.radiusLg
                                 color: "transparent"
-                                border.color: addPackMouse.containsMouse ? StyleTokens.accent : "#2A2F3A"
+                                border.color: addPackMouse.containsMouse ? StyleTokens.accent : StyleTokens.accentSubtle
                                 border.width: 1
                                 scale: addPackMouse.containsMouse ? 1.04 : 1.0
 
@@ -840,7 +840,7 @@ Rectangle {
                                     anchors.centerIn: parent
                                     text: qsTr("[添加] 添加资源包")
                                     font.pixelSize: StyleTokens.fontSizeSm
-                                    color: addPackMouse.containsMouse ? StyleTokens.accent : "#B4BAC6"
+                                    color: addPackMouse.containsMouse ? StyleTokens.accent : StyleTokens.textTertiary
                                     Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                                 }
 
@@ -863,7 +863,7 @@ Rectangle {
                                 text: qsTr("已安装的资源包")
                                 font.pixelSize: StyleTokens.fontSizeMd
                                 font.weight: Font.DemiBold
-                                color: "#B4BAC6"
+                                color: StyleTokens.textTertiary
                             }
 
                             Rectangle {
@@ -878,7 +878,7 @@ Rectangle {
                                     anchors.verticalCenter: parent.verticalCenter
                                     text: qsTr("暂无资源包")
                                     font.pixelSize: StyleTokens.fontSizeMd
-                                    color: "#7E8596"
+                                    color: StyleTokens.textSubtle
                                 }
                             }
                         }
@@ -917,7 +917,7 @@ Rectangle {
                                 text: qsTr("功能开发中...")
                                 font.pixelSize: StyleTokens.fontSizeLg
                                 font.weight: Font.Medium
-                                color: "#7E8596"
+                                color: StyleTokens.textSubtle
                                 Layout.alignment: Qt.AlignHCenter
                             }
 
@@ -977,7 +977,7 @@ Rectangle {
             Text {
                 text: qsTr("此操作将永久删除该版本及其所有文件，无法恢复。")
                 font.pixelSize: StyleTokens.fontSizeMd
-                color: "#B4BAC6"
+                color: StyleTokens.textTertiary
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.WordWrap
@@ -993,7 +993,7 @@ Rectangle {
                     height: 36
                     radius: StyleTokens.radiusLg
                     color: "transparent"
-                    border.color: cancelDelMouse.containsMouse ? StyleTokens.accent : "#2A2F3A"
+                    border.color: cancelDelMouse.containsMouse ? StyleTokens.accent : StyleTokens.accentSubtle
                     border.width: 1
                     scale: cancelDelMouse.containsMouse ? 1.04 : 1.0
 
@@ -1004,7 +1004,7 @@ Rectangle {
                         anchors.centerIn: parent
                         text: qsTr("取消")
                         font.pixelSize: StyleTokens.fontSizeMd
-                        color: cancelDelMouse.containsMouse ? StyleTokens.accent : "#B4BAC6"
+                        color: cancelDelMouse.containsMouse ? StyleTokens.accent : StyleTokens.textTertiary
                         Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                     }
 
@@ -1023,7 +1023,7 @@ Rectangle {
                     height: 36
                     radius: StyleTokens.radiusLg
                     color: "transparent"
-                    border.color: confirmDelMouse.containsMouse ? "#DC2626" : StyleTokens.error
+                    border.color: confirmDelMouse.containsMouse ? StyleTokens.error : StyleTokens.error
                     border.width: 1
                     scale: confirmDelMouse.containsMouse ? 1.04 : 1.0
 
@@ -1035,7 +1035,7 @@ Rectangle {
                         text: qsTr("确认删除")
                         font.pixelSize: StyleTokens.fontSizeMd
                         font.weight: Font.DemiBold
-                        color: confirmDelMouse.containsMouse ? "#FCA5A5" : StyleTokens.error
+                        color: confirmDelMouse.containsMouse ? StyleTokens.errorLight : StyleTokens.error
                         Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                     }
 

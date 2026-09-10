@@ -482,7 +482,7 @@ Window {
         // ── Dark mask overlay ──
         Rectangle {
             anchors.fill: parent; z: -1
-            color: "#000000"
+            color: StyleTokens.scrim
             opacity: hasCustomBg ? (1.0 - backend.contentOpacity) : 0
             visible: hasCustomBg
             Behavior on opacity { NumberAnimation { duration: 300 } }
@@ -549,7 +549,7 @@ Window {
                 Layout.preferredWidth: 200; Layout.fillHeight: true
                 layer.enabled: true
                 visible: !appWindow.showInstallPage
-                color: hasCustomBg ? "transparent" : "#0a0c12"; radius: StyleTokens.radiusMd
+                color: hasCustomBg ? "transparent" : StyleTokens.shadowColor; radius: StyleTokens.radiusMd
                 opacity: hasCustomBg ? backend.sidebarOpacity : 1.0
                 Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
 
@@ -605,7 +605,7 @@ Window {
                                     source: model.icon ? ("icons/lucide/" + model.icon + ".svg") : ""
                                     visible: model.icon !== undefined && model.icon !== ""
                                 }
-                                Text { text: appWindow.navLabel(model.pageKey); font.pixelSize: StyleTokens.fontSizeMd; color: navListIndex === index ? StyleTokens.textSecondary : "#9498a8" }
+                                Text { text: appWindow.navLabel(model.pageKey); font.pixelSize: StyleTokens.fontSizeMd; color: navListIndex === index ? StyleTokens.textSecondary : StyleTokens.textSubtle }
                             }
                             MouseArea { id: navMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: {
                                 if (model.pageKey === "help_docs") {
@@ -633,7 +633,7 @@ Window {
                             width: parent ? parent.width - 16 : 180; Layout.fillWidth: true; height: 32
                             Rectangle {
                                 anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8
-                                color: runningItemHover.containsMouse ? "#151a26" : "#0d1018"
+                                color: runningItemHover.containsMouse ? StyleTokens.accentSubtle : StyleTokens.bgPrimary
                                 radius: StyleTokens.radiusSm
                                 RowLayout {
                                     anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 6
@@ -644,7 +644,7 @@ Window {
                                     }
                                     Rectangle {
                                         width: 20; height: 20; radius: StyleTokens.radiusLg
-                                        color: runningKillHover.containsMouse ? StyleTokens.errorLight : "#c05050"
+                                        color: runningKillHover.containsMouse ? StyleTokens.errorLight : StyleTokens.textDanger
                                         scale: runningKillHover.containsMouse ? 1.15 : 1.0
                                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                         Text { anchors.centerIn: parent; text: "\u2715"; font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textInverse }
@@ -1045,7 +1045,7 @@ Window {
                                         width: parent.width - 8
                                         textFormat: Text.MarkdownText
                                         font.pixelSize: StyleTokens.fontSizeMd
-                                        color: "#b8c0d0"
+                                        color: StyleTokens.textTertiary
                                         wrapMode: Text.Wrap
                                         onLinkActivated: function(link) { Qt.openUrlExternally(link) }
                                     }
@@ -1066,7 +1066,7 @@ Window {
                                     anchors.horizontalCenter: parent.horizontalCenter
                                     radius: StyleTokens.radiusMd
                                     scale: 1.0
-                                    color: closeBtnMa.containsMouse ? (closeBtnMa.pressed ? "#283260" : "#3a4aa0") : "#2a3878"
+                                    color: closeBtnMa.containsMouse ? (closeBtnMa.pressed ? StyleTokens.infoBg : StyleTokens.accentSubtle) : StyleTokens.infoBg
 
                                     Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
                                     Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutBack; easing.overshoot: 0.2 } }
@@ -1371,28 +1371,28 @@ Window {
         ColumnLayout {
             anchors.fill: parent; anchors.margins: 20; spacing: 12
             Text { text: "[警告] 下载失败"; font.pixelSize: StyleTokens.fontSizeLg; font.bold: true; color: StyleTokens.errorLight }
-            Text { text: modDlErrorInfo.displayName || ""; font.pixelSize: StyleTokens.fontSizeMd; color: "#c0c8e0" }
+            Text { text: modDlErrorInfo.displayName || ""; font.pixelSize: StyleTokens.fontSizeMd; color: StyleTokens.textSecondary }
             Text {
                 Layout.fillWidth: true
                 text: modDlErrorInfo.errorDetail || "未知错误"
-                color: "#d08080"; font.pixelSize: StyleTokens.fontSizeSm; wrapMode: Text.WordWrap
+                color: StyleTokens.errorLight; font.pixelSize: StyleTokens.fontSizeSm; wrapMode: Text.WordWrap
             }
             RowLayout {
                 spacing: 10; Layout.alignment: Qt.AlignRight
                 Rectangle {
                     width: 80; height: 30; radius: StyleTokens.radiusMd
-                    color: skipHov.hovered ? "#3a1818" : "#2a1010"
-                    border.color: skipHov.hovered ? "#803838" : "#502020"
-                    Text { anchors.centerIn: parent; text: "跳过"; color: "#c06060"; font.pixelSize: StyleTokens.fontSizeSm }
+                    color: skipHov.hovered ? StyleTokens.errorBg : StyleTokens.errorBg
+                    border.color: skipHov.hovered ? StyleTokens.statusOff : StyleTokens.errorBg
+                    Text { anchors.centerIn: parent; text: "跳过"; color: StyleTokens.textDanger; font.pixelSize: StyleTokens.fontSizeSm }
                     MouseArea { id: skipHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                         onClicked: { backend.cancelModFileDownload(modDlErrorInfo.dlId || 0); showModDlError = false }
                     }
                 }
                 Rectangle {
                     width: 80; height: 30; radius: StyleTokens.radiusMd
-                    color: retryHov.hovered ? "#3a3020" : "#2a2010"
-                    border.color: retryHov.hovered ? "#907030" : "#604820"
-                    Text { anchors.centerIn: parent; text: "重试"; color: "#e0a040"; font.pixelSize: StyleTokens.fontSizeSm }
+                    color: retryHov.hovered ? StyleTokens.warningBg : StyleTokens.warningBg
+                    border.color: retryHov.hovered ? StyleTokens.warning : StyleTokens.warningBg
+                    Text { anchors.centerIn: parent; text: "重试"; color: StyleTokens.warning; font.pixelSize: StyleTokens.fontSizeSm }
                     MouseArea { id: retryHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                         onClicked: { backend.retryModFileDownload(modDlErrorInfo.dlId || 0); showModDlError = false }
                     }
@@ -1401,7 +1401,7 @@ Window {
         }
     }
     Rectangle {
-        anchors.fill: parent; z: 399; color: "#000000"
+        anchors.fill: parent; z: 399; color: StyleTokens.scrim
         opacity: showModDlError ? 0.5 : 0
         visible: showModDlError
         Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
@@ -1482,8 +1482,8 @@ Window {
         id: downloadFab
         z: 50
         width: 44; height: 44; radius: 22
-        color: fabMouse.containsMouse ? "#253545" : "#1a2838"
-        border.color: fabMouse.containsMouse ? "#3a5060" : "#2a3a4a"
+        color: fabMouse.containsMouse ? StyleTokens.accentSubtle : StyleTokens.accentSubtle
+        border.color: fabMouse.containsMouse ? StyleTokens.infoBg : StyleTokens.infoBg
         anchors.right: parent.right; anchors.bottom: parent.bottom
         anchors.rightMargin: 16; anchors.bottomMargin: 16
         // ── Fade in/out: opacity drives animation, visible hides render tree ──
@@ -1516,7 +1516,7 @@ Window {
             Text {
                 anchors.centerIn: parent
                 text: backend ? (backend.installCardsModel ? backend.installCardsModel.count : "") : ""
-                font.pixelSize: 11; color: "#ffffff"
+                font.pixelSize: 11; color: StyleTokens.textInverse
             }
         }
 

@@ -49,7 +49,7 @@ Rectangle {
     Rectangle {
         width: 460; height: childrenRect.height + 40; radius: StyleTokens.radiusXl
         anchors.centerIn: parent
-        color: "#121418"; border.color: StyleTokens.bgElevated
+        color: StyleTokens.bgSecondary; border.color: StyleTokens.bgElevated
 
         ColumnLayout {
             anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
@@ -68,14 +68,14 @@ Rectangle {
                 RowLayout { anchors.fill: parent; anchors.margins: 14; spacing: 10
                     Text { text: root.versionId; font.pixelSize: StyleTokens.fontSizeLg; font.bold: true; color: StyleTokens.textPrimary }
                     Rectangle { radius: StyleTokens.radiusXs; height: 18; width: typeLabel.implicitWidth + 10; color: StyleTokens.accentSubtle
-                        Text { id: typeLabel; anchors.centerIn: parent; text: root.versionType; color: "#8090c0"; font.pixelSize: StyleTokens.fontSizeXs }
+                        Text { id: typeLabel; anchors.centerIn: parent; text: root.versionType; color: StyleTokens.accentLink; font.pixelSize: StyleTokens.fontSizeXs }
                     }
                 }
             }
 
             // ── Download source ──
             ColumnLayout { spacing: 8
-                Text { text: qsTr("下载源"); font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold; color: "#b8c0d0" }
+                Text { text: qsTr("下载源"); font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold; color: StyleTokens.textTertiary }
                 RowLayout { spacing: 6
                     Repeater {
                         model: [
@@ -85,12 +85,12 @@ Rectangle {
                         ]
                         Rectangle {
                             width: Math.min(srcBtn.implicitWidth + 20, 160); height: 36; radius: StyleTokens.radiusMd
-                            color: root.sourceIndex === modelData.key ? "#5068d8" : StyleTokens.bgCard
-                            border.color: root.sourceIndex === modelData.key ? "#5d6fe0" : "#252835"
+                            color: root.sourceIndex === modelData.key ? StyleTokens.accentHover : StyleTokens.bgCard
+                            border.color: root.sourceIndex === modelData.key ? StyleTokens.accentLight : StyleTokens.accentSubtle
                             clip: true
                             ColumnLayout {
                                 anchors.centerIn: parent; spacing: 0
-                                Text { id: srcBtn; text: modelData.label; color: root.sourceIndex === modelData.key ? StyleTokens.textInverse : "#b8c0d0"; font.pixelSize: StyleTokens.fontSizeSm; font.weight: root.sourceIndex === modelData.key ? Font.DemiBold : Font.Normal }
+                                Text { id: srcBtn; text: modelData.label; color: root.sourceIndex === modelData.key ? StyleTokens.textInverse : StyleTokens.textTertiary; font.pixelSize: StyleTokens.fontSizeSm; font.weight: root.sourceIndex === modelData.key ? Font.DemiBold : Font.Normal }
                             }
                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.sourceIndex = modelData.key }
                         }
@@ -100,7 +100,7 @@ Rectangle {
 
             // ── Optional addons ──
             ColumnLayout { spacing: 8
-                Text { text: qsTr("附加组件"); font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold; color: "#b8c0d0" }
+                Text { text: qsTr("附加组件"); font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold; color: StyleTokens.textTertiary }
                 Text { text: qsTr("Fabric / OptiFine / Forge 自动安装功能即将支持"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textMuted }
                 RowLayout { spacing: 8; opacity: 0.4
                     Rectangle { width: 100; height: 34; radius: StyleTokens.radiusMd; color: StyleTokens.bgCard; border.color: StyleTokens.bgElevated
@@ -123,11 +123,11 @@ Rectangle {
                 Rectangle { width: 80; height: 34; radius: StyleTokens.radiusMd; color: cancelMouse.containsMouse ? StyleTokens.bgCard : "transparent"
                     scale: cancelMouse.pressed ? 0.9 : 1.0
                     Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
-                    border.color: cancelMouse.containsMouse ? "#5d6fe0" : "#3a4050"; border.width: 1
-                    Text { anchors.centerIn: parent; text: qsTr("取消"); color: cancelMouse.containsMouse ? StyleTokens.textInverse : "#8890a0"; font.pixelSize: StyleTokens.fontSizeMd }
+                    border.color: cancelMouse.containsMouse ? StyleTokens.accentLight : StyleTokens.infoBg; border.width: 1
+                    Text { anchors.centerIn: parent; text: qsTr("取消"); color: cancelMouse.containsMouse ? StyleTokens.textInverse : StyleTokens.textSubtle; font.pixelSize: StyleTokens.fontSizeMd }
                     MouseArea { id: cancelMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.hide() }
                 }
-                Rectangle { width: 120; height: 36; radius: StyleTokens.radiusMd; color: installMouse.containsMouse ? "#6d7de8" : "#5068d8"
+                Rectangle { width: 120; height: 36; radius: StyleTokens.radiusMd; color: installMouse.containsMouse ? StyleTokens.accentLight : StyleTokens.accentHover
                     scale: installMouse.pressed ? 0.92 : 1.0
                     Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
                     Text { anchors.centerIn: parent; text: qsTr("开始安装"); font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold; color: StyleTokens.textInverse }

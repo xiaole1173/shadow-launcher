@@ -36,9 +36,9 @@ Rectangle {
         NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
     }
 
-    color: "#0d1117"
+    color: StyleTokens.bgPrimary
     radius: StyleTokens.radiusMd
-    border { color: "#1a202c"; width: 1 }
+    border { color: StyleTokens.accentSubtle; width: 1 }
 
     // ── 内容区域 (仅在展开时可见) ──
     opacity: root.expanded ? 1 : 0
@@ -89,7 +89,7 @@ Rectangle {
                 // ── 收起按钮 (Lucide chevron-down.svg) ──
                 Rectangle {
                     width: 24; height: 24; radius: 4
-                    color: collapseMouse.containsMouse ? "#1a2030" : "transparent"
+                    color: collapseMouse.containsMouse ? StyleTokens.accentSubtle : "transparent"
                     Behavior on color { ColorAnimation { duration: 120 } }
 
                     Image {
@@ -112,7 +112,7 @@ Rectangle {
         // ── 分隔线 ──
         Rectangle {
             Layout.fillWidth: true; height: 1
-            color: "#1a202c"
+            color: StyleTokens.accentSubtle
         }
 
         // ── 卡片列表 ──
@@ -159,7 +159,7 @@ Rectangle {
                 width: parent.width; spacing: 0
                 Rectangle {
                     Layout.fillWidth: true; height: 1
-                    color: "#1a202c"
+                    color: StyleTokens.accentSubtle
                 }
                 Item { height: 4 }
                 RowLayout {

@@ -213,13 +213,13 @@ Rectangle {
                     Layout.fillWidth: true; spacing: 24
                     Text {
                         text: qsTr("来源: Modrinth (MCIM 镜像)")
-                        color: "#7888a8"; font.pixelSize: StyleTokens.fontSizeSm
+                        color: StyleTokens.textSubtle; font.pixelSize: StyleTokens.fontSizeSm
                     }
                     Text {
                         id: verCountText
                         property int _displayCount: 0
                         text: qsTr("版本数量: ") + _displayCount
-                        color: "#7888a8"; font.pixelSize: StyleTokens.fontSizeSm
+                        color: StyleTokens.textSubtle; font.pixelSize: StyleTokens.fontSizeSm
                         Behavior on _displayCount {
                             NumberAnimation { duration: 2000; easing.type: Easing.OutCubic }
                         }
@@ -268,7 +268,7 @@ Rectangle {
                                 if (r <= 0) return
                                 var startRad = (spinnerBox._angle - 90) * Math.PI / 180
                                 var endRad = (spinnerBox._angle + 180) * Math.PI / 180
-                                ctx.strokeStyle = "#5b8def"
+                                ctx.strokeStyle = StyleTokens.accentVivid
                                 ctx.lineWidth = 2; ctx.lineCap = "round"
                                 ctx.beginPath()
                                 ctx.arc(cx, cy, r, startRad, endRad)
@@ -278,7 +278,7 @@ Rectangle {
                     }
                     Text {
                         text: shaderDetailLoading ? "加载版本中..." : (grouped.length === 0 ? "无可用版本" : "")
-                        color: "#606478"; font.pixelSize: StyleTokens.fontSizeSm
+                        color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeSm
                     }
                 }
             }
@@ -289,7 +289,7 @@ Rectangle {
                 opacity: _versionListEnter ? 1 : 0
                 Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
                 text: qsTr("版本列表")
-                font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold; color: "#a0a8c0"
+                font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold; color: StyleTokens.textTertiary
                 Layout.topMargin: 8; Layout.leftMargin: 4
             }
 
@@ -341,7 +341,7 @@ Rectangle {
                                         }
                                     }
                                     var pr = preReleaseTag(modelData)
-                                    if (pr) result.push({text: pr, color: "#d0a050", bg: "#382818"})
+                                    if (pr) result.push({text: pr, color: StyleTokens.warning, bg: StyleTokens.warningBg})
                                     return result
                                 }
 
@@ -389,8 +389,8 @@ Rectangle {
                             x: 24
                             height: 30
                             radius: StyleTokens.radiusMd
-                            color: moreHov.containsMouse ? "#3a50b0" : "transparent"
-                            border.color: "#2a3a68"
+                            color: moreHov.containsMouse ? StyleTokens.accentHover : "transparent"
+                            border.color: StyleTokens.infoBg
                             border.width: 1
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Text {

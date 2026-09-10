@@ -20,7 +20,7 @@ Rectangle {
     implicitWidth: parent ? parent.width : 200
     height: 42
     radius: StyleTokens.radiusMd
-    color: root.transparent ? "transparent" : (hovered ? "#121620" : "#0e1018")
+    color: root.transparent ? "transparent" : (hovered ? StyleTokens.accentSubtle : StyleTokens.bgPrimary)
     border.color: isSelected ? StyleTokens.accent :
                   (hovered ? StyleTokens.accentHover : "transparent")
     border.width: isSelected ? 1.5 : (hovered ? 1 : 0)
@@ -74,7 +74,7 @@ Rectangle {
         // ── 版本号 ──
         Text {
             text: root.versionId
-            color: "#d0d4e0"
+            color: StyleTokens.textSecondary
             font.pixelSize: StyleTokens.fontSizeMd
             font.weight: root.isSelected ? Font.DemiBold : Font.Medium
             Layout.fillWidth: true
@@ -86,9 +86,9 @@ Rectangle {
             radius: StyleTokens.radiusXs
             height: 18
             width: typeTag.implicitWidth + 12
-            color: root.versionType === "release" ? "#104830" :
-                   (root.versionType === "snapshot" ? "#403010" :
-                   (root.versionType === "april_fools" ? "#403020" : "#282828"))
+            color: root.versionType === "release" ? StyleTokens.successBg :
+                   (root.versionType === "snapshot" ? StyleTokens.warningBg :
+                   (root.versionType === "april_fools" ? StyleTokens.warningBg : StyleTokens.bgElevated))
 
             Text {
                 id: typeTag

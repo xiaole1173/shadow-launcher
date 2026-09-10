@@ -434,7 +434,7 @@ Item {
         Text {
             text: qsTr("导出内容")
             font.pixelSize: StyleTokens.fontSizeXs
-            color: "#9ca0b4"
+            color: StyleTokens.textTertiary
             font.letterSpacing: 1.5
         }
         ColumnLayout {
@@ -484,7 +484,7 @@ Item {
                         }
                         Text {
                             text: qsTr("默认不导出")
-                            color: "#b8860b"
+                            color: StyleTokens.warning
                             font.pixelSize: StyleTokens.fontSizeXs
                             visible: modelData.privacy === true
                         }
@@ -658,7 +658,7 @@ Item {
         Text {
             text: qsTr("高级")
             font.pixelSize: StyleTokens.fontSizeXs
-            color: "#9ca0b4"
+            color: StyleTokens.textTertiary
             font.letterSpacing: 1.5
         }
         // 二次分发警告（勾选“仅打包包内资源”时提示，同主流启动器 CheckAdvancedInclude）
@@ -666,8 +666,8 @@ Item {
             Layout.fillWidth: true
             Layout.preferredHeight: 30
             radius: StyleTokens.radiusMd
-            color: "#3a2e12"
-            border.color: "#6b5418"
+            color: StyleTokens.warningBg
+            border.color: StyleTokens.warningBg
             visible: root._hostedAssetsOnly
             RowLayout {
                 anchors.fill: parent
@@ -687,7 +687,7 @@ Item {
                 }
                 Text {
                     text: qsTr("打包资源文件可能违反部分 Mod 的使用协议，请尽量不要公开分发包含资源文件的整合包！")
-                    color: "#d9b45a"
+                    color: StyleTokens.warning
                     font.pixelSize: StyleTokens.fontSizeXs
                     wrapMode: Text.WordWrap
                     Layout.fillWidth: true
@@ -744,7 +744,7 @@ Item {
             }
             Text {
                 text: qsTr("未找到可打包的 Java 运行时")
-                color: "#b8860b"
+                color: StyleTokens.warning
                 font.pixelSize: StyleTokens.fontSizeXs
                 visible: _ctx && _ctx.javaAvailable === false
             }
@@ -836,7 +836,7 @@ Item {
                     width: parent.width * Math.min(root._progress, 1.0)
                     height: 8
                     radius: StyleTokens.radiusSm
-                    color: root._progress >= 1.0 ? StyleTokens.success : "#6080e8"
+                    color: root._progress >= 1.0 ? StyleTokens.success : StyleTokens.accentLight
                     Behavior on width { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                 }
             }

@@ -127,12 +127,12 @@ Item {
                         Rectangle {
                             radius: StyleTokens.radiusSm; height: 22
                             width: statusLabel.implicitWidth + 14
-                            color: backend && backend.javaInstalled ? "#1a3028" : "#301a1a"
+                            color: backend && backend.javaInstalled ? StyleTokens.successBg : StyleTokens.errorBg
                             Text {
                                 id: statusLabel
                                 anchors.centerIn: parent
                                 text: backend && backend.javaInstalled ? "已检测" : "未检测到"
-                                color: backend && backend.javaInstalled ? StyleTokens.success : "#e05050"
+                                color: backend && backend.javaInstalled ? StyleTokens.success : StyleTokens.error
                                 font.pixelSize: StyleTokens.fontSizeSm
                             }
                         }
@@ -213,14 +213,14 @@ Item {
                             width: browseLabel.implicitWidth + 24; height: 34; radius: StyleTokens.radiusMd
                             color: browseHover.hovered ? StyleTokens.bgCard : "transparent"
                             scale: browseMa.pressed ? 0.92 : 1.0
-                            border.color: browseHover.hovered ? "#6d7de8" : "#4a5ec8"; border.width: 1.5
+                            border.color: browseHover.hovered ? StyleTokens.accentLight : StyleTokens.accentHover; border.width: 1.5
                             Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                             Text {
                                 id: browseLabel
                                 anchors.centerIn: parent
                                 text: qsTr("手动选择")
                                 font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Medium
-                                color: browseHover.hovered ? StyleTokens.textInverse : "#b0b8e0"
+                                color: browseHover.hovered ? StyleTokens.textInverse : StyleTokens.accentLink
                             }
                             HoverHandler { id: browseHover }
                             MouseArea {
@@ -248,7 +248,7 @@ Item {
             Rectangle {
                 Layout.fillWidth: true; implicitHeight: 120
                 radius: StyleTokens.radiusLg; color: StyleTokens.bgSecondary
-                border.color: root._jvmFocused ? "#5068d8" : StyleTokens.bgInput
+                border.color: root._jvmFocused ? StyleTokens.accentHover : StyleTokens.bgInput
                 Behavior on border.color { ColorAnimation { duration: 200 } }
 
                 TextEdit {
@@ -269,7 +269,7 @@ Item {
                     Label {
                         anchors.fill: parent; anchors.margins: 2
                         text: defaultJvmArgs
-                        color: "#5A6173"; font.pixelSize: StyleTokens.fontSizeSm
+                        color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeSm
                         font.family: StyleTokens.fontFamilyMono
                         visible: jvmArgsInput.text === "" && !jvmArgsInput.activeFocus
                         wrapMode: Text.WordWrap
@@ -285,7 +285,7 @@ Item {
             }
 
             // GC 预设
-            Text { text: qsTr("GC 预设"); font.pixelSize: StyleTokens.fontSizeSm; color: "#7E8596" }
+            Text { text: qsTr("GC 预设"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSubtle }
             Flow {
                 Layout.fillWidth: true; spacing: 8
                 Repeater {
@@ -299,7 +299,7 @@ Item {
                     ]
                     Rectangle {
                         implicitWidth: gcLabel.implicitWidth + 20; height: 30; radius: StyleTokens.radiusMd
-                        color: gcHover.hovered || gcFlash.running ? StyleTokens.accentSubtle : "#1A1D24"
+                        color: gcHover.hovered || gcFlash.running ? StyleTokens.accentSubtle : StyleTokens.accentSubtle
                         border.color: StyleTokens.bgHover
                         scale: gcMa.pressed ? 0.92 : 1.0
                         Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
@@ -307,7 +307,7 @@ Item {
                         Text {
                             id: gcLabel
                             anchors.centerIn: parent
-                            text: modelData.label; font.pixelSize: StyleTokens.fontSizeSm; color: "#B4BAC6"
+                            text: modelData.label; font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary
                         }
                         HoverHandler { id: gcHover }
                         MouseArea {
@@ -323,9 +323,9 @@ Item {
                         }
                         SequentialAnimation on color {
                             id: gcFlash; running: false
-                            ColorAnimation { to: "#305080"; duration: 80 }
+                            ColorAnimation { to: StyleTokens.infoBg; duration: 80 }
                             ColorAnimation { to: StyleTokens.accentSubtle; duration: 300 }
-                            ColorAnimation { to: "#1A1D24"; duration: 200 }
+                            ColorAnimation { to: StyleTokens.accentSubtle; duration: 200 }
                         }
                     }
                 }
@@ -341,7 +341,7 @@ Item {
                 HoverHandler { id: resHover }
                 Text {
                     anchors.centerIn: parent
-                    text: qsTr("恢复默认 JVM"); font.pixelSize: StyleTokens.fontSizeSm; color: "#7E8596"
+                    text: qsTr("恢复默认 JVM"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSubtle
                 }
                 MouseArea {
                     id: resMa
@@ -362,7 +362,7 @@ Item {
             }
             Text {
                 text: qsTr("示例：--width 1920 --height 1080 --fullscreen")
-                font.pixelSize: StyleTokens.fontSizeXs; color: "#7E8596"
+                font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textSubtle
             }
             Rectangle {
                 Layout.fillWidth: true; implicitHeight: 44

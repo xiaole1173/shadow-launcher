@@ -172,8 +172,8 @@ Item {
                 Rectangle {
                     id: followGlobalBtn
                     width: 130; height: 36; radius: StyleTokens.radiusLg
-                    color: root._mode === 0 ? "#2a3a6a" : (fgHover.hovered ? "#151c30" : "transparent")
-                    border.color: root._mode === 0 ? "#3a5ab8" : StyleTokens.bgCard
+                    color: root._mode === 0 ? StyleTokens.infoBg : (fgHover.hovered ? StyleTokens.accentSubtle : "transparent")
+                    border.color: root._mode === 0 ? StyleTokens.accentHover : StyleTokens.bgCard
                     scale: followGlobalMa.pressed ? 0.94 : 1.0
                     Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                     Behavior on color { ColorAnimation { duration: 150 } }
@@ -182,7 +182,7 @@ Item {
                         anchors.centerIn: parent
                         text: qsTr("跟随全局设置")
                         font.pixelSize: StyleTokens.fontSizeSm
-                        color: root._mode === 0 ? StyleTokens.textPrimary : "#808aa0"
+                        color: root._mode === 0 ? StyleTokens.textPrimary : StyleTokens.textSubtle
                     }
                     MouseArea {
                         id: followGlobalMa
@@ -200,8 +200,8 @@ Item {
                 Rectangle {
                     id: customBtn
                     width: 130; height: 36; radius: StyleTokens.radiusLg
-                    color: root._mode === 1 ? "#2a3a6a" : (customHover.hovered ? "#151c30" : "transparent")
-                    border.color: root._mode === 1 ? "#3a5ab8" : StyleTokens.bgCard
+                    color: root._mode === 1 ? StyleTokens.infoBg : (customHover.hovered ? StyleTokens.accentSubtle : "transparent")
+                    border.color: root._mode === 1 ? StyleTokens.accentHover : StyleTokens.bgCard
                     scale: customMa.pressed ? 0.94 : 1.0
                     Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                     Behavior on color { ColorAnimation { duration: 150 } }
@@ -210,7 +210,7 @@ Item {
                         anchors.centerIn: parent
                         text: qsTr("独立配置")
                         font.pixelSize: StyleTokens.fontSizeSm
-                        color: root._mode === 1 ? StyleTokens.textPrimary : "#808aa0"
+                        color: root._mode === 1 ? StyleTokens.textPrimary : StyleTokens.textSubtle
                     }
                     MouseArea {
                         id: customMa
@@ -400,7 +400,7 @@ Item {
             Rectangle {
                 Layout.fillWidth: true
                 height: 80
-                radius: StyleTokens.radiusMd; color: "#0d1018"; border.color: StyleTokens.bgCard
+                radius: StyleTokens.radiusMd; color: StyleTokens.bgPrimary; border.color: StyleTokens.bgCard
                 opacity: root._mode === 0 ? 0.6 : 1.0
 
                 TextEdit {
@@ -438,7 +438,7 @@ Item {
                     opacity: root._jvmWarning ? 1 : 0
                     Behavior on opacity { NumberAnimation { duration: 250 } }
                     radius: StyleTokens.radiusLg; color: StyleTokens.errorBg
-                    border.color: "#d04040"; border.width: 1
+                    border.color: StyleTokens.error; border.width: 1
                     implicitHeight: warnLabel.implicitHeight + 24
 
                     RowLayout {
@@ -449,7 +449,7 @@ Item {
                         Text {
                             id: warnLabel
                             text: root._jvmWarning
-                            font.pixelSize: StyleTokens.fontSizeSm; color: "#e8a0a0"
+                            font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.errorLight
                             Layout.fillWidth: true; wrapMode: Text.WordWrap
                         }
                     }
@@ -484,7 +484,7 @@ Item {
                     Rectangle {
                         id: gcChip
                         implicitWidth: gcLabel.implicitWidth + 20; height: 30; radius: StyleTokens.radiusMd
-                        color: gcHover.hovered || gcFlash.running ? StyleTokens.accentSubtle : "#0d1018"
+                        color: gcHover.hovered || gcFlash.running ? StyleTokens.accentSubtle : StyleTokens.bgPrimary
                         border.color: StyleTokens.bgCard
                         scale: gcMa.pressed ? 0.92 : 1.0
                         opacity: root._mode === 0 ? 0.5 : 1.0
@@ -514,9 +514,9 @@ Item {
                         SequentialAnimation on color {
                             id: gcFlash
                             running: false
-                            ColorAnimation { to: "#305080"; duration: 80 }
+                            ColorAnimation { to: StyleTokens.infoBg; duration: 80 }
                             ColorAnimation { to: StyleTokens.accentSubtle; duration: 300 }
-                            ColorAnimation { to: "#0d1018"; duration: 200 }
+                            ColorAnimation { to: StyleTokens.bgPrimary; duration: 200 }
                         }
                     }
                 }
@@ -528,7 +528,7 @@ Item {
                 Rectangle {
                     id: resetBtn
                     width: 110; height: 28; radius: StyleTokens.radiusMd
-                    color: resetJvmHover.hovered ? "#151c30" : "transparent"
+                    color: resetJvmHover.hovered ? StyleTokens.accentSubtle : "transparent"
                     border.color: StyleTokens.bgCard
                     scale: resetMa.pressed ? 0.92 : 1.0
                     opacity: root._mode === 0 ? 0.5 : 1.0
@@ -565,7 +565,7 @@ Item {
             }
             Rectangle {
                 Layout.fillWidth: true; height: 44
-                radius: StyleTokens.radiusMd; color: "#0d1018"; border.color: StyleTokens.bgCard
+                radius: StyleTokens.radiusMd; color: StyleTokens.bgPrimary; border.color: StyleTokens.bgCard
                 opacity: root._mode === 0 ? 0.6 : 1.0
                 TextInput {
                     id: gameArgsInput

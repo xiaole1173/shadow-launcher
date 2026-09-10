@@ -71,7 +71,7 @@ Rectangle {
             anchors.centerIn: parent
             anchors.verticalCenterOffset: 1
             text: "第 " + (root.currentPage + 1) + " 页"
-            color: "#b0b8c8"
+            color: StyleTokens.textTertiary
             font.pixelSize: 13
             font.weight: Font.Medium
         }
@@ -98,8 +98,8 @@ Rectangle {
 
         implicitWidth: 28; implicitHeight: 28; radius: 6
         color: disabled ? "transparent"
-              : btnHover.pressed ? "#252a38"
-              : btnHover.containsMouse ? "#1a1e2a"
+              : btnHover.pressed ? StyleTokens.accentSubtle
+              : btnHover.containsMouse ? StyleTokens.accentSubtle
               : "transparent"
         border.width: 0
         opacity: disabled ? 0.25 : 1.0
@@ -112,7 +112,7 @@ Rectangle {
             onPaint: {
                 var ctx = getContext("2d")
                 ctx.clearRect(0, 0, width, height)
-                ctx.strokeStyle = parent.disabled ? "#606478" : "#c0c8d8"
+                ctx.strokeStyle = parent.disabled ? StyleTokens.textMuted : StyleTokens.textSecondary
                 ctx.lineWidth = 2
                 ctx.lineCap = "round"
                 ctx.lineJoin = "round"

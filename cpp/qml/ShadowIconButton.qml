@@ -45,8 +45,8 @@ Rectangle {
     property color defaultColor: "transparent"
 
     // Custom icon text color
-    property color iconColor: "#505568"
-    property color iconHoverColor: "#d0d4e0"
+    property color iconColor: StyleTokens.textMuted
+    property color iconHoverColor: StyleTokens.textSecondary
 
     // Custom icon size (0 = auto based on size)
     property int iconPixelSize: 0
@@ -75,11 +75,11 @@ Rectangle {
         if (!_hovered && !_pressed) return root.defaultColor.a > 0 ? root.defaultColor : "transparent"
         if (_pressed) {
             return root.type === "close" ? StyleTokens.errorLight :
-                   root.type === "accent" ? Qt.darker(StyleTokens.accent, 1.15) : "#3a4050"
+                   root.type === "accent" ? Qt.darker(StyleTokens.accent, 1.15) : StyleTokens.infoBg
         }
         // Hovered
-        return root.type === "close" ? "#c05050" :
-               root.type === "accent" ? StyleTokens.accentHover : "#252a35"
+        return root.type === "close" ? StyleTokens.textDanger :
+               root.type === "accent" ? StyleTokens.accentHover : StyleTokens.accentSubtle
     }
 
     scale: _pressed ? 0.85 : (_hovered ? 1.12 : 1.0)

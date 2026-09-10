@@ -57,7 +57,7 @@ Item {
     // ── 遮罩层 ──
     Rectangle {
         anchors.fill: parent
-        color: "#80000000"
+        color: StyleTokens.scrim50
         opacity: root.opened ? 1 : 0
         Behavior on opacity {
             NumberAnimation { duration: root.opened ? 150 : 200; easing.type: Easing.OutCubic }

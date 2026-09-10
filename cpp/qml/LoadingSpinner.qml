@@ -16,7 +16,7 @@ Canvas {
     implicitWidth: 24
     implicitHeight: 24
 
-    property color trackColor: "#252a38"
+    property color trackColor: StyleTokens.accentSubtle
     property color arcColor: StyleTokens.accentLight
     property real arcDegrees: 110   // 弧段张角（角度制）
     property int periodMs: 1200     // 完整旋转周期

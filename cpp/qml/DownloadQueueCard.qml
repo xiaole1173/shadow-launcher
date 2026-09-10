@@ -21,7 +21,7 @@ Rectangle {
                      ? modpackSection.y + modpackSection.height
                      : (stepsList.visible ? stepsList.y + stepsList.height : infoRow.y + infoRow.height)) + 12
     radius: StyleTokens.radiusLg
-    color: "#141a24"
+    color: StyleTokens.accentSubtle
 
     // ── Poll 变量 ──
     property var _hot: ({})     // 高频：progress, speed（每 200ms 变化）
@@ -128,12 +128,12 @@ Rectangle {
         anchors.left: parent.left; anchors.leftMargin: 12
         anchors.right: parent.right; anchors.rightMargin: 12
         height: 4; radius: 2
-        color: "#1e2a3a"
+        color: StyleTokens.accentSubtle
 
         Rectangle {
             height: parent.height; radius: 2
             color: _meta.failed ? StyleTokens.errorLight
-                 : _hot.progress >= 1.0 ? "#3fb950"
+                 : _hot.progress >= 1.0 ? StyleTokens.success
                  : StyleTokens.accent
             width: parent.width * Math.min(_hot.progress || 0, 1.0)
             Behavior on width {
@@ -158,7 +158,7 @@ Rectangle {
                   : (_meta.name || "")
             font.pixelSize: StyleTokens.fontSizeCaption
             color: _meta.failed ? StyleTokens.errorLight
-                 : _hot.progress >= 1.0 ? "#3fb950"
+                 : _hot.progress >= 1.0 ? StyleTokens.success
                  : StyleTokens.textPrimary
             elide: Text.ElideRight
             width: parent.width - 30
@@ -173,7 +173,7 @@ Rectangle {
             height: 20; radius: 10
             width: retryRow.implicitWidth + 14
             visible: !!(_meta.failed && _meta.canRetry)
-            color: retryMouse.containsMouse ? "#1e3b2e" : "#16241c"
+            color: retryMouse.containsMouse ? StyleTokens.successBg : StyleTokens.successBg
 
             Behavior on color { ColorAnimation { duration: 120 } }
 
@@ -217,7 +217,7 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             width: 20; height: 20; radius: 10
             visible: _meta.failed || (_meta.canCancel !== false && _hot.progress < 1.0)
-            color: actionMouse.containsMouse ? "#4a1a1a" : "transparent"
+            color: actionMouse.containsMouse ? StyleTokens.errorBg : "transparent"
 
             Behavior on color { ColorAnimation { duration: 120 } }
 
@@ -273,7 +273,7 @@ Rectangle {
             }
             font.pixelSize: StyleTokens.fontSizeXs
             color: _meta.failed ? StyleTokens.errorLight
-                 : _hot.progress >= 1.0 ? "#3fb950"
+                 : _hot.progress >= 1.0 ? StyleTokens.success
                  : StyleTokens.textMuted
         }
 
@@ -322,10 +322,10 @@ Rectangle {
                     Layout.alignment: Qt.AlignVCenter
                     color: {
                         var s = modelData.status || "pending"
-                        if (s === "completed") return "#3fb950"
+                        if (s === "completed") return StyleTokens.success
                         if (s === "active") return StyleTokens.accent
                         if (s === "failed") return StyleTokens.errorLight
-                        return "#2a3a4a"
+                        return StyleTokens.infoBg
                     }
                 }
 
@@ -359,7 +359,7 @@ Rectangle {
                         model: 3
                         Rectangle {
                             width: 5; height: 5; radius: 2.5
-                            color: "#788090"
+                            color: StyleTokens.textSubtle
                             // Continuous sine wave driven by root-level animation
                             // (independent of delegate lifecycle — survives poll recreations)
                             opacity: 0.3 + 0.7 * Math.abs(Math.sin(root.breathePhase + index * 2.094))

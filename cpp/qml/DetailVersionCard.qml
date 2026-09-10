@@ -16,8 +16,8 @@ Rectangle {
     Layout.fillWidth: true
     implicitHeight: Math.max(52, contentLayout.implicitHeight + 20)
     radius: StyleTokens.radiusLg
-    color: card.cardHovered ? "#161a26" : StyleTokens.bgSecondary
-    border.color: card.cardHovered ? "#4068c8" : StyleTokens.border
+    color: card.cardHovered ? StyleTokens.accentSubtle : StyleTokens.bgSecondary
+    border.color: card.cardHovered ? StyleTokens.accentHover : StyleTokens.border
     border.width: card.cardHovered ? 1.5 : 1
 
     // ── Opacity fade-in entrance ──
@@ -95,7 +95,7 @@ Rectangle {
             // Version label
             Text {
                 text: card.versionLabel
-                color: "#d0d4e0"
+                color: StyleTokens.textSecondary
                 font.pixelSize: StyleTokens.fontSizeSm; font.weight: Font.DemiBold
                 Layout.alignment: Qt.AlignVCenter
                 Layout.fillWidth: true
@@ -133,12 +133,12 @@ Rectangle {
                 spacing: 3
                 Text {
                     text: modelData.label + " "
-                    color: "#606478"; font.pixelSize: StyleTokens.fontSizeXs
+                    color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeXs
                     visible: modelData.label !== ""
                 }
                 Text {
                     text: modelData.value
-                    color: "#788090"; font.pixelSize: StyleTokens.fontSizeXs
+                    color: StyleTokens.textSubtle; font.pixelSize: StyleTokens.fontSizeXs
                     Layout.fillWidth: true
                     elide: Text.ElideRight
                 }

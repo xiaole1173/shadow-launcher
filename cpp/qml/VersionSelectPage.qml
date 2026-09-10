@@ -75,7 +75,7 @@ Rectangle {
 
                 Text {
                     text: qsTr("游戏文件夹")
-                    color: "#7E8596"
+                    color: StyleTokens.textSubtle
                     font.pixelSize: StyleTokens.fontSizeSm
                     font.bold: true
                     Layout.bottomMargin: 4
@@ -102,7 +102,7 @@ Rectangle {
                             spacing: 0
                             Text {
                                 text: modelData.name
-                                color: "#B4BAC6"
+                                color: StyleTokens.textTertiary
                                 font.pixelSize: StyleTokens.fontSizeMd
                             }
                             Text {
@@ -124,7 +124,7 @@ Rectangle {
                     Layout.fillWidth: true
                     height: 36; radius: StyleTokens.radiusLg
                     color: "transparent"
-                    border.color: addArea.containsMouse ? StyleTokens.accent : "#2A2F3A"
+                    border.color: addArea.containsMouse ? StyleTokens.accent : StyleTokens.accentSubtle
                     border.width: 1
                     scale: addArea.containsMouse ? 1.03 : 1.0
                     Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
@@ -132,7 +132,7 @@ Rectangle {
                     Text {
                         anchors.centerIn: parent
                         text: qsTr("[添加] 添加文件夹")
-                        color: addArea.containsMouse ? StyleTokens.accent : "#B4BAC6"
+                        color: addArea.containsMouse ? StyleTokens.accent : StyleTokens.textTertiary
                         font.pixelSize: StyleTokens.fontSizeMd
                         Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                     }
@@ -152,7 +152,7 @@ Rectangle {
                     Layout.fillWidth: true
                     height: 36; radius: StyleTokens.radiusLg
                     color: "transparent"
-                    border.color: importArea.containsMouse ? StyleTokens.accent : "#2A2F3A"
+                    border.color: importArea.containsMouse ? StyleTokens.accent : StyleTokens.accentSubtle
                     border.width: 1
                     scale: importArea.containsMouse ? 1.03 : 1.0
                     Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
@@ -160,7 +160,7 @@ Rectangle {
                     Text {
                         anchors.centerIn: parent
                         text: qsTr("[下载] 导入整合包")
-                        color: importArea.containsMouse ? StyleTokens.accent : "#B4BAC6"
+                        color: importArea.containsMouse ? StyleTokens.accent : StyleTokens.textTertiary
                         font.pixelSize: StyleTokens.fontSizeMd
                         Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                     }
@@ -203,8 +203,8 @@ Rectangle {
                     Rectangle {
                         height: 30; radius: 15
                         width: pillText.implicitWidth + 24
-                        color: activeFilter === modelData ? StyleTokens.accent : "#1A1D24"
-                        border.color: activeFilter === modelData ? StyleTokens.accent : "#2A2F3A"
+                        color: activeFilter === modelData ? StyleTokens.accent : StyleTokens.accentSubtle
+                        border.color: activeFilter === modelData ? StyleTokens.accent : StyleTokens.accentSubtle
                         border.width: 1
                         scale: pillMouse.containsMouse ? 1.04 : 1.0
                         Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
@@ -214,7 +214,7 @@ Rectangle {
                             id: pillText
                             anchors.centerIn: parent
                             text: modelData
-                            color: activeFilter === modelData ? StyleTokens.textInverse : "#B4BAC6"
+                            color: activeFilter === modelData ? StyleTokens.textInverse : StyleTokens.textTertiary
                             font.pixelSize: StyleTokens.fontSizeSm
                             Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
                         }
@@ -313,7 +313,7 @@ Rectangle {
                         implicitHeight: 48
                         width: ListView.view.width
                         radius: StyleTokens.radiusMd
-                        color: cardArea.containsMouse ? "#1E212A" : "transparent"
+                        color: cardArea.containsMouse ? StyleTokens.accentSubtle : "transparent"
                         border.color: selectedVersionId === model.versionId ? StyleTokens.accent : "transparent"
                         border.width: 1
                         opacity: 0
@@ -342,7 +342,7 @@ Rectangle {
                                 radius: StyleTokens.radiusLg
                                 height: 20
                                 implicitWidth: typeTag.implicitWidth + 12
-                                color: model.vtype === "release" ? "#10B981" : (model.vtype === "snapshot" ? "#F59E0B" : "#7E8596")
+                                color: model.vtype === "release" ? StyleTokens.success : (model.vtype === "snapshot" ? StyleTokens.warning : StyleTokens.textSubtle)
                                 Text {
                                     id: typeTag
                                     anchors.centerIn: parent
@@ -373,7 +373,7 @@ Rectangle {
                 anchors.margins: 12
                 height: 42
                 radius: StyleTokens.radiusLg
-                color: selectArea.containsMouse ? "#2563EB" : (selectedVersionId !== "" ? StyleTokens.accent : "#2A2F3A")
+                color: selectArea.containsMouse ? StyleTokens.accent : (selectedVersionId !== "" ? StyleTokens.accent : StyleTokens.accentSubtle)
                 opacity: selectedVersionId !== "" ? 1.0 : 0.5
                 scale: selectArea.containsMouse ? 1.03 : 1.0
                 Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }

@@ -29,7 +29,7 @@ Item {
 
     // Dim overlay
     Rectangle {
-        anchors.fill: parent; z: 0; color: "#000000"
+        anchors.fill: parent; z: 0; color: StyleTokens.scrim
         opacity: 0.5
         Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
         MouseArea { anchors.fill: parent; onClicked: root.opened = false }
@@ -38,7 +38,7 @@ Item {
     // Dialog box
     Rectangle {
         anchors.centerIn: parent; width: 360; height: 180; radius: StyleTokens.radiusLg; z: 1
-        color: StyleTokens.surfaceOverlay; border.color: "#2a1f24"; border.width: 1
+        color: StyleTokens.surfaceOverlay; border.color: StyleTokens.errorBg; border.width: 1
         Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
 
         ColumnLayout {

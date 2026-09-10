@@ -33,9 +33,9 @@ QtObject {
     readonly property color surfaceOverlay: "#141820"
     readonly property color surfaceLight:  "#1a1d24"
 
-    // 文字色
+    // 文字色（5 级灰阶，逐级可辨）
     readonly property color textPrimary:   "#e8ecf8"
-    readonly property color textSecondary: "#e4e8f2"
+    readonly property color textSecondary: "#d0d4e0"
     readonly property color textTertiary:  "#a8b0c0"
     readonly property color textSubtle:    "#8088a0"
     readonly property color textDanger:    "#c05050"
@@ -62,6 +62,34 @@ QtObject {
     // 信息色
     readonly property color info:          "#5098e8"
     readonly property color infoBg:        "#1a3a5c"
+
+    // 遮罩/状态
+    readonly property color scrim:         "#000000"   // 全黑遮罩（配合 opacity 使用）
+    readonly property color scrim50:       "#80000000" // 50% 黑遮罩
+    readonly property color statusOff:     "#884444"   // 状态指示灯熄灭（暗红）
+
+    // 品牌色（来源标识）
+    readonly property color brandCurseForge: "#f08a5d"
+
+    // 紫罗兰（导入/导出、整合包标签）
+    readonly property color accentViolet:      "#7c3aed"
+    readonly property color accentVioletLight: "#a878c8"
+
+    // Mod 加载器语义色
+    readonly property color loaderFabric:   "#3a7a9a"
+    readonly property color loaderNeoforge: "#c08050"
+    readonly property color loaderOptifine: "#8a8a5a"
+    readonly property color loaderDefault:  "#4a6a8a"
+
+    // 图表系列色（数据可视化需要多色相区分，统一在此维护）
+    readonly property var chartColors: ["#5068c8", "#4a8fe7", "#5aa8c0", "#4bc870", "#4bc870",
+                                        "#4bc870", "#4bc870", "#9cf888", "#abff7c", "#baff70"]
+
+    // 半透明强调底色（徽章/卡片 tint）
+    readonly property color warningTint: "#20f59e0b"
+    readonly property color accentTint:  "#204ade80"
+    readonly property color errorTint:   "#1aef4444"
+    readonly property color successTint: "#2060c060"
 
     // 边框色
     readonly property color border:        "#1e2230"

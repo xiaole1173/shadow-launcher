@@ -15,7 +15,7 @@ Flickable {
         width: parent.width
         spacing: 12
         Text { text: qsTr("实验性功能"); font.pixelSize: StyleTokens.fontSizeXl; font.bold: true; color: StyleTokens.textPrimary }
-        Text { text: qsTr("以下功能处于实验阶段，可能存在不稳定的情况。"); font.pixelSize: StyleTokens.fontSizeSm; color: "#707888"; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+        Text { text: qsTr("以下功能处于实验阶段，可能存在不稳定的情况。"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSubtle; wrapMode: Text.WordWrap; Layout.fillWidth: true }
 
         Rectangle {
             Layout.fillWidth: true; Layout.preferredHeight: 110; radius: StyleTokens.radiusLg; color: StyleTokens.bgSecondary; border.color: StyleTokens.bgInput; clip: true
@@ -25,7 +25,7 @@ Flickable {
                     Layout.fillWidth: true; spacing: 6
                     Text { text: qsTr("嵌入式窗口登录"); font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold; color: StyleTokens.textPrimary }
                     Rectangle { radius: StyleTokens.radiusSm; height: 18; width: tagText.implicitWidth + 10; color: StyleTokens.bgHover
-                        Text { id: tagText; anchors.centerIn: parent; text: qsTr("实验性"); font.pixelSize: StyleTokens.fontSizeXs; color: "#a098e0" }
+                        Text { id: tagText; anchors.centerIn: parent; text: qsTr("实验性"); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.accentLink }
                     }
                     Item { Layout.fillWidth: true }
                     Text { text: embeddedSwitch.checked ? qsTr("已开启") : qsTr("已关闭"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary }
@@ -37,7 +37,7 @@ Flickable {
                 }
                 Text {
                     text: qsTr("在启动器内嵌窗口中完成 Microsoft 登录，无需跳转外部浏览器。\n输入 Windows 已登录的 Microsoft 账户后，会自动唤起系统 PIN/指纹验证窗口，可快捷登录。")
-                    font.pixelSize: StyleTokens.fontSizeSm; color: "#707888"; wrapMode: Text.WordWrap; Layout.fillWidth: true
+                    font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSubtle; wrapMode: Text.WordWrap; Layout.fillWidth: true
                 }
             }
         }
@@ -55,7 +55,7 @@ Flickable {
                     Layout.fillWidth: true; spacing: 6
                     Text { text: qsTr("版本悬停显示前置模组"); font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold; color: StyleTokens.textPrimary }
                     Rectangle { radius: StyleTokens.radiusSm; height: 18; width: depsTag.implicitWidth + 10; color: StyleTokens.bgHover
-                        Text { id: depsTag; anchors.centerIn: parent; text: qsTr("实验性"); font.pixelSize: StyleTokens.fontSizeXs; color: "#a098e0" }
+                        Text { id: depsTag; anchors.centerIn: parent; text: qsTr("实验性"); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.accentLink }
                     }
                     Item { Layout.fillWidth: true }
                     Text { text: depsSwitch.checked ? qsTr("已开启") : qsTr("已关闭"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary }
@@ -67,7 +67,7 @@ Flickable {
                 }
                 Text {
                     text: qsTr("在模组详情页将鼠标悬停在版本卡片上时，显示该版本的前置模组信息。")
-                    font.pixelSize: StyleTokens.fontSizeSm; color: "#707888"; wrapMode: Text.WordWrap; Layout.fillWidth: true
+                    font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSubtle; wrapMode: Text.WordWrap; Layout.fillWidth: true
                 }
                 RowLayout {
                     Layout.fillWidth: true; spacing: 6
@@ -85,7 +85,7 @@ Flickable {
                     }
                     Text {
                         text: qsTr("显示信息可能有误，且开启时可能造成卡顿。")
-                        font.pixelSize: StyleTokens.fontSizeSm; color: "#e0a050"; wrapMode: Text.WordWrap; Layout.fillWidth: true
+                        font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.warning; wrapMode: Text.WordWrap; Layout.fillWidth: true
                     }
                 }
             }
@@ -100,7 +100,7 @@ Flickable {
                     Layout.fillWidth: true; spacing: 6
                     Text { text: qsTr("界面语言"); font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold; color: StyleTokens.textPrimary }
                     Rectangle { radius: StyleTokens.radiusSm; height: 18; width: langTag.implicitWidth + 10; color: StyleTokens.bgHover
-                        Text { id: langTag; anchors.centerIn: parent; text: qsTr("实验性"); font.pixelSize: StyleTokens.fontSizeXs; color: "#a098e0" }
+                        Text { id: langTag; anchors.centerIn: parent; text: qsTr("实验性"); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.accentLink }
                     }
                     Item { Layout.fillWidth: true }
                     ShadowDropdown {
@@ -119,7 +119,7 @@ Flickable {
                 }
                 Text {
                     text: qsTr("选择语言后即时生效，无需重启启动器。")
-                    font.pixelSize: StyleTokens.fontSizeSm; color: "#707888"; wrapMode: Text.WordWrap; Layout.fillWidth: true
+                    font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSubtle; wrapMode: Text.WordWrap; Layout.fillWidth: true
                 }
             }
         }
@@ -134,8 +134,8 @@ Flickable {
                 RowLayout {
                     Layout.fillWidth: true; spacing: 6
                     Text { text: qsTr("游戏语言自动调整"); font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold; color: StyleTokens.textPrimary }
-                    Rectangle { radius: StyleTokens.radiusSm; height: 18; width: langNewTag.implicitWidth + 10; color: "#2a3a5c"
-                        Text { id: langNewTag; anchors.centerIn: parent; text: qsTr("新增"); font.pixelSize: StyleTokens.fontSizeXs; color: "#70b8ff" }
+                    Rectangle { radius: StyleTokens.radiusSm; height: 18; width: langNewTag.implicitWidth + 10; color: StyleTokens.infoBg
+                        Text { id: langNewTag; anchors.centerIn: parent; text: qsTr("新增"); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.accentLink }
                     }
                     Item { Layout.fillWidth: true }
                     ShadowDropdown {
@@ -160,7 +160,7 @@ Flickable {
                             default: return ""
                         }
                     }
-                    font.pixelSize: StyleTokens.fontSizeSm; color: "#707888"; wrapMode: Text.WordWrap; Layout.fillWidth: true
+                    font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSubtle; wrapMode: Text.WordWrap; Layout.fillWidth: true
                 }
             }
         }
@@ -176,26 +176,26 @@ Flickable {
                     Layout.fillWidth: true; spacing: 6
                     Text { text: qsTr("自定义背景"); font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold; color: StyleTokens.textPrimary }
                     Rectangle { radius: StyleTokens.radiusSm; height: 18; width: bgTag.implicitWidth + 10; color: StyleTokens.bgHover
-                        Text { id: bgTag; anchors.centerIn: parent; text: qsTr("实验性"); font.pixelSize: StyleTokens.fontSizeXs; color: "#a098e0" }
+                        Text { id: bgTag; anchors.centerIn: parent; text: qsTr("实验性"); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.accentLink }
                     }
                     Item { Layout.fillWidth: true }
                     Text { text: hasBg ? qsTr("已设置") : qsTr("未设置"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary }
-                    Rectangle { width: 60; height: 28; radius: StyleTokens.radiusSm; color: bgBrowseHov.pressed ? "#1e2a40" : (bgBrowseHov.containsMouse ? "#252a38" : "#161a24"); border.color: bgBrowseHov.containsMouse ? "#4a5ed0" : StyleTokens.bgHover
+                    Rectangle { width: 60; height: 28; radius: StyleTokens.radiusSm; color: bgBrowseHov.pressed ? StyleTokens.accentSubtle : (bgBrowseHov.containsMouse ? StyleTokens.accentSubtle : StyleTokens.accentSubtle); border.color: bgBrowseHov.containsMouse ? StyleTokens.accentHover : StyleTokens.bgHover
                         Behavior on color { ColorAnimation { duration: 150 } }
                         Behavior on border.color { ColorAnimation { duration: 150 } }
                         scale: bgBrowseHov.containsMouse ? (bgBrowseHov.pressed ? 0.94 : 1.04) : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                        Text { anchors.centerIn: parent; text: qsTr("浏览"); font.pixelSize: StyleTokens.fontSizeSm; color: "#d0d4e0" }
+                        Text { anchors.centerIn: parent; text: qsTr("浏览"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSecondary }
                         MouseArea { id: bgBrowseHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                             onClicked: { if (backend) backend.pickBackgroundImage() }
                         }
                     }
-                    Rectangle { visible: hasBg; width: 60; height: 28; radius: StyleTokens.radiusSm; color: bgClearHov.pressed ? "#3a1818" : (bgClearHov.containsMouse ? "#302020" : "#161a24"); border.color: bgClearHov.containsMouse ? "#d06060" : StyleTokens.bgHover
+                    Rectangle { visible: hasBg; width: 60; height: 28; radius: StyleTokens.radiusSm; color: bgClearHov.pressed ? StyleTokens.errorBg : (bgClearHov.containsMouse ? StyleTokens.errorBg : StyleTokens.accentSubtle); border.color: bgClearHov.containsMouse ? StyleTokens.errorLight : StyleTokens.bgHover
                         Behavior on color { ColorAnimation { duration: 150 } }
                         Behavior on border.color { ColorAnimation { duration: 150 } }
                         scale: bgClearHov.containsMouse ? (bgClearHov.pressed ? 0.94 : 1.04) : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                        Text { anchors.centerIn: parent; text: qsTr("清除"); font.pixelSize: StyleTokens.fontSizeSm; color: "#d08080" }
+                        Text { anchors.centerIn: parent; text: qsTr("清除"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.errorLight }
                         MouseArea { id: bgClearHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                             onClicked: { if (backend) backend.setCustomBgPath("") }
                         }
@@ -222,7 +222,7 @@ Flickable {
                     }
                     Rectangle {
                         anchors.fill: parent
-                        color: "transparent"; border.color: "#3a5ed0"; border.width: 1.5; radius: StyleTokens.radiusSm
+                        color: "transparent"; border.color: StyleTokens.accentHover; border.width: 1.5; radius: StyleTokens.radiusSm
                     }
                 }
                 Rectangle { visible: hasBg; Layout.fillWidth: true; height: 1; color: StyleTokens.bgInput }
@@ -230,7 +230,7 @@ Flickable {
                 // Hint text
                 Text {
                     visible: hasBg; Layout.fillWidth: true; wrapMode: Text.WordWrap
-                    font.pixelSize: StyleTokens.fontSizeXs; color: "#606480"
+                    font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textMuted
                     text: qsTr("当前预览的是所选中的整个图片，而非裁剪后的图片。点击图片，可手动更改选区范围。")
                 }
 
@@ -266,7 +266,7 @@ Flickable {
                                     Behavior on x { SmoothedAnimation { velocity: 600; duration: 200 } }
                                 }
                             }
-                            Text { text: (backend ? backend.sidebarOpacity : 0.90).toFixed(2); font.pixelSize: StyleTokens.fontSizeSm; color: "#a0a8c0"; Layout.preferredWidth: 32 }
+                            Text { text: (backend ? backend.sidebarOpacity : 0.90).toFixed(2); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary; Layout.preferredWidth: 32 }
                         }
                     }
                     ColumnLayout {
@@ -295,7 +295,7 @@ Flickable {
                                     Behavior on x { SmoothedAnimation { velocity: 600; duration: 200 } }
                                 }
                             }
-                            Text { text: (backend ? backend.contentOpacity : 0.70).toFixed(2); font.pixelSize: StyleTokens.fontSizeSm; color: "#a0a8c0"; Layout.preferredWidth: 32 }
+                            Text { text: (backend ? backend.contentOpacity : 0.70).toFixed(2); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary; Layout.preferredWidth: 32 }
                         }
                     }
                     }
@@ -325,14 +325,14 @@ Flickable {
                                     Behavior on x { SmoothedAnimation { velocity: 600; duration: 200 } }
                                 }
                             }
-                            Text { text: (backend ? backend.backgroundBlur : 0.0).toFixed(2); font.pixelSize: StyleTokens.fontSizeSm; color: "#a0a8c0"; Layout.preferredWidth: 32 }
+                            Text { text: (backend ? backend.backgroundBlur : 0.0).toFixed(2); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary; Layout.preferredWidth: 32 }
                         }
                     }
                 }
 
                 Text {
                     text: qsTr("选择一张图片作为启动器背景。菜单栏透明度、背景明暗度和背景模糊度可分别调节。")
-                    font.pixelSize: StyleTokens.fontSizeSm; color: "#707888"; wrapMode: Text.WordWrap; Layout.fillWidth: true
+                    font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSubtle; wrapMode: Text.WordWrap; Layout.fillWidth: true
                 }
             }
         }

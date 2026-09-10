@@ -48,7 +48,7 @@ Window {
                 text: "Shadow Launcher"
                 font.pixelSize: StyleTokens.fontSize2xl
                 font.bold: true
-                color: "#7ec8e3"
+                color: StyleTokens.accentLink
             }
 
             Text {
@@ -65,7 +65,7 @@ Window {
                 Layout.alignment: Qt.AlignHCenter
                 color: StyleTokens.bgPrimary
                 radius: StyleTokens.radiusLg
-                border.color: keyInput.activeFocus ? "#7ec8e3" : "#2a2a4a"
+                border.color: keyInput.activeFocus ? StyleTokens.accentLink : StyleTokens.accentSubtle
                 border.width: 1
 
                 TextInput {
@@ -106,7 +106,7 @@ Window {
                 Layout.preferredHeight: 42
                 Layout.alignment: Qt.AlignHCenter
                 radius: StyleTokens.radiusLg
-                color: verifyBtn.pressed ? "#3a7aa5" : "#4a9ac5"
+                color: verifyBtn.pressed ? StyleTokens.accentHover : StyleTokens.info
 
                 Text {
                     anchors.centerIn: parent
@@ -129,7 +129,7 @@ Window {
     function submit() {
         var k = keyInput.text.trim();
         if (!k) {
-            showStatus("请输入密钥", "#ff8844");
+            showStatus("请输入密钥", StyleTokens.warning);
             return;
         }
         showStatus("验证中...", "#888");
@@ -145,7 +145,7 @@ Window {
     Connections {
         target: backend
         function onBetaKeyInvalid(reason) {
-            showStatus(reason, "#ff5555");
+            showStatus(reason, StyleTokens.error);
         }
         function onBetaVerified() {
             root.close();

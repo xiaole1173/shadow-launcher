@@ -111,16 +111,16 @@ Rectangle {
                     // ═══ 跟随全局 ═══
                     Rectangle {
                         Layout.fillWidth: true; Layout.preferredHeight: 40; radius: StyleTokens.radiusMd
-                        color: allocMode === 0 ? "#181F30" : "#0f111a"
-                        border.color: allocMode === 0 ? "#4A8FE7" : StyleTokens.bgInput
+                        color: allocMode === 0 ? StyleTokens.accentSubtle : StyleTokens.bgSecondary
+                        border.color: allocMode === 0 ? StyleTokens.accentVivid : StyleTokens.bgInput
                         border.width: allocMode === 0 ? 1.5 : 1
                         Behavior on color { ColorAnimation { duration: 200 } }
                         Behavior on border.color { ColorAnimation { duration: 200 } }
                         RowLayout {
                             anchors.fill: parent; anchors.margins: 12; spacing: 8
-                            Rectangle { width: 16; height: 16; radius: StyleTokens.radiusLg; color: allocMode === 0 ? "#4A8FE7" : "#2a2f3a" }
-                            Text { text: qsTr("跟随全局设置"); font.pixelSize: StyleTokens.fontSizeMd; color: allocMode === 0 ? StyleTokens.textPrimary : "#8890a0"; Layout.fillWidth: true }
-                            Text { font.pixelSize: StyleTokens.fontSizeXs; color: "#5A6173"; text: globalAuto ? qsTr("自动") : globalMaxMB + " MB" }
+                            Rectangle { width: 16; height: 16; radius: StyleTokens.radiusLg; color: allocMode === 0 ? StyleTokens.accentVivid : StyleTokens.accentSubtle }
+                            Text { text: qsTr("跟随全局设置"); font.pixelSize: StyleTokens.fontSizeMd; color: allocMode === 0 ? StyleTokens.textPrimary : StyleTokens.textSubtle; Layout.fillWidth: true }
+                            Text { font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textMuted; text: globalAuto ? qsTr("自动") : globalMaxMB + " MB" }
                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                 onClicked: { allocMode = 0; if (allocMode === 0) refreshAll() } }
                         }
@@ -129,15 +129,15 @@ Rectangle {
                     // ═══ 自动配置 ═══
                     Rectangle {
                         Layout.fillWidth: true; Layout.preferredHeight: 40; radius: StyleTokens.radiusMd
-                        color: allocMode === 1 ? "#181F30" : "#0f111a"
-                        border.color: allocMode === 1 ? "#4A8FE7" : StyleTokens.bgInput
+                        color: allocMode === 1 ? StyleTokens.accentSubtle : StyleTokens.bgSecondary
+                        border.color: allocMode === 1 ? StyleTokens.accentVivid : StyleTokens.bgInput
                         border.width: allocMode === 1 ? 1.5 : 1
                         Behavior on color { ColorAnimation { duration: 200 } }
                         Behavior on border.color { ColorAnimation { duration: 200 } }
                         RowLayout {
                             anchors.fill: parent; anchors.margins: 12; spacing: 8
-                            Rectangle { width: 16; height: 16; radius: StyleTokens.radiusLg; color: allocMode === 1 ? "#4A8FE7" : "#2a2f3a" }
-                            Text { text: qsTr("自动配置"); font.pixelSize: StyleTokens.fontSizeMd; color: allocMode === 1 ? StyleTokens.textPrimary : "#8890a0"; Layout.fillWidth: true }
+                            Rectangle { width: 16; height: 16; radius: StyleTokens.radiusLg; color: allocMode === 1 ? StyleTokens.accentVivid : StyleTokens.accentSubtle }
+                            Text { text: qsTr("自动配置"); font.pixelSize: StyleTokens.fontSizeMd; color: allocMode === 1 ? StyleTokens.textPrimary : StyleTokens.textSubtle; Layout.fillWidth: true }
                             Text { text: qsTr("启动时动态分配"); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textMuted }
                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                 onClicked: { allocMode = 1; if (backend) backend.setAutoMemoryEnabled(true) } }
@@ -148,8 +148,8 @@ Rectangle {
                     Rectangle {
                         id: customRow
                         Layout.fillWidth: true; Layout.preferredHeight: allocMode === 2 ? 78 : 40; radius: StyleTokens.radiusMd
-                        color: allocMode === 2 ? "#181F30" : "#0f111a"
-                        border.color: allocMode === 2 ? "#4A8FE7" : StyleTokens.bgInput
+                        color: allocMode === 2 ? StyleTokens.accentSubtle : StyleTokens.bgSecondary
+                        border.color: allocMode === 2 ? StyleTokens.accentVivid : StyleTokens.bgInput
                         border.width: allocMode === 2 ? 1.5 : 1
                         Behavior on color { ColorAnimation { duration: 200 } }
                         Behavior on border.color { ColorAnimation { duration: 200 } }
@@ -163,8 +163,8 @@ Rectangle {
                             spacing: allocMode === 2 ? 8 : 0
 
                             RowLayout { spacing: 8
-                                Rectangle { width: 16; height: 16; radius: StyleTokens.radiusLg; color: allocMode === 2 ? "#4A8FE7" : "#2a2f3a" }
-                                Text { text: qsTr("自定义"); font.pixelSize: StyleTokens.fontSizeMd; color: allocMode === 2 ? StyleTokens.textPrimary : "#8890a0" }
+                                Rectangle { width: 16; height: 16; radius: StyleTokens.radiusLg; color: allocMode === 2 ? StyleTokens.accentVivid : StyleTokens.accentSubtle }
+                                Text { text: qsTr("自定义"); font.pixelSize: StyleTokens.fontSizeMd; color: allocMode === 2 ? StyleTokens.textPrimary : StyleTokens.textSubtle }
                                 Item { Layout.fillWidth: true }
                                 Text { visible: allocMode === 2; text: customMB + " MB"; font.pixelSize: StyleTokens.fontSizeMd; font.bold: true; color: StyleTokens.accentLink }
                             }
@@ -177,7 +177,7 @@ Rectangle {
                                         Behavior on width { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } } } }
                                 // knob
                                 Rectangle { id: mpKnob; width: 18; height: 18; radius: StyleTokens.radiusLg; anchors.verticalCenter: parent.verticalCenter
-                                    color: mpDrag.drag.active ? "#7BA8F0" : "#5A9CF0"; border.color: StyleTokens.textInverse; border.width: 1.5
+                                    color: mpDrag.drag.active ? StyleTokens.accentLink : StyleTokens.info; border.color: StyleTokens.textInverse; border.width: 1.5
                                     x: ((customMB - 512) / (sliderMax() - 512)) * (mpTrack.width - width)
                                     Behavior on x { enabled: !mpDrag.drag.active; NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
                                     MouseArea { id: mpDrag; anchors.fill: parent; drag.target: parent; drag.axis: Drag.XAxis
@@ -227,19 +227,19 @@ Rectangle {
                 Item { x: 14; y: 20; width: bw; height: 6
                     Rectangle { anchors.fill: parent; radius: StyleTokens.radiusXs; color: StyleTokens.surfaceLight }
                     Rectangle { id: usedBar; anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
-                        height: 6; radius: StyleTokens.radiusXs; color: "#4E88C8"
+                        height: 6; radius: StyleTokens.radiusXs; color: StyleTokens.accentVivid
                         width: Math.max(0, parent.width * usedFrac)
                         Behavior on width { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } } }
                     Rectangle { id: gameBar; anchors.left: usedBar.right; anchors.leftMargin: 3
-                        anchors.verticalCenter: parent.verticalCenter; height: 6; radius: StyleTokens.radiusXs; color: "#88B8E0"
+                        anchors.verticalCenter: parent.verticalCenter; height: 6; radius: StyleTokens.radiusXs; color: StyleTokens.accentLink
                         width: Math.max(0, parent.width * gameFrac - 3)
                         Behavior on width { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } } }
                 }
 
                 Text { x: 14; y: 32; text: sysUsedGB() + " GB / " + sysTotalGB() + " GB"
-                    font.pixelSize: StyleTokens.fontSizeSm; font.weight: Font.Medium; color: "#C0C8D8" }
+                    font.pixelSize: StyleTokens.fontSizeSm; font.weight: Font.Medium; color: StyleTokens.textSecondary }
                 Text { id: gameNum; x: 14 + bw * usedFrac; y: 32
-                    text: gameAllocGB() + " GB"; font.pixelSize: StyleTokens.fontSizeSm; font.weight: Font.Medium; color: "#9CB8E0"
+                    text: gameAllocGB() + " GB"; font.pixelSize: StyleTokens.fontSizeSm; font.weight: Font.Medium; color: StyleTokens.accentLink
                     Behavior on x { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } } }
             }
         }

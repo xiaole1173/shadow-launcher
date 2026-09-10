@@ -66,10 +66,10 @@ Rectangle {
             radius: StyleTokens.radiusSm
             // Direct bindings — re-evaluate on connectionDifficultyChanged (NOTIFY)
             color: !mp ? "transparent"
-                : mp.connectionDifficulty === 1 ? "#1a4ade80"
-                : mp.connectionDifficulty === 2 ? "#1a3b82f6"
-                : mp.connectionDifficulty === 3 ? "#1af59e0b"
-                : "#1aef4444"
+                : mp.connectionDifficulty === 1 ? StyleTokens.accentTint
+                : mp.connectionDifficulty === 2 ? StyleTokens.accentTint
+                : mp.connectionDifficulty === 3 ? StyleTokens.warningTint
+                : StyleTokens.errorTint
             Behavior on color {
                 ColorAnimation { duration: AnimationTokens.highlightDuration; easing.type: AnimationTokens.highlightEasing }
             }
@@ -84,10 +84,10 @@ Rectangle {
                     : "困难"
                 font.pixelSize: StyleTokens.fontSizeXs
                 color: !mp ? "transparent"
-                    : mp.connectionDifficulty === 1 ? "#4ade80"
-                    : mp.connectionDifficulty === 2 ? "#60a0f0"
-                    : mp.connectionDifficulty === 3 ? "#f59e0b"
-                    : "#ef4444"
+                    : mp.connectionDifficulty === 1 ? StyleTokens.success
+                    : mp.connectionDifficulty === 2 ? StyleTokens.info
+                    : mp.connectionDifficulty === 3 ? StyleTokens.warning
+                    : StyleTokens.error
                 Behavior on color {
                     ColorAnimation { duration: AnimationTokens.highlightDuration; easing.type: AnimationTokens.highlightEasing }
                 }

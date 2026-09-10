@@ -13,7 +13,7 @@ Rectangle {
     width: implicitWidth
     height: 30
     radius: StyleTokens.radiusSm
-    color: mouseArea.containsMouse ? "#1a2440" : "transparent"
+    color: mouseArea.containsMouse ? StyleTokens.accentSubtle : "transparent"
     border.width: 0
 
     property string text: qsTr("返回")

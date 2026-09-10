@@ -88,7 +88,7 @@ Item {
                     radius: StyleTokens.radiusSm
                     // 整条可点：hover 轻微高亮作为反馈（2026-08-15 简化）
                     // 2026-08-24：warning 样式用橙黄背景
-                    color: model.isAction && actionMouse.containsMouse ? (delegateItem._isWarning ? "#2a2508" : "#1d2a3a") : (delegateItem._isWarning ? StyleTokens.warningBg : StyleTokens.infoBg)
+                    color: model.isAction && actionMouse.containsMouse ? (delegateItem._isWarning ? StyleTokens.warningBg : StyleTokens.accentSubtle) : (delegateItem._isWarning ? StyleTokens.warningBg : StyleTokens.infoBg)
                     // 起始位置: 在 delegate 右侧外部（用于弹性滑入动画）
                     x: toastRect.width + 80
 

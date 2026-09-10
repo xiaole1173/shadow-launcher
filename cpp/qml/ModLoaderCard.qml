@@ -10,8 +10,8 @@ Rectangle {
     Layout.fillWidth: true
     Layout.preferredHeight: cardHeight
     radius: StyleTokens.radiusLg
-    color: cardDisabled ? "#0e1018" : (cardHovered ? "#161a26" : StyleTokens.bgSecondary)
-    border.color: cardDisabled ? "#1a1a24" : (cardHovered ? "#3a50b0" : StyleTokens.border)
+    color: cardDisabled ? StyleTokens.bgPrimary : (cardHovered ? StyleTokens.accentSubtle : StyleTokens.bgSecondary)
+    border.color: cardDisabled ? StyleTokens.accentSubtle : (cardHovered ? StyleTokens.accentHover : StyleTokens.border)
     border.width: cardHovered ? 1.5 : 1
     opacity: cardDisabled ? 0.55 : 1
     scale: cardDisabled ? 0.98 : (cardHovered ? 1.01 : 1.0)
@@ -57,12 +57,12 @@ Rectangle {
     }
 
     function typeColor(t) {
-        if (t === "release") return "#3a8050"
-        if (t === "beta") return "#e0a040"
-        if (t === "alpha") return "#a060d0"
-        if (t === "snapshot") return "#40a0c0"
-        if (t === "preview") return "#d06080"
-        return "#505868"
+        if (t === "release") return StyleTokens.success
+        if (t === "beta") return StyleTokens.warning
+        if (t === "alpha") return StyleTokens.accentVioletLight
+        if (t === "snapshot") return StyleTokens.info
+        if (t === "preview") return StyleTokens.errorLight
+        return StyleTokens.textMuted
     }
 
     Rectangle {
@@ -72,30 +72,30 @@ Rectangle {
 
         RowLayout {
             anchors.fill: parent; anchors.leftMargin: 14; anchors.rightMargin: 10; spacing: 8
-            Rectangle { width: 10; height: 10; radius: StyleTokens.radiusSm; color: cardDisabled ? "#404858" : selectedVersion ? StyleTokens.success : "#505868" }
-            Text { text: card.title; font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold; color: cardDisabled ? "#687080" : StyleTokens.textSecondary }
+            Rectangle { width: 10; height: 10; radius: StyleTokens.radiusSm; color: cardDisabled ? StyleTokens.infoBg : selectedVersion ? StyleTokens.success : StyleTokens.textMuted }
+            Text { text: card.title; font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold; color: cardDisabled ? StyleTokens.textMuted : StyleTokens.textSecondary }
             // Optional badge (e.g. "建议安装")
             Rectangle {
                 visible: card.badgeText !== "" && !cardDisabled
                 implicitWidth: badgeLabel.implicitWidth + 12; implicitHeight: 20; radius: StyleTokens.radiusSm
-                color: "#1a2e1a"; border.color: "#3a6830"; border.width: 1
-                Text { id: badgeLabel; anchors.centerIn: parent; text: card.badgeText; font.pixelSize: StyleTokens.fontSizeXs; color: "#60b050" }
+                color: StyleTokens.successBg; border.color: StyleTokens.successBg; border.width: 1
+                Text { id: badgeLabel; anchors.centerIn: parent; text: card.badgeText; font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.success }
             }
             Text {
                 visible: cardDisabled && disabledReason
                 text: cardDisabled ? "[X] " + disabledReason : ""
-                font.pixelSize: StyleTokens.fontSizeSm; color: "#c06050"; elide: Text.ElideRight; Layout.maximumWidth: 200
+                font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textDanger; elide: Text.ElideRight; Layout.maximumWidth: 200
             }
             Item { Layout.fillWidth: true }
-            Text { text: selectedVersion || (cardDisabled ? "" : (versions.length === 0 ? "无可用版本" : "未选择")); font.pixelSize: StyleTokens.fontSizeSm; color: selectedVersion ? "#8aa8f0" : "#606878" }
+            Text { text: selectedVersion || (cardDisabled ? "" : (versions.length === 0 ? "无可用版本" : "未选择")); font.pixelSize: StyleTokens.fontSizeSm; color: selectedVersion ? StyleTokens.accentLink : StyleTokens.textMuted }
             Text {
-                text: card.expanded ? "\u25B2" : "\u25BC"; font.pixelSize: StyleTokens.fontSizeXs; color: "#606878"
+                text: card.expanded ? "\u25B2" : "\u25BC"; font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textMuted
                 visible: !cardDisabled && (card.versions.length > 0 || card.expanded)
             }
             Text {
                 visible: selectedVersion !== ""
                 text: "\u2715"; font.pixelSize: StyleTokens.fontSizeMd
-                color: cancelArea.containsMouse ? StyleTokens.errorLight : "#787c90"
+                color: cancelArea.containsMouse ? StyleTokens.errorLight : StyleTokens.textSubtle
                 Behavior on color { ColorAnimation { duration: 150 } }
                 TapHandler {
                     id: cancelArea; cursorShape: Qt.PointingHandCursor
@@ -129,8 +129,8 @@ Rectangle {
                 readonly property bool itemEnabled: card.versionEnabled(modelData.version)
                 width: versionListView.width; height: itemRowH; radius: StyleTokens.radiusMd
                 opacity: itemEnabled ? 1.0 : 0.35
-                color: hoverDeleg.containsMouse ? (itemEnabled ? "#1a2440" : "#151520") : "transparent"
-                border.color: card.selectedVersion === modelData.version ? "#3a50b0" : "transparent"
+                color: hoverDeleg.containsMouse ? (itemEnabled ? StyleTokens.accentSubtle : StyleTokens.accentSubtle) : "transparent"
+                border.color: card.selectedVersion === modelData.version ? StyleTokens.accentHover : "transparent"
                 border.width: card.selectedVersion === modelData.version ? 1 : 0
 
                 RowLayout {
@@ -139,7 +139,7 @@ Rectangle {
                     // "Latest" badge
                     Rectangle {
                         visible: modelData.isLatestRelease !== undefined && modelData.isLatestRelease
-                        height: 18; implicitWidth: latestTag.implicitWidth + 10; radius: StyleTokens.radiusXs; color: "#3a50b0"
+                        height: 18; implicitWidth: latestTag.implicitWidth + 10; radius: StyleTokens.radiusXs; color: StyleTokens.accentHover
                         Text { id: latestTag; anchors.centerIn: parent; text: qsTr("最新"); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textPrimary; font.weight: Font.Bold }
                     }
                     Rectangle {
@@ -147,7 +147,7 @@ Rectangle {
                         height: 18; implicitWidth: tagImp.implicitWidth + 10; radius: StyleTokens.radiusXs; color: card.typeColor(modelData.type)
                         Text { id: tagImp; anchors.centerIn: parent; text: card.typeLabel(modelData.type) || ""; font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textPrimary }
                     }
-                    Text { text: modelData.date || ""; font.pixelSize: StyleTokens.fontSizeSm; color: "#787c90" }
+                    Text { text: modelData.date || ""; font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSubtle }
                 }
                 HoverHandler { id: hoverDeleg; enabled: itemEnabled }
                 TapHandler { cursorShape: itemEnabled ? Qt.PointingHandCursor : Qt.ArrowCursor; onTapped: { if (itemEnabled) { card.versionSelected(modelData.version, modelData.installerSha1 || ""); card.expanded = false } } }
@@ -156,7 +156,7 @@ Rectangle {
             Text {
                 visible: card.expanded && card.versions.length === 0
                 text: card.disabledReason ? card.disabledReason : "暂无可用版本"
-                font.pixelSize: StyleTokens.fontSizeSm; color: "#606878"; x: 0; y: 4; width: parent.width
+                font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textMuted; x: 0; y: 4; width: parent.width
             }
         }
     }

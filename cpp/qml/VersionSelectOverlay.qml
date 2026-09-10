@@ -73,7 +73,7 @@ Rectangle {
                     Layout.fillWidth: true; spacing: 8
                     Text {
                         text: foldersMode ? qsTr("已导入文件夹") : qsTr("已安装版本")
-                        font.pixelSize: StyleTokens.fontSizeXs; color: "#9ca0b4"; font.letterSpacing: 1.5
+                        font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textTertiary; font.letterSpacing: 1.5
                     }
                     RefreshButton {
                         onClicked: {
@@ -127,8 +127,8 @@ Rectangle {
                     ShadowIconButton {
                         id: installBtn
                         icon: "+"; iconPixelSize: 18
-                        defaultColor: StyleTokens.accent; hoverColor: "#2553a8"
-                        iconColor: "#ffffff"; iconHoverColor: "#ffffff"
+                        defaultColor: StyleTokens.accent; hoverColor: StyleTokens.accentHover
+                        iconColor: StyleTokens.textInverse; iconHoverColor: StyleTokens.textInverse
                         visible: !foldersMode
                         onClicked: { showVersionSelect = false; switchPage(1); toastManager.show("正在前往下载页面") }
                         ToolTip { visible: installBtn._hovered; text: qsTr("安装新版本"); delay: 500 }
@@ -137,7 +137,7 @@ Rectangle {
                     Rectangle {
                         id: sortBtn
                         visible: !foldersMode
-                        width: 70; height: 28; radius: StyleTokens.radiusSm; color: sortHover.hovered ? StyleTokens.accentSubtle : "#0d1018"
+                        width: 70; height: 28; radius: StyleTokens.radiusSm; color: sortHover.hovered ? StyleTokens.accentSubtle : StyleTokens.bgPrimary
                         border.color: sortHover.hovered ? StyleTokens.accentHover : StyleTokens.bgCard
                         scale: sortPressed ? 0.92 : (sortHover.hovered ? 1.03 : 1.0)
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
@@ -163,7 +163,7 @@ Rectangle {
                     Rectangle {
                         id: loaderFilter
                         visible: !foldersMode
-                        width: 80; height: 28; radius: StyleTokens.radiusSm; color: loaderFiltHover.hovered ? StyleTokens.accentSubtle : "#0d1018"
+                        width: 80; height: 28; radius: StyleTokens.radiusSm; color: loaderFiltHover.hovered ? StyleTokens.accentSubtle : StyleTokens.bgPrimary
                         border.color: loaderFiltHover.hovered ? StyleTokens.accentHover : StyleTokens.bgCard
                         scale: loadFiltPressed ? 0.92 : (loaderFiltHover.hovered ? 1.03 : 1.0)
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
@@ -370,7 +370,7 @@ Rectangle {
                             Layout.alignment: Qt.AlignHCenter
                             NumberAnimation on rotation { from: 0; to: 360; duration: 2000; loops: Animation.Infinite }
                         }
-                        Text { text: qsTr("正在扫描版本..."); font.pixelSize: StyleTokens.fontSizeSm; color: "#7e8596"; Layout.alignment: Qt.AlignHCenter }
+                        Text { text: qsTr("正在扫描版本..."); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSubtle; Layout.alignment: Qt.AlignHCenter }
                     }
                 }
 
@@ -392,8 +392,8 @@ Rectangle {
                             id: versionItem
                             width: versionSelectList.width - 4
                             height: 60; radius: StyleTokens.radiusMd
-                            color: verMouse2.containsMouse ? "#191e2a" : "transparent"
-                            border.color: currentSelectedVersion === model.id ? "#4a5ec8" : "transparent"
+                            color: verMouse2.containsMouse ? StyleTokens.accentSubtle : "transparent"
+                            border.color: currentSelectedVersion === model.id ? StyleTokens.accentHover : "transparent"
                             border.width: currentSelectedVersion === model.id ? 1.5 : 0
 
                             // ── Staggered entrance animation ──
@@ -459,7 +459,7 @@ Rectangle {
                                     // Size + mod count (right-aligned)
                                     Text {
                                         text: model.sizeDisplay || ""
-                                        font.pixelSize: StyleTokens.fontSizeSm; font.weight: Font.Medium; color: "#808898"
+                                        font.pixelSize: StyleTokens.fontSizeSm; font.weight: Font.Medium; color: StyleTokens.textSubtle
                                         visible: (model.sizeDisplay || "") !== ""
                                     }
                                     Text {
@@ -491,12 +491,12 @@ Rectangle {
                                     }
                                     Text {
                                         text: "，"
-                                        font.pixelSize: StyleTokens.fontSizeSm; color: "#606878"
+                                        font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textMuted
                                         visible: parseMcVersion() !== "" && formatLoaderInfo() !== ""
                                     }
                                     Text {
                                         text: formatLoaderInfo()
-                                        font.pixelSize: StyleTokens.fontSizeSm; color: "#c0c8d8"
+                                        font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSecondary
                                         visible: formatLoaderInfo() !== ""
                                     }
                                 }
@@ -548,9 +548,9 @@ Rectangle {
                             height: model.isAddCard ? 50 : 68
                             radius: StyleTokens.radiusMd
                             color: model.isAddCard ? "transparent"
-                                 : ((fCardBody.containsMouse || model.active) ? "#191e2a" : "transparent")
-                            border.color: model.isAddCard ? "#33557f"
-                                : (model.active ? "#4a5ec8" : (fCardBody.containsMouse ? StyleTokens.bgHover : "transparent"))
+                                 : ((fCardBody.containsMouse || model.active) ? StyleTokens.accentSubtle : "transparent")
+                            border.color: model.isAddCard ? StyleTokens.borderFocus
+                                : (model.active ? StyleTokens.accentHover : (fCardBody.containsMouse ? StyleTokens.bgHover : "transparent"))
                             border.width: model.isAddCard ? 1 : (model.active ? 1.5 : 0)
                             Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
 
@@ -647,7 +647,7 @@ Rectangle {
                                         Layout.preferredWidth: 46
                                         Layout.alignment: Qt.AlignVCenter
                                         radius: StyleTokens.radiusSm
-                                        color: "#123a22"; border.color: StyleTokens.success; border.width: 1
+                                        color: StyleTokens.successBg; border.color: StyleTokens.success; border.width: 1
                                         Text {
                                             anchors.centerIn: parent
                                             text: qsTr("使用中")
@@ -781,7 +781,7 @@ Rectangle {
             // 删除条目（固有文件夹不可删除）
             Rectangle {
                 width: 140; height: 32; radius: StyleTokens.radiusSm
-                color: optRemove.containsMouse ? "#2a1a1a" : "transparent"
+                color: optRemove.containsMouse ? StyleTokens.errorBg : "transparent"
                 visible: !folderMenuPopup.menuIsDefault
                 RowLayout {
                     anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 8; spacing: 8

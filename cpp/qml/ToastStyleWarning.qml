@@ -10,13 +10,13 @@ QtObject {
     id: root
 
     // ── 背景与边框 ──
-    property color bgColor:          "#1a1800"
-    property color borderColor:      "#5a5010"
-    property color leftAccentColor:  "#d4a020"
+    property color bgColor:          StyleTokens.warningBg
+    property color borderColor:      StyleTokens.warningBg
+    property color leftAccentColor:  StyleTokens.warning
 
     // ── 文字颜色 ──
     property color textColor:        "#e8d870"
-    property color subtextColor:     "#c0b050"
+    property color subtextColor:     StyleTokens.warning
 
     // ── 图标 ──
     property string iconSource:      ""   // 预留 SVG 图标路径

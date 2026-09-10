@@ -18,7 +18,7 @@ Item {
     // ── 遮罩（点击外部关闭弹窗，防止事件穿透到卡片角色条目）──
     Rectangle {
         anchors.fill: parent; z: 100
-        color: "#80000000"
+        color: StyleTokens.scrim50
         opacity: root.opened ? 1 : 0
         visible: root.opened || opacity > 0
         Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
@@ -123,7 +123,7 @@ Item {
 
                             Rectangle {
                                 anchors.fill: parent; radius: StyleTokens.radiusSm
-                                color: "#0e1018"
+                                color: StyleTokens.bgPrimary
                                 border { color: StyleTokens.borderLight; width: 1 }
                                 visible: {
                                     var img = parent.children[0]

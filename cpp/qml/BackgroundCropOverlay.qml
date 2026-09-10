@@ -11,7 +11,7 @@ import QtQuick.Layouts
 
 Rectangle {
     id: root
-    color: "#000000"; opacity: 0
+    color: StyleTokens.scrim; opacity: 0
     Behavior on opacity { NumberAnimation { duration: 200 } }
 
     property bool _started: false
@@ -93,10 +93,10 @@ Rectangle {
             Item { Layout.fillWidth: true }
             Text {
                 text: "拖拽图片选择可视区域"
-                font.pixelSize: StyleTokens.fontSizeSm; color: "#606480"
+                font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textMuted
             }
             Item { Layout.fillWidth: true }
-            ShadowIconButton { icon: "\u2715"; type: "close"; width: 32; height: 32; defaultColor: "transparent"; hoverColor: "#282838"; onClicked: { root.opacity = 0; closeTimer.start() } }
+            ShadowIconButton { icon: "\u2715"; type: "close"; width: 32; height: 32; defaultColor: "transparent"; hoverColor: StyleTokens.accentSubtle; onClicked: { root.opacity = 0; closeTimer.start() } }
         }
     }
 
@@ -118,7 +118,7 @@ Rectangle {
         Rectangle {
             anchors.fill: parent; color: StyleTokens.bgPrimary
             // Dimmed area indicator (outside viewport)
-            border.color: "#2a2a3a"; border.width: 1
+            border.color: StyleTokens.accentSubtle; border.width: 1
         }
 
         // The full image, displayed at crop scale
@@ -207,7 +207,7 @@ Rectangle {
             // Reset button
             Rectangle {
                 width: 100; height: 34; radius: StyleTokens.radiusMd
-                color: resetHov.hovered ? "#252a38" : "#161a24"; border.color: StyleTokens.bgHover
+                color: resetHov.hovered ? StyleTokens.accentSubtle : StyleTokens.accentSubtle; border.color: StyleTokens.bgHover
                 Text {
                     anchors.centerIn: parent; text: "重置居中"
                     font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary
@@ -229,21 +229,21 @@ Rectangle {
             }
 
             // Zoom controls
-            ShadowIconButton { icon: "-"; type: "normal"; defaultColor: "#161a24"; hoverColor: "#252a38"; onClicked: root._zoom = Math.max(0.5, root._zoom - 0.25) }
+            ShadowIconButton { icon: "-"; type: "normal"; defaultColor: StyleTokens.accentSubtle; hoverColor: StyleTokens.accentSubtle; onClicked: root._zoom = Math.max(0.5, root._zoom - 0.25) }
             Text {
                 text: Math.round(root._zoom * 100) + "%"
-                font.pixelSize: StyleTokens.fontSizeSm; color: "#707890"
+                font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSubtle
                 Layout.preferredWidth: 36; horizontalAlignment: Text.AlignHCenter
             }
-            ShadowIconButton { icon: "+"; type: "normal"; defaultColor: "#161a24"; hoverColor: "#252a38"; onClicked: root._zoom = Math.min(3.0, root._zoom + 0.25) }
+            ShadowIconButton { icon: "+"; type: "normal"; defaultColor: StyleTokens.accentSubtle; hoverColor: StyleTokens.accentSubtle; onClicked: root._zoom = Math.min(3.0, root._zoom + 0.25) }
 
             // Cancel button
             Rectangle {
                 width: 80; height: 34; radius: StyleTokens.radiusMd
-                color: cancelHov.hovered ? "#302020" : "#161a24"; border.color: StyleTokens.bgHover
+                color: cancelHov.hovered ? StyleTokens.errorBg : StyleTokens.accentSubtle; border.color: StyleTokens.bgHover
                 Text {
                     anchors.centerIn: parent; text: "取消"
-                    font.pixelSize: StyleTokens.fontSizeSm; color: "#d08080"
+                    font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.errorLight
                 }
                 MouseArea {
                     id: cancelHov; anchors.fill: parent; hoverEnabled: true
@@ -255,10 +255,10 @@ Rectangle {
             // Confirm button
             Rectangle {
                 width: 80; height: 34; radius: StyleTokens.radiusMd
-                color: confirmHov.hovered ? "#2a3a68" : "#192650"; border.color: "#304898"
+                color: confirmHov.hovered ? StyleTokens.infoBg : StyleTokens.accentSubtle; border.color: StyleTokens.accentSubtle
                 Text {
                     anchors.centerIn: parent; text: "确认"
-                    font.pixelSize: StyleTokens.fontSizeSm; color: "#70a0ff"; font.weight: Font.DemiBold
+                    font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.accentLink; font.weight: Font.DemiBold
                 }
                 MouseArea {
                     id: confirmHov; anchors.fill: parent; hoverEnabled: true

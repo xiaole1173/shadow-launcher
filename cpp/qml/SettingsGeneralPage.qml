@@ -13,16 +13,16 @@ Rectangle {
 
     // ── Color Palette ──
     readonly property color colorBg:          StyleTokens.surfaceLight
-    readonly property string colorBorder:      "#2A2F3A"
-    readonly property string colorPrimary:     "#F1F3F6"
-    readonly property string colorSecondary:   "#B4BAC6"
-    readonly property string colorTertiary:    "#7E8596"
-    readonly property string colorQuaternary:  "#5A6173"
+    readonly property string colorBorder:      StyleTokens.accentSubtle
+    readonly property string colorPrimary:     StyleTokens.textPrimary
+    readonly property string colorSecondary:   StyleTokens.textTertiary
+    readonly property string colorTertiary:    StyleTokens.textSubtle
+    readonly property string colorQuaternary:  StyleTokens.textMuted
     readonly property color colorAccent:      StyleTokens.accent
-    readonly property string colorAccentHover: "#2563EB"
+    readonly property string colorAccentHover: StyleTokens.accent
     readonly property color colorError:       StyleTokens.error
-    readonly property string colorSuccess:     "#10B981"
-    readonly property string colorWarning:     "#F59E0B"
+    readonly property string colorSuccess:     StyleTokens.success
+    readonly property string colorWarning:     StyleTokens.warning
     readonly property int    radius: StyleTokens.radiusLg
 
     // ── State ──

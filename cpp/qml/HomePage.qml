@@ -29,8 +29,8 @@ Rectangle {
 
     gradient: Gradient {
         GradientStop { position: 0.0; color: hasBg ? "transparent" : StyleTokens.bgPrimary }
-        GradientStop { position: 0.5; color: hasBg ? "transparent" : "#111520" }
-        GradientStop { position: 1.0; color: hasBg ? "transparent" : "#0e111a" }
+        GradientStop { position: 0.5; color: hasBg ? "transparent" : StyleTokens.accentSubtle }
+        GradientStop { position: 1.0; color: hasBg ? "transparent" : StyleTokens.bgSecondary }
     }
 
     property alias msLoginForm: msLoginForm
@@ -82,7 +82,7 @@ Rectangle {
                 Rectangle {
                     anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
                     width: loginMode === 0 ? 8 : 6; height: loginMode === 0 ? 8 : 6
-                    radius: loginMode === 0 ? 4 : 3; color: loginMode === 0 ? "#6080e8" : "#3a3d50"
+                    radius: loginMode === 0 ? 4 : 3; color: loginMode === 0 ? StyleTokens.accentLight : StyleTokens.infoBg
                     Behavior on width { NumberAnimation { duration: 200 } }
                     Behavior on height { NumberAnimation { duration: 200 } }
                     Behavior on radius { NumberAnimation { duration: 200 } }
@@ -94,7 +94,7 @@ Rectangle {
                         source: "icons/lucide/key.svg"; width: 14; height: 14
                         anchors.verticalCenter: parent.verticalCenter
                     }
-                    Text { text: qsTr("正版登录"); font.pixelSize: StyleTokens.fontSizeMd; color: loginMode === 0 ? StyleTokens.textSecondary : "#9498a8"; font.weight: loginMode === 0 ? Font.DemiBold : Font.Normal }
+                    Text { text: qsTr("正版登录"); font.pixelSize: StyleTokens.fontSizeMd; color: loginMode === 0 ? StyleTokens.textSecondary : StyleTokens.textSubtle; font.weight: loginMode === 0 ? Font.DemiBold : Font.Normal }
                 }
                 MouseArea { anchors.fill: parent; onClicked: { loginMode = 0; if (backend) { backend.lastLoginMode = 0; toastManager.show("已切换至正版登录") } } }
             }
@@ -104,7 +104,7 @@ Rectangle {
                 Rectangle {
                     anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
                     width: loginMode === 1 ? 8 : 6; height: loginMode === 1 ? 8 : 6
-                    radius: loginMode === 1 ? 4 : 3; color: loginMode === 1 ? "#6080e8" : "#3a3d50"
+                    radius: loginMode === 1 ? 4 : 3; color: loginMode === 1 ? StyleTokens.accentLight : StyleTokens.infoBg
                     Behavior on width { NumberAnimation { duration: 200 } }
                     Behavior on height { NumberAnimation { duration: 200 } }
                     Behavior on radius { NumberAnimation { duration: 200 } }
@@ -116,7 +116,7 @@ Rectangle {
                         source: "icons/lucide/user.svg"; width: 14; height: 14
                         anchors.verticalCenter: parent.verticalCenter
                     }
-                    Text { text: qsTr("离线模式"); font.pixelSize: StyleTokens.fontSizeMd; color: loginMode === 1 ? StyleTokens.textSecondary : "#9498a8"; font.weight: loginMode === 1 ? Font.DemiBold : Font.Normal }
+                    Text { text: qsTr("离线模式"); font.pixelSize: StyleTokens.fontSizeMd; color: loginMode === 1 ? StyleTokens.textSecondary : StyleTokens.textSubtle; font.weight: loginMode === 1 ? Font.DemiBold : Font.Normal }
                 }
                 MouseArea { anchors.fill: parent; onClicked: { loginMode = 1; if (backend) { backend.lastLoginMode = 1; toastManager.show("已切换至离线模式") } } }
             }
@@ -126,7 +126,7 @@ Rectangle {
                 Rectangle {
                     anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
                     width: loginMode === 2 ? 8 : 6; height: loginMode === 2 ? 8 : 6
-                    radius: loginMode === 2 ? 4 : 3; color: loginMode === 2 ? "#6080e8" : "#3a3d50"
+                    radius: loginMode === 2 ? 4 : 3; color: loginMode === 2 ? StyleTokens.accentLight : StyleTokens.infoBg
                     Behavior on width { NumberAnimation { duration: 200 } }
                     Behavior on height { NumberAnimation { duration: 200 } }
                     Behavior on radius { NumberAnimation { duration: 200 } }
@@ -138,7 +138,7 @@ Rectangle {
                         source: "icons/lucide/globe.svg"; width: 14; height: 14
                         anchors.verticalCenter: parent.verticalCenter
                     }
-                    Text { text: qsTr("外置登录"); font.pixelSize: StyleTokens.fontSizeMd; color: loginMode === 2 ? StyleTokens.textSecondary : "#9498a8"; font.weight: loginMode === 2 ? Font.DemiBold : Font.Normal }
+                    Text { text: qsTr("外置登录"); font.pixelSize: StyleTokens.fontSizeMd; color: loginMode === 2 ? StyleTokens.textSecondary : StyleTokens.textSubtle; font.weight: loginMode === 2 ? Font.DemiBold : Font.Normal }
                 }
                 MouseArea { anchors.fill: parent; onClicked: { loginMode = 2; if (backend) { backend.lastLoginMode = 2; toastManager.show("已切换至外置登录") } } }
             }
@@ -169,7 +169,7 @@ Rectangle {
             // Start button
             Rectangle {
                 Layout.alignment: Qt.AlignHCenter; width: 200; height: 40; radius: StyleTokens.radiusLg
-                color: msLoginForm.msInProgress ? StyleTokens.bgCard : (startMsBtn.containsMouse ? "#3a4aa0" : "#2a3878")
+                color: msLoginForm.msInProgress ? StyleTokens.bgCard : (startMsBtn.containsMouse ? StyleTokens.accentSubtle : StyleTokens.infoBg)
                 Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
                 Row {
                     anchors.centerIn: parent; spacing: 8
@@ -179,7 +179,7 @@ Rectangle {
                     }
                     Text {
                         text: msLoginForm.msInProgress ? "登录中..." : "Microsoft 登录"
-                        color: msLoginForm.msInProgress ? "#9498a8" : StyleTokens.textSecondary
+                        color: msLoginForm.msInProgress ? StyleTokens.textSubtle : StyleTokens.textSecondary
                         font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold
                     }
                 }
@@ -244,7 +244,7 @@ Rectangle {
                     // Cancel button link
                     Text {
                         Layout.alignment: Qt.AlignHCenter
-                        text: qsTr("取消"); color: cancelMsBtn2.containsMouse ? StyleTokens.errorLight : "#604040"
+                        text: qsTr("取消"); color: cancelMsBtn2.containsMouse ? StyleTokens.errorLight : StyleTokens.statusOff
                         font.pixelSize: StyleTokens.fontSizeSm; font.underline: true
                         MouseArea {
                             id: cancelMsBtn2
@@ -372,7 +372,7 @@ Rectangle {
                 // 登录
                 Rectangle {
                     Layout.fillWidth: true; height: 38; radius: StyleTokens.radiusLg
-                    color: yggLoginBtnMouse.containsMouse ? "#4a5ec8" : StyleTokens.accent
+                    color: yggLoginBtnMouse.containsMouse ? StyleTokens.accentHover : StyleTokens.accent
                     Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
                     scale: yggLoginBtnMouse.pressed ? 0.95 : (yggLoginBtnMouse.containsMouse ? 1.03 : 1.0)
                     Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
@@ -465,7 +465,7 @@ Rectangle {
             Text {
                 Layout.alignment: Qt.AlignHCenter
                 text: backend.yggdrasil.email
-                font.pixelSize: StyleTokens.fontSizeXs; color: "#7E8596"
+                font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textSubtle
                 elide: Text.ElideMiddle; Layout.maximumWidth: 320
             }
 
@@ -994,7 +994,7 @@ Rectangle {
             // Current version indicator
             Rectangle {
                 Layout.fillWidth: true; height: 32; radius: StyleTokens.radiusMd
-                color: StyleTokens.bgSecondary; border.color: currentSelectedVersion ? StyleTokens.accentSubtle : "#0e1118"
+                color: StyleTokens.bgSecondary; border.color: currentSelectedVersion ? StyleTokens.accentSubtle : StyleTokens.bgPrimary
                 border.width: currentSelectedVersion ? 1 : 0
                 RowLayout {
                     // 长版本号自适应缩小（2026-08-07）：RowLayout 撑满容器 + 左右等宽 spacer
@@ -1019,7 +1019,7 @@ Rectangle {
                         font.pixelSize: Math.max(9, Math.min(StyleTokens.fontSizeLg,
                             Math.round(StyleTokens.fontSizeLg * (parent.width - 48) / Math.max(1, verTm.width))))
                         font.weight: Font.Bold
-                        color: currentSelectedVersion ? "#8aa8f0" : "#787c90"
+                        color: currentSelectedVersion ? StyleTokens.accentLink : StyleTokens.textSubtle
                         verticalAlignment: Text.AlignVCenter
                     }
                     Item { Layout.fillWidth: true }   // 右 spacer：均分剩余空间实现居中
@@ -1029,7 +1029,7 @@ Rectangle {
             Rectangle {
                 id: launchBtn
                 Layout.fillWidth: true; height: 44; radius: StyleTokens.radiusLg
-                color: launchHover.containsMouse ? (launchHover.pressed ? "#2a3a90" : "#4a5ec8") : StyleTokens.accent
+                color: launchHover.containsMouse ? (launchHover.pressed ? StyleTokens.accentSubtle : StyleTokens.accentHover) : StyleTokens.accent
                 scale: launchHover.containsMouse ? (launchHover.pressed ? 0.95 : 1.03) : 1.0
                 Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
                 Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
@@ -1079,7 +1079,7 @@ Rectangle {
                 Rectangle {
                     id: verSelectBtn
                     Layout.fillWidth: true; height: 36; radius: StyleTokens.radiusLg
-                    color: verSelectHover.containsMouse ? "#151a24" : "#0e1118"; border.color: StyleTokens.bgElevated
+                    color: verSelectHover.containsMouse ? StyleTokens.accentSubtle : StyleTokens.bgPrimary; border.color: StyleTokens.bgElevated
                     scale: verSelectHover.containsMouse ? (verSelectHover.pressed ? 0.95 : 1.03) : 1.0
                     Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
                     Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
@@ -1093,7 +1093,7 @@ Rectangle {
                 Rectangle {
                     id: verSettingsBtn
                     Layout.fillWidth: true; height: 36; radius: StyleTokens.radiusLg
-                    color: verSettingsHover.containsMouse ? "#151a24" : "#0e1118"; border.color: StyleTokens.bgElevated
+                    color: verSettingsHover.containsMouse ? StyleTokens.accentSubtle : StyleTokens.bgPrimary; border.color: StyleTokens.bgElevated
                     scale: verSettingsHover.containsMouse ? (verSettingsHover.pressed ? 0.95 : 1.03) : 1.0
                     Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
                     Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
@@ -1113,7 +1113,7 @@ Rectangle {
         id: capePopupOverlay
         anchors.fill: parent
         z: 100
-        color: "#80000000"
+        color: StyleTokens.scrim50
         opacity: showCapePopup ? 1 : 0
         visible: showCapePopup || opacity > 0
         Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }

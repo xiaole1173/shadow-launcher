@@ -19,10 +19,10 @@ Item {
 
     // ── Color palette ──
     readonly property var _colors: ({
-        "info":    { bg: "#1a3a5c", bar: "#5098e8", text: "#c8d8f0" },
-        "warning": { bg: "#3a1518", bar: "#e85050", text: "#f0c8c8" },
-        "success": { bg: "#1a3a1a", bar: "#40b840", text: "#c8f0c8" },
-        "error":   { bg: "#3a1518", bar: "#e85050", text: "#f0c8c8" }
+        "info":    { bg: StyleTokens.infoBg, bar: StyleTokens.info, text: StyleTokens.textSecondary },
+        "warning": { bg: StyleTokens.errorBg, bar: StyleTokens.error, text: StyleTokens.textSecondary },
+        "success": { bg: StyleTokens.successBg, bar: StyleTokens.success, text: StyleTokens.textSecondary },
+        "error":   { bg: StyleTokens.errorBg, bar: StyleTokens.error, text: StyleTokens.textSecondary }
     })
 
     Rectangle {

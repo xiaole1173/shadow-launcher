@@ -91,8 +91,8 @@ Rectangle {
     }
 
     // ── Visual: trigger area ──
-    color: (triggerMouse.containsMouse || popupMenu.visible) ? "#1e3260" : "#0c0e14"
-    border.color: (triggerMouse.containsMouse || popupMenu.visible) ? "#5078e0" : StyleTokens.borderLight
+    color: (triggerMouse.containsMouse || popupMenu.visible) ? StyleTokens.infoBg : StyleTokens.bgPrimary
+    border.color: (triggerMouse.containsMouse || popupMenu.visible) ? StyleTokens.accentLight : StyleTokens.borderLight
     border.width: 1
 
     Behavior on color { ColorAnimation { duration: 150 } }
@@ -107,7 +107,7 @@ Rectangle {
         Text {
             Layout.fillWidth: true
             text: _resolvedLabel()
-            color: (currentValue !== "" && currentValue !== null) ? "#b4bac6" : "#788090"
+            color: (currentValue !== "" && currentValue !== null) ? StyleTokens.textTertiary : StyleTokens.textSubtle
             font.pixelSize: StyleTokens.fontSizeSm
             elide: Text.ElideRight
         }
@@ -141,7 +141,7 @@ Rectangle {
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
 
         background: Rectangle {
-            color: "#151922"
+            color: StyleTokens.accentSubtle
             radius: StyleTokens.radiusLg
             border.color: StyleTokens.bgElevated
         }
@@ -179,7 +179,7 @@ Rectangle {
                             if (val === root.currentValue)
                                 return StyleTokens.accentSubtle
                             if (itemMouse.containsMouse)
-                                return "#1a2440"
+                                return StyleTokens.accentSubtle
                             return "transparent"
                         }
 
@@ -196,7 +196,7 @@ Rectangle {
                                 }
                                 return root._itemLabel(modelData)
                             }
-                            color: root._itemValue(modelData) === root.currentValue ? StyleTokens.accentHover : "#9094a8"
+                            color: root._itemValue(modelData) === root.currentValue ? StyleTokens.accentHover : StyleTokens.textSubtle
                             font.pixelSize: StyleTokens.fontSizeSm
                             font.weight: root._itemValue(modelData) === root.currentValue ? Font.DemiBold : Font.Normal
                         }

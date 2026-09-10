@@ -124,7 +124,7 @@ Rectangle {
         RowLayout {
             Layout.fillWidth: true; spacing: 10
 
-            Text { text: "名称"; color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: 32 }
+            Text { text: "名称"; color: StyleTokens.textSubtle; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: 32 }
             SearchBox {
                 id: searchInput
                 placeholderText: root.searchPlaceholder
@@ -133,7 +133,7 @@ Rectangle {
                 onAccepted: root.searchClicked()
             }
 
-            Text { text: "版本"; color: "#9094a8"; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: 28 }
+            Text { text: "版本"; color: StyleTokens.textSubtle; font.pixelSize: StyleTokens.fontSizeSm; Layout.preferredWidth: 28 }
             ShadowDropdown {
                 id: verDropdown
                 Layout.preferredWidth: 100
@@ -159,14 +159,14 @@ Rectangle {
             Rectangle {
                 id: preTog
                 width: preTogText.implicitWidth + 16; height: 24; radius: StyleTokens.radiusSm
-                color: preTogMouse.containsMouse ? (root.showPreReleases ? "#282040" : "#1a1e28") : (root.showPreReleases ? "#1e1838" : "#12151c")
-                border.color: root.showPreReleases ? "#504080" : StyleTokens.borderLight; border.width: 1
+                color: preTogMouse.containsMouse ? (root.showPreReleases ? StyleTokens.accentSubtle : StyleTokens.accentSubtle) : (root.showPreReleases ? StyleTokens.accentSubtle : StyleTokens.bgSecondary)
+                border.color: root.showPreReleases ? StyleTokens.accentViolet : StyleTokens.borderLight; border.width: 1
                 Behavior on color { ColorAnimation { duration: 150 } }
                 Text {
                     id: preTogText
                     anchors.centerIn: parent
                     text: root.showPreReleases ? "隐藏测试版" : "显示测试版"
-                    color: root.showPreReleases ? "#9088e0" : "#687080"; font.pixelSize: StyleTokens.fontSizeXs
+                    color: root.showPreReleases ? StyleTokens.accentLight : StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeXs
                 }
                 MouseArea {
                     id: preTogMouse
@@ -390,7 +390,7 @@ Rectangle {
             Rectangle {
                 id: searchBtn
                 width: 80; height: 34; radius: StyleTokens.radiusMd
-                color: searchBtnMouse.containsMouse ? "#5a78e0" : StyleTokens.accentHover
+                color: searchBtnMouse.containsMouse ? StyleTokens.accentLight : StyleTokens.accentHover
                 scale: searchBtnMouse.pressed ? 0.94 : (searchBtnMouse.containsMouse ? 1.04 : 1.0)
                 Behavior on color { ColorAnimation { duration: 150 } }
                 Behavior on scale { SpringAnimation { spring: 1.6; damping: 0.28; epsilon: 0.01 } }
@@ -408,15 +408,15 @@ Rectangle {
             Rectangle {
                 id: resetBtn
                 width: 100; height: 34; radius: StyleTokens.radiusMd
-                color: resetBtnMouse.containsMouse ? "#252a38" : "#151922"
-                border.color: resetBtnMouse.containsMouse ? "#5068c8" : StyleTokens.bgHover; border.width: 1
+                color: resetBtnMouse.containsMouse ? StyleTokens.accentSubtle : StyleTokens.accentSubtle
+                border.color: resetBtnMouse.containsMouse ? StyleTokens.accentHover : StyleTokens.bgHover; border.width: 1
                 scale: resetBtnMouse.pressed ? 0.94 : (resetBtnMouse.containsMouse ? 1.04 : 1.0)
                 Behavior on color { ColorAnimation { duration: 150 } }
                 Behavior on border.color { ColorAnimation { duration: 150 } }
                 Behavior on scale { SpringAnimation { spring: 1.6; damping: 0.28; epsilon: 0.01 } }
                 Text {
                     anchors.centerIn: parent
-                    text: "重置条件"; color: "#b0b8c8"
+                    text: "重置条件"; color: StyleTokens.textTertiary
                     font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Medium
                 }
                 MouseArea {

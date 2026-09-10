@@ -20,10 +20,10 @@ Rectangle {
     property bool expanded: false
     property color bgColor: "#c0101114"
     property color borderColor: "#78787887"
-    property color textColor: "#b4b4c3"
+    property color textColor: StyleTokens.textTertiary
     property color expandedBgColor: "#f01e1f26"
-    property color expandedBorderColor: "#e74c3c"
-    property color expandedTextColor: "#e74c3c"
+    property color expandedBorderColor: StyleTokens.error
+    property color expandedTextColor: StyleTokens.error
 
     Behavior on width {
         NumberAnimation { duration: 200; easing.type: Easing.OutCubic }

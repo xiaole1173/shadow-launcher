@@ -270,14 +270,14 @@ Rectangle {
                     spacing: 24
                     Text {
                         text: "Slug: " + (dpDetailSlug || "")
-                        color: "#7888a8"; font.pixelSize: StyleTokens.fontSizeSm
+                        color: StyleTokens.textSubtle; font.pixelSize: StyleTokens.fontSizeSm
                         elide: Text.ElideRight; Layout.fillWidth: true
                     }
                     Text {
                         id: verCountText
                         property int _displayCount: 0
                         text: qsTr("版本数量: ") + _displayCount
-                        color: "#7888a8"; font.pixelSize: StyleTokens.fontSizeSm
+                        color: StyleTokens.textSubtle; font.pixelSize: StyleTokens.fontSizeSm
                         Behavior on _displayCount {
                             NumberAnimation { duration: 2000; easing.type: Easing.OutCubic }
                         }
@@ -295,12 +295,12 @@ Rectangle {
                         Layout.preferredHeight: 22
                         Layout.alignment: Qt.AlignVCenter
                         radius: StyleTokens.radiusSm
-                        color: dpDetailSource === "CurseForge" ? "#2B1A12" : StyleTokens.bgElevated
+                        color: dpDetailSource === "CurseForge" ? StyleTokens.warningBg : StyleTokens.bgElevated
                         Text {
                             id: srcTag
                             anchors.centerIn: parent
                             text: dpDetailSource || ""
-                            color: dpDetailSource === "CurseForge" ? "#F08A5D" : "#9088e0"
+                            color: dpDetailSource === "CurseForge" ? StyleTokens.brandCurseForge : StyleTokens.accentLight
                             font.pixelSize: StyleTokens.fontSizeXs
                         }
                     }
@@ -310,8 +310,8 @@ Rectangle {
                         Layout.preferredHeight: 22
                         Layout.alignment: Qt.AlignVCenter
                         radius: StyleTokens.radiusSm
-                        color: showTestVersions ? "#1a3a68" : StyleTokens.bgSecondary
-                        border.color: (testHov.containsMouse || showTestVersions) ? "#3a5ed0" : StyleTokens.borderLight
+                        color: showTestVersions ? StyleTokens.infoBg : StyleTokens.bgSecondary
+                        border.color: (testHov.containsMouse || showTestVersions) ? StyleTokens.accentHover : StyleTokens.borderLight
                         border.width: (testHov.containsMouse || showTestVersions) ? 1.5 : 1
 
                         property real _eScale: 1.0
@@ -385,7 +385,7 @@ Rectangle {
                                 if (r <= 0) return
                                 var startRad = (spinnerBox._angle - 90) * Math.PI / 180
                                 var endRad = (spinnerBox._angle + 180) * Math.PI / 180
-                                ctx.strokeStyle = "#5b8def"
+                                ctx.strokeStyle = StyleTokens.accentVivid
                                 ctx.lineWidth = 2; ctx.lineCap = "round"
                                 ctx.beginPath()
                                 ctx.arc(cx, cy, r, startRad, endRad)
@@ -396,7 +396,7 @@ Rectangle {
                     Text {
                         text: dpDetailLoading ? "加载版本中..."
                             : (grouped.length === 0 ? "无可用版本" : "")
-                        color: "#606478"; font.pixelSize: StyleTokens.fontSizeSm
+                        color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeSm
                     }
                 }
             }
@@ -407,7 +407,7 @@ Rectangle {
                 opacity: _versionListEnter ? 1 : 0
                 Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
                 text: qsTr("版本列表")
-                font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold; color: "#a0a8c0"
+                font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold; color: StyleTokens.textTertiary
                 Layout.topMargin: 8; Layout.leftMargin: 4
             }
 
@@ -457,7 +457,7 @@ Rectangle {
                                     var d = getVersionDetail(modelData)
                                     var gvClean = d ? (d.gameVersion || "") : ""
                                     var pr = preReleaseTag(gvClean || root.stripLoader(modelData))
-                                    if (pr) result.push({text: pr, color: "#d0a050", bg: "#382818"})
+                                    if (pr) result.push({text: pr, color: StyleTokens.warning, bg: StyleTokens.warningBg})
                                     return result
                                 }
 
@@ -505,8 +505,8 @@ Rectangle {
                             x: 24
                             height: 30
                             radius: StyleTokens.radiusMd
-                            color: moreHov.containsMouse ? "#3a50b0" : "transparent"
-                            border.color: "#2a3a68"
+                            color: moreHov.containsMouse ? StyleTokens.accentHover : "transparent"
+                            border.color: StyleTokens.infoBg
                             border.width: 1
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Text {

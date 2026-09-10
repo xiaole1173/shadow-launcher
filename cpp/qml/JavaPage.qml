@@ -59,14 +59,14 @@ Item {
             spacing: 10
             Text {
                 text: "Java 运行环境下载"
-                color: "#d0d4e0"
+                color: StyleTokens.textSecondary
                 font.pixelSize: StyleTokens.fontSizeXl
                 font.weight: Font.Bold
             }
             Item { Layout.fillWidth: true }
             Text {
                 text: "来源：清华大学开源软件镜像站"
-                color: "#687080"
+                color: StyleTokens.textMuted
                 font.pixelSize: StyleTokens.fontSizeSm
                 Layout.alignment: Qt.AlignVCenter
             }
@@ -124,14 +124,14 @@ Item {
         // ── Step 5: Download cards ──
         Text {
             text: stepLabels[4]
-            color: "#d0d4e0"
+            color: StyleTokens.textSecondary
             font.pixelSize: StyleTokens.fontSizeMd
             font.weight: Font.Medium
             visible: javaBackend && javaBackend.selectedOS !== ""
         }
         Text {
             text: stepHints[4]
-            color: "#687080"
+            color: StyleTokens.textMuted
             font.pixelSize: StyleTokens.fontSizeSm
             visible: javaBackend && javaBackend.selectedOS !== ""
             wrapMode: Text.WordWrap
@@ -211,7 +211,7 @@ Item {
                     progressPct = 100
                     progressFill.width = progressBar.width
                     progressSpeedText = "下载完成!"
-                    progressFill.color = "#3ab868"
+                    progressFill.color = StyleTokens.success
                     // Extract filename from path
                     var fileName = path.substring(path.lastIndexOf("/") + 1)
                     if (toastManager) {
@@ -220,7 +220,7 @@ Item {
                     }
                 } else {
                     progressSpeedText = "下载失败"
-                    progressFill.color = "#d04848"
+                    progressFill.color = StyleTokens.textDanger
                 }
                 hideTimer.start()
             }
@@ -277,8 +277,8 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         width: 420; height: debugCol.implicitHeight + 10
         radius: StyleTokens.radiusMd
-        color: "#1a0000"
-        border.color: "#661111"
+        color: StyleTokens.errorBg
+        border.color: StyleTokens.errorBg
         z: 999
         visible: false  // 隐藏调试面板，保留监测功能
 
@@ -293,147 +293,147 @@ Item {
 
             Text {
                 text: debugCol.log("fetching", String(page.javaBackend ? page.javaBackend.fetching : "null"))
-                color: page.javaBackend && page.javaBackend.fetching ? "#ff8844" : "#885555"
+                color: page.javaBackend && page.javaBackend.fetching ? StyleTokens.warning : StyleTokens.statusOff
                 font.pixelSize: StyleTokens.fontSizeXs
                 font.family: StyleTokens.fontFamilyMono
             }
             Text {
                 text: debugCol.log("versions", String(page.javaBackend ? page.javaBackend.javaVersions.length : "null"))
-                color: page.javaBackend && page.javaBackend.javaVersions.length > 0 ? "#44ff44" : "#885555"
+                color: page.javaBackend && page.javaBackend.javaVersions.length > 0 ? StyleTokens.success : StyleTokens.statusOff
                 font.pixelSize: StyleTokens.fontSizeXs
                 font.family: StyleTokens.fontFamilyMono
             }
             Text {
                 text: debugCol.log("types", String(page.javaBackend ? page.javaBackend.javaTypes.length : "null"))
-                color: page.javaBackend && page.javaBackend.javaTypes.length > 0 ? "#44ff44" : "#885555"
+                color: page.javaBackend && page.javaBackend.javaTypes.length > 0 ? StyleTokens.success : StyleTokens.statusOff
                 font.pixelSize: StyleTokens.fontSizeXs
                 font.family: StyleTokens.fontFamilyMono
             }
             Text {
                 text: debugCol.log("archs", String(page.javaBackend ? page.javaBackend.javaArchs.length : "null"))
-                color: page.javaBackend && page.javaBackend.javaArchs.length > 0 ? "#44ff44" : "#885555"
+                color: page.javaBackend && page.javaBackend.javaArchs.length > 0 ? StyleTokens.success : StyleTokens.statusOff
                 font.pixelSize: StyleTokens.fontSizeXs
                 font.family: StyleTokens.fontFamilyMono
             }
             Text {
                 text: debugCol.log("oses", String(page.javaBackend ? page.javaBackend.javaOSes.length : "null"))
-                color: page.javaBackend && page.javaBackend.javaOSes.length > 0 ? "#44ff44" : "#885555"
+                color: page.javaBackend && page.javaBackend.javaOSes.length > 0 ? StyleTokens.success : StyleTokens.statusOff
                 font.pixelSize: StyleTokens.fontSizeXs
                 font.family: StyleTokens.fontFamilyMono
             }
 
-            Text { text: "── 选中值 ──"; color: "#aa6666"; font.pixelSize: StyleTokens.fontSizeXs; font.family: StyleTokens.fontFamilyMono }
+            Text { text: "── 选中值 ──"; color: StyleTokens.textDanger; font.pixelSize: StyleTokens.fontSizeXs; font.family: StyleTokens.fontFamilyMono }
             Text {
                 text: debugCol.log("selVer", String(page.javaBackend ? page.javaBackend.selectedVersion || "(empty)" : "null"))
-                color: "#88aadd"
+                color: StyleTokens.accentLink
                 font.pixelSize: StyleTokens.fontSizeXs
                 font.family: StyleTokens.fontFamilyMono
             }
             Text {
                 text: debugCol.log("selType", String(page.javaBackend ? page.javaBackend.selectedType || "(empty)" : "null"))
-                color: "#88aadd"
+                color: StyleTokens.accentLink
                 font.pixelSize: StyleTokens.fontSizeXs
                 font.family: StyleTokens.fontFamilyMono
             }
             Text {
                 text: debugCol.log("selArch", String(page.javaBackend ? page.javaBackend.selectedArch || "(empty)" : "null"))
-                color: "#88aadd"
+                color: StyleTokens.accentLink
                 font.pixelSize: StyleTokens.fontSizeXs
                 font.family: StyleTokens.fontFamilyMono
             }
             Text {
                 text: debugCol.log("selOS", String(page.javaBackend ? page.javaBackend.selectedOS || "(empty)" : "null"))
-                color: "#88aadd"
+                color: StyleTokens.accentLink
                 font.pixelSize: StyleTokens.fontSizeXs
                 font.family: StyleTokens.fontFamilyMono
             }
 
-            Text { text: "── 动画触发 ──"; color: "#aa6666"; font.pixelSize: StyleTokens.fontSizeXs; font.family: StyleTokens.fontFamilyMono }
+            Text { text: "── 动画触发 ──"; color: StyleTokens.textDanger; font.pixelSize: StyleTokens.fontSizeXs; font.family: StyleTokens.fontFamilyMono }
             Text {
                 text: debugCol.log("toast", page.toastManager ? "set" : "NULL")
-                color: page.toastManager ? "#44ff44" : "#ff4444"
+                color: page.toastManager ? StyleTokens.success : StyleTokens.error
                 font.pixelSize: StyleTokens.fontSizeXs
                 font.family: StyleTokens.fontFamilyMono
             }
             Text {
                 text: debugCol.log("tStart", page.toastStartCount)
-                color: page.toastStartCount > 0 ? "#44ff44" : "#884444"
+                color: page.toastStartCount > 0 ? StyleTokens.success : StyleTokens.statusOff
                 font.pixelSize: StyleTokens.fontSizeXs
                 font.family: StyleTokens.fontFamilyMono
             }
             Text {
                 text: debugCol.log("tFinish", page.toastFinishCount)
-                color: page.toastFinishCount > 0 ? "#44ff44" : "#884444"
+                color: page.toastFinishCount > 0 ? StyleTokens.success : StyleTokens.statusOff
                 font.pixelSize: StyleTokens.fontSizeXs
                 font.family: StyleTokens.fontFamilyMono
             }
             Text {
                 text: debugCol.log("vSpinner", String(ddVersion.showSpinner))
-                color: ddVersion.showSpinner ? "#ffaa00" : "#664400"
+                color: ddVersion.showSpinner ? StyleTokens.warning : StyleTokens.warningBg
                 font.pixelSize: StyleTokens.fontSizeXs
                 font.family: StyleTokens.fontFamilyMono
             }
             Text {
                 text: debugCol.log("tSpinner", String(ddType.showSpinner))
-                color: ddType.showSpinner ? "#ffaa00" : "#664400"
+                color: ddType.showSpinner ? StyleTokens.warning : StyleTokens.warningBg
                 font.pixelSize: StyleTokens.fontSizeXs
                 font.family: StyleTokens.fontFamilyMono
             }
             Text {
                 text: debugCol.log("aSpinner", String(ddArch.showSpinner))
-                color: ddArch.showSpinner ? "#ffaa00" : "#664400"
+                color: ddArch.showSpinner ? StyleTokens.warning : StyleTokens.warningBg
                 font.pixelSize: StyleTokens.fontSizeXs
                 font.family: StyleTokens.fontFamilyMono
             }
             Text {
                 text: debugCol.log("oSpinner", String(ddOS.showSpinner))
-                color: ddOS.showSpinner ? "#ffaa00" : "#664400"
+                color: ddOS.showSpinner ? StyleTokens.warning : StyleTokens.warningBg
                 font.pixelSize: StyleTokens.fontSizeXs
                 font.family: StyleTokens.fontFamilyMono
             }
 
-            Text { text: "── 启用状态 ──"; color: "#aa6666"; font.pixelSize: StyleTokens.fontSizeXs; font.family: StyleTokens.fontFamilyMono }
+            Text { text: "── 启用状态 ──"; color: StyleTokens.textDanger; font.pixelSize: StyleTokens.fontSizeXs; font.family: StyleTokens.fontFamilyMono }
             Text {
                 text: debugCol.log("vEnabled", String(ddVersion.enabled))
-                color: ddVersion.enabled ? "#44ff44" : "#884444"
+                color: ddVersion.enabled ? StyleTokens.success : StyleTokens.statusOff
                 font.pixelSize: StyleTokens.fontSizeXs
                 font.family: StyleTokens.fontFamilyMono
             }
             Text {
                 text: debugCol.log("tEnabled", String(ddType.enabled))
-                color: ddType.enabled ? "#44ff44" : "#884444"
+                color: ddType.enabled ? StyleTokens.success : StyleTokens.statusOff
                 font.pixelSize: StyleTokens.fontSizeXs
                 font.family: StyleTokens.fontFamilyMono
             }
             Text {
                 text: debugCol.log("aEnabled", String(ddArch.enabled))
-                color: ddArch.enabled ? "#44ff44" : "#884444"
+                color: ddArch.enabled ? StyleTokens.success : StyleTokens.statusOff
                 font.pixelSize: StyleTokens.fontSizeXs
                 font.family: StyleTokens.fontFamilyMono
             }
             Text {
                 text: debugCol.log("oEnabled", String(ddOS.enabled))
-                color: ddOS.enabled ? "#44ff44" : "#884444"
+                color: ddOS.enabled ? StyleTokens.success : StyleTokens.statusOff
                 font.pixelSize: StyleTokens.fontSizeXs
                 font.family: StyleTokens.fontFamilyMono
             }
 
-            Text { text: "── 下载进度 ──"; color: "#aa6666"; font.pixelSize: StyleTokens.fontSizeXs; font.family: StyleTokens.fontFamilyMono }
+            Text { text: "── 下载进度 ──"; color: StyleTokens.textDanger; font.pixelSize: StyleTokens.fontSizeXs; font.family: StyleTokens.fontFamilyMono }
             Text {
                 text: "pct: " + progressPct + "%"
-                color: "#88ddff"
+                color: StyleTokens.accentLink
                 font.pixelSize: StyleTokens.fontSizeXs
                 font.family: StyleTokens.fontFamilyMono
             }
             Text {
                 text: "speed: " + progressSpeedText
-                color: "#88ddff"
+                color: StyleTokens.accentLink
                 font.pixelSize: StyleTokens.fontSizeXs
                 font.family: StyleTokens.fontFamilyMono
             }
             Text {
                 text: "barVis: " + progressBar.visible
-                color: progressBar.visible ? "#44ff44" : "#884444"
+                color: progressBar.visible ? StyleTokens.success : StyleTokens.statusOff
                 font.pixelSize: StyleTokens.fontSizeXs
                 font.family: StyleTokens.fontFamilyMono
             }
@@ -456,7 +456,7 @@ Item {
 
         Text {
             text: root.label
-            color: "#d0d4e0"
+            color: StyleTokens.textSecondary
             font.pixelSize: StyleTokens.fontSizeMd
             font.weight: Font.Medium
         }
@@ -501,7 +501,7 @@ Item {
                         onPaint: {
                             var ctx = getContext("2d")
                             ctx.clearRect(0, 0, width, height)
-                            ctx.strokeStyle = "#4a70e0"
+                            ctx.strokeStyle = StyleTokens.accentHover
                             ctx.lineWidth = 2.5
                             ctx.lineCap = "round"
                             ctx.beginPath()
@@ -523,7 +523,7 @@ Item {
                 // Loading text (e.g. "正在拉取版本列表......")
                 Text {
                     text: root.loadingText
-                    color: "#687080"
+                    color: StyleTokens.textMuted
                     font.pixelSize: StyleTokens.fontSizeSm
                     visible: root.loadingText !== ""
                 }
@@ -532,7 +532,7 @@ Item {
 
         Text {
             text: root.hint
-            color: "#687080"
+            color: StyleTokens.textMuted
             font.pixelSize: StyleTokens.fontSizeSm
             visible: root.hint !== ""
             wrapMode: Text.WordWrap
@@ -563,7 +563,7 @@ Item {
 
             Text {
                 text: card.fileInfo.name || "???"
-                color: "#d0d4e0"
+                color: StyleTokens.textSecondary
                 font.pixelSize: StyleTokens.fontSizeMd
                 font.weight: Font.Medium
                 elide: Text.ElideRight
@@ -580,7 +580,7 @@ Item {
                         if (s > 1024) return (s / 1024).toFixed(1) + " KB"
                         return s + " B"
                     }
-                    color: "#687080"
+                    color: StyleTokens.textMuted
                     font.pixelSize: StyleTokens.fontSizeSm
                 }
                 // Extension badge

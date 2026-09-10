@@ -29,10 +29,10 @@ Flow {
     property var copyItems: []
 
     // 样式令牌：链接蓝边 / 复制棕边
-    property color linkAccent: "#3a5ed0"
+    property color linkAccent: StyleTokens.accentHover
     property color linkTextColor: StyleTokens.accentLight
-    property color copyAccent: "#685040"
-    property color copyTextColor: "#c89860"
+    property color copyAccent: StyleTokens.textMuted
+    property color copyTextColor: StyleTokens.warning
 
     // ── 链接按钮（浏览器打开）──
     Repeater {

@@ -13,7 +13,7 @@ Rectangle {
     width: 30
     height: 30
     radius: StyleTokens.radiusMd
-    color: mouseArea.containsMouse ? "#222a3a" : "#141820"
+    color: mouseArea.containsMouse ? StyleTokens.accentSubtle : StyleTokens.accentSubtle
     border.color: StyleTokens.bgHover
     border.width: 1
 

@@ -266,7 +266,7 @@ Rectangle {
 
                     Text {
                         text: "来源：" + (root.modpackDetailSource || "Modrinth")
-                        color: root.modpackDetailSource === "CurseForge" ? "#F08A5D" : "#9088e0"
+                        color: root.modpackDetailSource === "CurseForge" ? StyleTokens.brandCurseForge : StyleTokens.accentLight
                         font.pixelSize: StyleTokens.fontSizeSm; font.bold: true
                     }
                     Text {
@@ -364,7 +364,7 @@ Rectangle {
                                     for (var li = 0; li < lds.length; li++) {
                                         var l = String(lds[li])
                                         t.push({text: l.charAt(0).toUpperCase() + l.slice(1),
-                                                color: "#b0b8c8", bg: "#1e2230"})
+                                                color: StyleTokens.textTertiary, bg: StyleTokens.accentSubtle})
                                     }
                                     return t
                                 }
@@ -384,8 +384,8 @@ Rectangle {
                             x: 24
                             height: 30
                             radius: StyleTokens.radiusMd
-                            color: moreHov.containsMouse ? "#3a50b0" : "transparent"
-                            border.color: "#2a3a68"
+                            color: moreHov.containsMouse ? StyleTokens.accentHover : "transparent"
+                            border.color: StyleTokens.infoBg
                             border.width: 1
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Text {
@@ -423,7 +423,7 @@ Rectangle {
     // ═══════════════ 版本名称输入弹窗 ═══════════════
     Rectangle {
         anchors.fill: parent
-        color: "#80000000"
+        color: StyleTokens.scrim50
         radius: StyleTokens.radiusWindow
         clip: true
         visible: root._showNameDialog

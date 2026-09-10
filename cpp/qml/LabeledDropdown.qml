@@ -20,7 +20,7 @@ RowLayout {
 
     Text {
         text: root.label
-        color: "#9094a8"
+        color: StyleTokens.textSubtle
         font.pixelSize: StyleTokens.fontSizeSm
         Layout.preferredWidth: Math.max(28, implicitWidth)
     }

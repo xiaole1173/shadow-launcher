@@ -43,7 +43,7 @@ Rectangle {
             var startRad = (root._angle - 90) * Math.PI / 180
             var endRad   = (root._angle + 180) * Math.PI / 180
 
-            ctx.strokeStyle = "#5b8def"
+            ctx.strokeStyle = StyleTokens.accentVivid
             ctx.lineWidth = 2.5
             ctx.lineCap = "round"
 

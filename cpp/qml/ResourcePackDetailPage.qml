@@ -195,15 +195,15 @@ Rectangle {
                     Layout.fillWidth: true; spacing: 24
                     Text {
                         text: qsTr("作者: ") + (rpDetailAuthor || "未知")
-                        color: "#7888a8"; font.pixelSize: StyleTokens.fontSizeSm
+                        color: StyleTokens.textSubtle; font.pixelSize: StyleTokens.fontSizeSm
                     }
                     Text {
                         text: qsTr("下载量: ") + formatDownloads(rpDetailDownloads) + " 次"
-                        color: "#7888a8"; font.pixelSize: StyleTokens.fontSizeSm
+                        color: StyleTokens.textSubtle; font.pixelSize: StyleTokens.fontSizeSm
                     }
                     Text {
                         text: qsTr("更新于: ") + formatDate(rpDetailUpdated)
-                        color: "#7888a8"; font.pixelSize: StyleTokens.fontSizeSm
+                        color: StyleTokens.textSubtle; font.pixelSize: StyleTokens.fontSizeSm
                     }
                 }
 
@@ -224,7 +224,7 @@ Rectangle {
                 opacity: _versionListEnter ? 1 : 0
                 Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
                 text: qsTr("版本列表")
-                font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold; color: "#a0a8c0"
+                font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold; color: StyleTokens.textTertiary
                 Layout.topMargin: 8; Layout.leftMargin: 4
             }
 
@@ -257,7 +257,7 @@ Rectangle {
                                 if (r <= 0) return
                                 var startRad = (parent._angle - 90) * Math.PI / 180
                                 var endRad = (parent._angle + 180) * Math.PI / 180
-                                ctx.strokeStyle = "#5b8def"
+                                ctx.strokeStyle = StyleTokens.accentVivid
                                 ctx.lineWidth = 2; ctx.lineCap = "round"
                                 ctx.beginPath()
                                 ctx.arc(cx, cy, r, startRad, endRad)
@@ -268,7 +268,7 @@ Rectangle {
                     Text {
                         text: rpDetailLoading ? "加载版本中..."
                             : (rpDetailGrouped.length === 0 ? "无可用版本" : "")
-                        color: "#606478"; font.pixelSize: StyleTokens.fontSizeSm
+                        color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeSm
                     }
                 }
             }
@@ -361,8 +361,8 @@ Rectangle {
                             x: 24
                             height: 30
                             radius: StyleTokens.radiusMd
-                            color: moreHov.containsMouse ? "#3a50b0" : "transparent"
-                            border.color: "#2a3a68"
+                            color: moreHov.containsMouse ? StyleTokens.accentHover : "transparent"
+                            border.color: StyleTokens.infoBg
                             border.width: 1
                             Behavior on color { ColorAnimation { duration: 150 } }
                             Text {

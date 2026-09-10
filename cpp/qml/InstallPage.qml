@@ -414,8 +414,8 @@ Rectangle {
                 id: mcCard
                 Layout.fillWidth: true
                 implicitHeight: root.versionConflict ? 116 : 96
-                radius: StyleTokens.radiusLg; color: mcCardHovered ? "#161a26" : StyleTokens.bgSecondary
-                border.color: root.versionConflict ? "#803040" : (mcCardHovered ? "#3a50b0" : StyleTokens.border)
+                radius: StyleTokens.radiusLg; color: mcCardHovered ? StyleTokens.accentSubtle : StyleTokens.bgSecondary
+                border.color: root.versionConflict ? StyleTokens.statusOff : (mcCardHovered ? StyleTokens.accentHover : StyleTokens.border)
                 border.width: mcCardHovered ? 1.5 : 1
                 clip: true
                 scale: mcCardHovered ? 1.005 : 1.0
@@ -438,13 +438,13 @@ Rectangle {
                     Rectangle {
                         Layout.fillWidth: true; height: 32; radius: StyleTokens.radiusSm
                         color: StyleTokens.surfaceOverlay
-                        border.color: root.versionConflict ? "#c06050" : (nameInput.activeFocus ? "#3a5ed0" : StyleTokens.borderLight)
+                        border.color: root.versionConflict ? StyleTokens.textDanger : (nameInput.activeFocus ? StyleTokens.accentHover : StyleTokens.borderLight)
                         border.width: 1
                         Behavior on border.color { ColorAnimation { duration: 200 } }
                         TextInput {
                             id: nameInput; anchors.fill: parent; anchors.margins: 8
                             text: root.customName !== "" ? root.customName : root.fullVersionName
-                            font.pixelSize: StyleTokens.fontSizeMd; color: "#c0c8e0"
+                            font.pixelSize: StyleTokens.fontSizeMd; color: StyleTokens.textSecondary
                             selectByMouse: true; clip: true; verticalAlignment: TextInput.AlignVCenter
                             onTextChanged: {
                                 // 每次输入立即更新 customName 并重新检测冲突
@@ -471,7 +471,7 @@ Rectangle {
             // SECTION LABEL: Mod Loader
             Text {
                 text: "Mod \u52a0\u8f7d\u5668"
-                font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold; color: "#a0a8c0"
+                font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold; color: StyleTokens.textTertiary
                 Layout.topMargin: 8; Layout.leftMargin: 4
             }
 
@@ -541,7 +541,7 @@ Rectangle {
             }
 
             // SECTION LABEL: Shader
-            Text { text: "\u5149\u5f71\u52a0\u8f7d\uff08\u9ad8\u6e05\u4fee\u590d\uff09"; font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold; color: "#a0a8c0"; Layout.topMargin: 8; Layout.leftMargin: 4 }
+            Text { text: "\u5149\u5f71\u52a0\u8f7d\uff08\u9ad8\u6e05\u4fee\u590d\uff09"; font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold; color: StyleTokens.textTertiary; Layout.topMargin: 8; Layout.leftMargin: 4 }
 
             // Optifine
             ModLoaderCard {
@@ -573,8 +573,8 @@ Rectangle {
                     Rectangle {
                         id: importBtn
                         width: 180; height: 36; radius: StyleTokens.radiusMd
-                        color: importBtnHover.containsMouse ? "#2a1850" : "#141028"
-                        border.color: importBtnHover.containsMouse ? "#7c3aed" : "#2a1f3e"
+                        color: importBtnHover.containsMouse ? StyleTokens.accentSubtle : StyleTokens.accentSubtle
+                        border.color: importBtnHover.containsMouse ? StyleTokens.accentViolet : StyleTokens.accentSubtle
                         border.width: 1
                         Behavior on color { ColorAnimation { duration: 200 } }
                         Behavior on border.color { ColorAnimation { duration: 200 } }
@@ -602,7 +602,7 @@ Rectangle {
                             Text {
                                 id: importBtnText
                                 text: qsTr("导入用户数据")
-                                font.pixelSize: StyleTokens.fontSizeMd; color: "#b4a0f0"
+                                font.pixelSize: StyleTokens.fontSizeMd; color: StyleTokens.accentLink
                                 anchors.verticalCenter: parent.verticalCenter
                             }
                         }
@@ -622,12 +622,12 @@ Rectangle {
                     Rectangle {
                         visible: root.importArchivePath !== ""
                         width: Math.min(archiveNameText.implicitWidth, 200) + 36; height: 24; radius: StyleTokens.radiusSm
-                        color: "#151830"; border.color: StyleTokens.bgHover
+                        color: StyleTokens.accentSubtle; border.color: StyleTokens.bgHover
                         Text {
                             id: archiveNameText
                             anchors.centerIn: parent
                             text: root.importArchiveName || ""
-                            font.pixelSize: StyleTokens.fontSizeSm; color: "#a0a8c0"
+                            font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary
                             elide: Text.ElideMiddle
                         }
                         HoverHandler { id: archiveHover }
@@ -635,7 +635,7 @@ Rectangle {
                             anchors.right: parent.right; anchors.rightMargin: 2
                             anchors.verticalCenter: parent.verticalCenter
                             width: 20; height: 20; radius: StyleTokens.radiusLg
-                            color: removeImportHover.hovered ? "#4a1a2a" : "transparent"
+                            color: removeImportHover.hovered ? StyleTokens.errorBg : "transparent"
                             opacity: archiveHover.hovered ? 1 : 0
                             Behavior on opacity { NumberAnimation { duration: 150 } }
                             Image {
@@ -664,11 +664,11 @@ Rectangle {
                         }
                         Text {
                             text: modelData.name || ""
-                            font.pixelSize: StyleTokens.fontSizeSm; color: "#c0c8d8"
+                            font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSecondary
                         }
                         Text {
                             text: modelData.sizeBytes > 0 ? root.formatSize(modelData.sizeBytes) : ""
-                            font.pixelSize: StyleTokens.fontSizeXs; color: "#606878"
+                            font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textMuted
                         }
                         RowLayout {
                             visible: modelData.riskLevel >= 2
@@ -695,7 +695,7 @@ Rectangle {
                             }
                             Text {
                                 text: modelData.warning || ""
-                                font.pixelSize: StyleTokens.fontSizeXs; color: "#e0b040"
+                                font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.warning
                                 wrapMode: Text.WordWrap; elide: Text.ElideRight
                                 maximumLineCount: 1; Layout.fillWidth: true
                             }
@@ -718,11 +718,11 @@ Rectangle {
         // Physical shadow (offset layer)
         Rectangle {
             anchors.fill: parent; anchors.topMargin: 4; anchors.leftMargin: 2; radius: StyleTokens.radiusXl
-            color: "#000000"; opacity: 0.3; z: -1
+            color: StyleTokens.scrim; opacity: 0.3; z: -1
         }
 
-        color: root.versionConflict ? "#3a3040"
-                : (installHover.containsMouse ? "#4a70f0" : "#3a5ed0")
+        color: root.versionConflict ? StyleTokens.accentSubtle
+                : (installHover.containsMouse ? StyleTokens.accent : StyleTokens.accentHover)
         opacity: root.hasModLoader || mcVersion !== "" ? 1.0 : 0.0
 
         // Visibility scale (appear/disappear) — separate from press animation
@@ -764,7 +764,7 @@ Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.versionConflict ? qsTr("名称冲突") : qsTr("开始下载")
                 font.pixelSize: StyleTokens.fontSizeLg; font.weight: Font.Bold
-                color: root.versionConflict ? "#c0b0c0" : StyleTokens.textInverse
+                color: root.versionConflict ? StyleTokens.textTertiary : StyleTokens.textInverse
             }
         }
 

@@ -46,7 +46,7 @@ Rectangle {
         Text {
             Layout.alignment: Qt.AlignHCenter
             text: root.loading ? "正在搜索..." : root.emptyText
-            color: root.loading ? StyleTokens.accentHover : "#606478"
+            color: root.loading ? StyleTokens.accentHover : StyleTokens.textMuted
             font.pixelSize: StyleTokens.fontSizeSm
         }
     }

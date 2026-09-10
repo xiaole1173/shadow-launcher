@@ -31,7 +31,7 @@ Rectangle {
     implicitWidth: parent ? parent.width : 300
     implicitHeight: contentCol.implicitHeight + 20
     radius: StyleTokens.radiusLg
-    color: hovered ? "#121620" : "#0e1018"
+    color: hovered ? StyleTokens.accentSubtle : StyleTokens.bgPrimary
     border.color: hovered ? StyleTokens.accentHover : StyleTokens.bgInput
     border.width: hovered ? 1.5 : 1
     scale: 1.0
@@ -120,7 +120,7 @@ Rectangle {
                 // 标题：中文名（有 zh）否则英文名；英文名以浅色小字括号跟在后面
                 Text {
                     text: root.zh ? root.zh : (root.title || "")
-                    color: "#d0d4e0"
+                    color: StyleTokens.textSecondary
                     font.pixelSize: StyleTokens.fontSizeMd; font.bold: true
                     elide: Text.ElideRight
                     Layout.fillWidth: root.zh === ""
@@ -130,7 +130,7 @@ Rectangle {
                 Text {
                     visible: root.zh !== "" && root.title !== "" && root.zh !== root.title
                     text: "(" + root.title + ")"
-                    color: "#788090"
+                    color: StyleTokens.textSubtle
                     font.pixelSize: StyleTokens.fontSizeXs
                     elide: Text.ElideRight
                     Layout.preferredWidth: Math.min(implicitWidth, 160)
@@ -148,7 +148,7 @@ Rectangle {
                     }
                     Text {
                         text: formatDownloads(root.downloads)
-                        color: "#788090"; font.pixelSize: StyleTokens.fontSizeXs
+                        color: StyleTokens.textSubtle; font.pixelSize: StyleTokens.fontSizeXs
                     }
                 }
 
@@ -158,12 +158,12 @@ Rectangle {
                     Layout.preferredWidth: Math.max(48, srcTagText.implicitWidth + 14)
                     height: 16; radius: 8
                     // 底部颜色区分：CurseForge 暖橙 / Modrinth 保持现有
-                    color: root.source === "CurseForge" ? "#2B1A12" : StyleTokens.bgElevated
+                    color: root.source === "CurseForge" ? StyleTokens.warningBg : StyleTokens.bgElevated
                     Text {
                         id: srcTagText
                         anchors.centerIn: parent
                         text: root.source
-                        color: root.source === "CurseForge" ? "#F08A5D" : "#9088e0"
+                        color: root.source === "CurseForge" ? StyleTokens.brandCurseForge : StyleTokens.accentLight
                         font.pixelSize: StyleTokens.fontSizeXs
                     }
                 }
@@ -196,17 +196,17 @@ Rectangle {
                 DownloadCardTagRow {
                     visible: tagSection._catTags.length > 0
                     tags: tagSection._catTags
-                    tagBg: "#151922"; tagBorder: StyleTokens.bgHover; tagColor: "#788090"
+                    tagBg: StyleTokens.accentSubtle; tagBorder: StyleTokens.bgHover; tagColor: StyleTokens.textSubtle
                 }
                 DownloadCardTagRow {
                     visible: tagSection._featTags.length > 0
                     tags: tagSection._featTags
-                    tagBg: "#1a1428"; tagBorder: "#382848"; tagColor: "#a878c8"
+                    tagBg: StyleTokens.accentSubtle; tagBorder: StyleTokens.accentSubtle; tagColor: StyleTokens.accentVioletLight
                 }
                 DownloadCardTagRow {
                     visible: tagSection._resTags.length > 0
                     tags: tagSection._resTags
-                    tagBg: "#282218"; tagBorder: "#504828"; tagColor: "#c8a860"
+                    tagBg: StyleTokens.warningBg; tagBorder: StyleTokens.bgHover; tagColor: StyleTokens.warning
                 }
             }
 
@@ -226,17 +226,17 @@ Rectangle {
 
                 Text {
                     text: formatVersionRange(root.gameVersions)
-                    color: "#687080"; font.pixelSize: StyleTokens.fontSizeXs
+                    color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeXs
                     visible: text !== ""
                 }
                 Text {
                     text: formatDate(root.dateModified)
-                    color: "#687080"; font.pixelSize: StyleTokens.fontSizeXs
+                    color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeXs
                     visible: root.dateModified !== ""
                 }
                 Text {
                     text: formatLoaders(root.loaders)
-                    color: "#687080"; font.pixelSize: StyleTokens.fontSizeXs
+                    color: StyleTokens.textMuted; font.pixelSize: StyleTokens.fontSizeXs
                     elide: Text.ElideRight; Layout.fillWidth: true
                     visible: root.loaders !== ""
                 }

@@ -54,7 +54,7 @@ Rectangle {
     // 根 Rectangle 不设置 clip！边框直接画在根上
     border.width: 1
     border.color: {
-        if (root.hasError) return "#cc5555"
+        if (root.hasError) return StyleTokens.textDanger
         if (textInput.activeFocus) return StyleTokens.borderFocus
         return StyleTokens.bgElevated
     }
@@ -78,7 +78,7 @@ Rectangle {
             id: textInput
             Layout.fillWidth: true
             Layout.fillHeight: true
-            color: hasError && text !== "" ? "#ff9999" : StyleTokens.textSecondary
+            color: hasError && text !== "" ? StyleTokens.errorLight : StyleTokens.textSecondary
             font.pixelSize: StyleTokens.fontSizeMd
             verticalAlignment: TextInput.AlignVCenter
             selectByMouse: true
@@ -110,7 +110,7 @@ Rectangle {
             visible: root.historyEnabled && root.historyModel.length > 0
             width: 28; height: 28
             radius: StyleTokens.radiusSm
-            color: _historyOpen ? "#1e2840" : "transparent"
+            color: _historyOpen ? StyleTokens.accentSubtle : "transparent"
             Text {
                 anchors.centerIn: parent
                 text: _historyOpen ? "▲" : "▼"
@@ -130,7 +130,7 @@ Rectangle {
             visible: root.passwordMode
             width: 28; height: 28
             radius: StyleTokens.radiusSm
-            color: eyeMouse.containsMouse ? "#1e2840" : "transparent"
+            color: eyeMouse.containsMouse ? StyleTokens.accentSubtle : "transparent"
             Behavior on color { ColorAnimation { duration: 120 } }
             Image {
                 anchors.centerIn: parent
@@ -157,7 +157,7 @@ Rectangle {
             visible: root.rightIconSource !== ""
             width: 28; height: 28
             radius: StyleTokens.radiusSm
-            color: rightMouse.containsMouse ? "#1e2840" : "transparent"
+            color: rightMouse.containsMouse ? StyleTokens.accentSubtle : "transparent"
             Behavior on color { ColorAnimation { duration: 120 } }
             Image {
                 anchors.centerIn: parent
@@ -226,7 +226,7 @@ Rectangle {
                         width: 22; height: 22
                         radius: StyleTokens.radiusSm
                         color: delMouse.containsMouse
-                            ? (delMouse.pressed ? "#882020" : "#551818")
+                            ? (delMouse.pressed ? StyleTokens.statusOff : StyleTokens.errorBg)
                             : "transparent"
                         scale: delMouse.pressed ? 0.85 : 1.0
                         Behavior on color { ColorAnimation { duration: 120; easing.type: Easing.OutCubic } }
@@ -272,7 +272,7 @@ Rectangle {
         anchors.left: parent.left
         anchors.leftMargin: 4
         text: root.errorMessage
-        color: "#cc5555"
+        color: StyleTokens.textDanger
         font.pixelSize: StyleTokens.fontSizeXs
         opacity: root.hasError ? 1 : 0
         Behavior on opacity { NumberAnimation { duration: 200 } }

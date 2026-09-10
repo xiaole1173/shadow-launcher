@@ -14,9 +14,9 @@ Item {
     implicitHeight: 18
 
     property var tags: []            // string[]
-    property color tagBg: "#151922"
+    property color tagBg: StyleTokens.accentSubtle
     property color tagBorder: StyleTokens.bgHover
-    property color tagColor: "#788090"
+    property color tagColor: StyleTokens.textSubtle
 
     clip: true
 

@@ -102,7 +102,7 @@ Rectangle {
     // 弹窗位于窗口圆角容器之外：遮罩需自带圆角，避免把窗口透明圆角区域涂黑成方角
     Rectangle {
         anchors.fill: parent
-        color: "#80000000"
+        color: StyleTokens.scrim50
         radius: StyleTokens.radiusWindow   // 统一窗口边角圆角渲染
         clip: true
         opacity: root.visible ? 1 : 0

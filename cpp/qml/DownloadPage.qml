@@ -397,7 +397,7 @@ Rectangle {
                     }
                     Text {
                         text: modelData.label
-                    color: page.currentTab === index ? "#d0d4e0" : "#606478"
+                    color: page.currentTab === index ? StyleTokens.textSecondary : StyleTokens.textMuted
                     Behavior on color { ColorAnimation { duration: 200; easing.type: Easing.OutCubic } }
                     font.pixelSize: StyleTokens.fontSizeSm
                     font.weight: page.currentTab === index ? Font.DemiBold : Font.Normal
@@ -485,14 +485,14 @@ Rectangle {
                         Text {
                             id: pillLabel
                             text: modelData.label
-                            color: page.currentFilter === modelData.key ? StyleTokens.textPrimary : "#9094a8"
+                            color: page.currentFilter === modelData.key ? StyleTokens.textPrimary : StyleTokens.textSubtle
                             font.pixelSize: StyleTokens.fontSizeMd
                             elide: Text.ElideRight
                         }
                         Text {
                             id: pillCount
                             text: "(" + modelData.countFn() + ")"
-                            color: page.currentFilter === modelData.key ? "#93acf0" : StyleTokens.textMuted
+                            color: page.currentFilter === modelData.key ? StyleTokens.accentLink : StyleTokens.textMuted
                             font.pixelSize: StyleTokens.fontSizeSm
                         }
                     }
@@ -561,7 +561,7 @@ Rectangle {
 
                     Text {
                         text: backend && backend.releaseVersions.length > 0 ? backend.releaseVersions[0] : ""
-                        color: "#d0d4e0"
+                        color: StyleTokens.textSecondary
                         font.pixelSize: StyleTokens.fontSize2xl
                         font.bold: true
                     }
@@ -1515,7 +1515,7 @@ Rectangle {
                     var chips = []
                     var maxChips = Math.min(vers.length, 6)
                     for (var j = 0; j < maxChips; j++) {
-                        chips.push({text: vers[j], color: "#90a0c8"})
+                        chips.push({text: vers[j], color: StyleTokens.accentLink})
                     }
                     if (vers.length > 6) chips.push({text: "+" + (vers.length - 6), color: StyleTokens.accentHover})
                     var chipsJson = JSON.stringify(chips)
@@ -1534,7 +1534,7 @@ Rectangle {
             var chips = []
             var maxChips = Math.min(versions.length, 6)
             for (var j = 0; j < maxChips; j++) {
-                chips.push({text: versions[j], color: "#90a0c8"})
+                chips.push({text: versions[j], color: StyleTokens.accentLink})
             }
             if (versions.length > 6) chips.push({text: "+" + (versions.length - 6), color: StyleTokens.accentHover})
             var chipsJson = JSON.stringify(chips)

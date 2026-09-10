@@ -78,9 +78,9 @@ Rectangle {
             implicitHeight: 22
             radius: StyleTokens.radiusMd
             // Direct bindings — re-evaluate when playerData updates
-            color: (playerData.latency || 0) < 50 ? "#2060c060"
-                : (playerData.latency || 0) < 150 ? "#20f59e0b"
-                : "#20ef4444"
+            color: (playerData.latency || 0) < 50 ? StyleTokens.successTint
+                : (playerData.latency || 0) < 150 ? StyleTokens.warningTint
+                : StyleTokens.errorTint
             Behavior on color {
                 ColorAnimation { duration: AnimationTokens.dataFlushDuration; easing.type: AnimationTokens.dataFlushEasing }
             }
@@ -90,8 +90,8 @@ Rectangle {
                 anchors.centerIn: parent
                 text: (playerData.latency || 0) + "ms"
                 font.pixelSize: StyleTokens.fontSizeSm
-                color: (playerData.latency || 0) < 50 ? "#60c060"
-                    : (playerData.latency || 0) < 150 ? "#f59e0b"
+                color: (playerData.latency || 0) < 50 ? StyleTokens.success
+                    : (playerData.latency || 0) < 150 ? StyleTokens.warning
                     : StyleTokens.error
                 Behavior on color {
                     ColorAnimation { duration: AnimationTokens.dataFlushDuration; easing.type: AnimationTokens.dataFlushEasing }
@@ -104,16 +104,16 @@ Rectangle {
             implicitWidth: roleLabel.implicitWidth + 14
             implicitHeight: 22
             radius: StyleTokens.radiusMd
-            color: playerData.kind === "HOST" ? "#20f59e0b" :
-                   playerData.kind === "LOCAL" ? "#204ade80" : "#203b82f6"
+            color: playerData.kind === "HOST" ? StyleTokens.warningTint :
+                   playerData.kind === "LOCAL" ? StyleTokens.accentTint : StyleTokens.accentTint
             Text {
                 id: roleLabel
                 anchors.centerIn: parent
                 text: playerData.kind === "HOST" ? "房主" :
                       playerData.kind === "LOCAL" ? "本地" : "玩家"
                 font.pixelSize: StyleTokens.fontSizeSm
-                color: playerData.kind === "HOST" ? "#f59e0b" :
-                       playerData.kind === "LOCAL" ? "#4ade80" : "#60a0f0"
+                color: playerData.kind === "HOST" ? StyleTokens.warning :
+                       playerData.kind === "LOCAL" ? StyleTokens.success : StyleTokens.info
             }
         }
 

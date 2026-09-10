@@ -68,7 +68,7 @@ Item {
                 + " | hours=" + (backend ? backend.totalGameHours : "?")
                 + " | count=" + (backend && backend.versionGameStats ? backend.versionGameStats.length : "?")
             font.pixelSize: StyleTokens.fontSizeSm
-            color: "#ff6666"
+            color: StyleTokens.errorLight
             font.family: StyleTokens.fontFamilyMono
         }
 
@@ -115,7 +115,7 @@ Item {
                         onPaint: {
                             var ctx = getContext("2d")
                             ctx.clearRect(0, 0, width, height)
-                            ctx.strokeStyle = "#5068d8"
+                            ctx.strokeStyle = StyleTokens.accentHover
                             ctx.lineWidth = 2.5
                             ctx.lineCap = "round"
                             ctx.beginPath()
@@ -127,7 +127,7 @@ Item {
                     Text {
                         text: qsTr("加载中……")
                         font.pixelSize: StyleTokens.fontSizeMd
-                        color: "#606478"
+                        color: StyleTokens.textMuted
                         Layout.alignment: Qt.AlignHCenter
                     }
                 }
@@ -291,7 +291,7 @@ Item {
                                     anchors.verticalCenter: parent.verticalCenter
                                     text: modelData.hours.toFixed(2) + "h"
                                     font.pixelSize: StyleTokens.fontSizeSm
-                                    color: "#707888"
+                                    color: StyleTokens.textSubtle
                                 }
                             }
                         }
@@ -315,8 +315,6 @@ Item {
     }
 
     function barColor(index) {
-        var colors = ["#5068d8", "#5588cc", "#5aa8c0", "#60c8b4", "#6fd4ac",
-                      "#7ee0a0", "#8dec94", "#9cf888", "#abff7c", "#baff70"]
-        return colors[index % colors.length]
+        return StyleTokens.chartColors[index % StyleTokens.chartColors.length]
     }
 }

@@ -68,7 +68,7 @@ Item {
     Rectangle {
         id: dimBg
         anchors.fill: parent
-        color: "#80000000"
+        color: StyleTokens.scrim50
         opacity: root.opened ? 1 : 0
         z: 0
 

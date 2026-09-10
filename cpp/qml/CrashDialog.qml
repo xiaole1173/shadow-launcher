@@ -124,7 +124,7 @@ Popup {
                     anchors.fill: parent
                     radius: 18
                     visible: !dialog.analyzing
-                    color: crashData.type === "jvm" ? "#2a1c1c" : "#2a2420"
+                    color: crashData.type === "jvm" ? StyleTokens.errorBg : StyleTokens.surfaceLight
                     Text {
                         anchors.centerIn: parent
                         text: "!"

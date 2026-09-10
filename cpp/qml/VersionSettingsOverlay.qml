@@ -184,20 +184,20 @@ Rectangle {
                     }
                     height: 20; implicitWidth: settingsLoaderTag.implicitWidth + 10; radius: StyleTokens.radiusSm
                     color: {
-                        if (!backend || !backend.versionDetails) return "#4a6a8a"
+                        if (!backend || !backend.versionDetails) return StyleTokens.loaderDefault
                         for (var i = 0; i < backend.versionDetails.length; i++) {
                             if (backend.versionDetails[i].id === currentSelectedVersion) {
                                 var t = backend.versionDetails[i].loaderType
-                                if (t === "Forge") return "#c05050"
-                                if (t === "Fabric") return "#3a7a9a"
-                                if (t === "NeoForge") return "#c08050"
-                                if (t === "Quilt") return "#3a8a7a"
-                                if (t === "LiteLoader") return "#7070a0"
-                                if (t === "OptiFine") return "#8a8a5a"
-                                return "#4a6a8a"
+                                if (t === "Forge") return StyleTokens.textDanger
+                                if (t === "Fabric") return StyleTokens.loaderFabric
+                                if (t === "NeoForge") return StyleTokens.loaderNeoforge
+                                if (t === "Quilt") return StyleTokens.success
+                                if (t === "LiteLoader") return StyleTokens.accentHover
+                                if (t === "OptiFine") return StyleTokens.loaderOptifine
+                                return StyleTokens.loaderDefault
                             }
                         }
-                        return "#4a6a8a"
+                        return StyleTokens.loaderDefault
                     }
                     Text {
                         id: settingsLoaderTag
@@ -221,7 +221,7 @@ Rectangle {
                 Rectangle {
                     id: topLaunchBtn
                     width: 100; height: 32; radius: StyleTokens.radiusMd
-                    color: topLaunchHover.containsMouse ? (topLaunchHover.pressed ? "#2a3a90" : "#4a5ec8") : StyleTokens.accent
+                    color: topLaunchHover.containsMouse ? (topLaunchHover.pressed ? StyleTokens.accentSubtle : StyleTokens.accentHover) : StyleTokens.accent
                     scale: topLaunchHover.containsMouse ? (topLaunchHover.pressed ? 0.93 : 1.05) : 1.0
                     Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
                     Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
@@ -321,16 +321,16 @@ Rectangle {
                         }
                         return false
                     }
-                    color: ListView.isCurrentItem ? "#162040" : (mouseArea2.containsMouse ? StyleTokens.bgSecondary : "transparent")
+                    color: ListView.isCurrentItem ? StyleTokens.accentSubtle : (mouseArea2.containsMouse ? StyleTokens.bgSecondary : "transparent")
                     scale: mouseArea2.containsMouse ? 1.03 : 1.0
                     Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                    Rectangle { anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom; width: 3; color: ListView.isCurrentItem ? "#5080e8" : "transparent" }
+                    Rectangle { anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom; width: 3; color: ListView.isCurrentItem ? StyleTokens.accentLight : "transparent" }
                     RowLayout {
                         anchors.fill: parent; anchors.leftMargin: 16; spacing: 10
                         Text {
                             text: modelData.text
                             font.pixelSize: StyleTokens.fontSizeMd
-                            color: ListView.isCurrentItem ? "#e0e4f8" : (mouseArea2.containsMouse ? "#e4e8fc" : "#9498ac")
+                            color: ListView.isCurrentItem ? StyleTokens.textPrimary : (mouseArea2.containsMouse ? StyleTokens.textPrimary : StyleTokens.textSubtle)
                             font.weight: ListView.isCurrentItem ? Font.Bold : Font.Normal
                         }
                         Item { Layout.fillWidth: true }
@@ -354,17 +354,17 @@ Rectangle {
                 Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
 
                 // ── 快捷入口（2026-08-03 分类重做：统一 ShadowButton 组件 + 分组排序）──
-                Text { text: qsTr("快捷入口"); font.pixelSize: StyleTokens.fontSizeXs; color: "#9ca0b4"; font.letterSpacing: 1.5 }
+                Text { text: qsTr("快捷入口"); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textTertiary; font.letterSpacing: 1.5 }
 
                 // ── 文件夹 ──
-                Text { text: qsTr("文件夹"); font.pixelSize: StyleTokens.fontSizeXs; color: "#6a7088"; font.letterSpacing: 1.2 }
+                Text { text: qsTr("文件夹"); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textSubtle; font.letterSpacing: 1.2 }
                 Flow {
                     Layout.fillWidth: true; spacing: 8
 
                     ShadowButton {
                         Layout.preferredWidth: 130; Layout.preferredHeight: 32
                         text: qsTr("版本文件夹"); iconSource: "icons/lucide/folder.svg"; iconSize: 14
-                        accentColor: "#2a4590"
+                        accentColor: StyleTokens.accentSubtle
                         font.pixelSize: StyleTokens.fontSizeSm
                         onClicked: {
                             if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }
@@ -377,7 +377,7 @@ Rectangle {
                     ShadowButton {
                         Layout.preferredWidth: 130; Layout.preferredHeight: 32
                         text: qsTr("存档文件夹"); iconSource: "icons/lucide/map.svg"; iconSize: 14
-                        accentColor: "#2a4590"
+                        accentColor: StyleTokens.accentSubtle
                         font.pixelSize: StyleTokens.fontSizeSm
                         onClicked: {
                             if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }
@@ -387,7 +387,7 @@ Rectangle {
                     ShadowButton {
                         Layout.preferredWidth: 130; Layout.preferredHeight: 32
                         text: qsTr("截图文件夹"); iconSource: "icons/lucide/camera.svg"; iconSize: 14
-                        accentColor: "#2a4590"
+                        accentColor: StyleTokens.accentSubtle
                         font.pixelSize: StyleTokens.fontSizeSm
                         onClicked: {
                             if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }
@@ -397,7 +397,7 @@ Rectangle {
                     ShadowButton {
                         Layout.preferredWidth: 130; Layout.preferredHeight: 32
                         text: qsTr("Mod 文件夹"); iconSource: "icons/lucide/puzzle.svg"; iconSize: 14
-                        accentColor: "#3a4a90"
+                        accentColor: StyleTokens.accentSubtle
                         // 白名单判定（与 sidebar“Mod 管理”同款内联写法）：lt ∈ Forge/Fabric/NeoForge/Quilt 才算加载器版
                         visible: {
                             if (!backend || !backend.versionDetails || !currentSelectedVersion) return false
@@ -420,14 +420,14 @@ Rectangle {
                 Item { Layout.preferredHeight: 8 }
 
                 // ── 日志 ──
-                Text { text: qsTr("日志"); font.pixelSize: StyleTokens.fontSizeXs; color: "#6a7088"; font.letterSpacing: 1.2 }
+                Text { text: qsTr("日志"); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textSubtle; font.letterSpacing: 1.2 }
                 Flow {
                     Layout.fillWidth: true; spacing: 8
 
                     ShadowButton {
                         Layout.preferredWidth: 130; Layout.preferredHeight: 32
                         text: qsTr("logs 日志"); iconSource: "icons/lucide/file-text.svg"; iconSize: 14
-                        accentColor: "#2a4590"
+                        accentColor: StyleTokens.accentSubtle
                         font.pixelSize: StyleTokens.fontSizeSm
                         onClicked: {
                             if (backend) { if (backend.openLogsFolder(currentSelectedVersion)) { toastManager.show("已打开日志文件夹") } else { toastManager.show("版本不存在或文件夹未创建") } }
@@ -436,7 +436,7 @@ Rectangle {
                     ShadowButton {
                         Layout.preferredWidth: 130; Layout.preferredHeight: 32
                         text: qsTr("最新启动日志"); iconSource: "icons/lucide/file.svg"; iconSize: 14
-                        accentColor: "#2a4590"
+                        accentColor: StyleTokens.accentSubtle
                         font.pixelSize: StyleTokens.fontSizeSm
                         onClicked: {
                             if (backend) { if (backend.openLatestLog(currentSelectedVersion)) { toastManager.show("已打开最新日志") } else { toastManager.show("无日志文件") } }
@@ -445,7 +445,7 @@ Rectangle {
                     ShadowButton {
                         Layout.preferredWidth: 130; Layout.preferredHeight: 32
                         text: qsTr("崩溃日志"); iconSource: "icons/lucide/alert-octagon.svg"; iconSize: 14
-                        accentColor: "#9a3838"
+                        accentColor: StyleTokens.statusOff
                         font.pixelSize: StyleTokens.fontSizeSm
                         onClicked: {
                             if (backend) { if (backend.openCrashLog(currentSelectedVersion)) { toastManager.show("已打开崩溃日志") } else { toastManager.show("无崩溃报告") } }
@@ -456,14 +456,14 @@ Rectangle {
                 Item { Layout.preferredHeight: 8 }
 
                 // ── 其他 ──
-                Text { text: qsTr("其他"); font.pixelSize: StyleTokens.fontSizeXs; color: "#6a7088"; font.letterSpacing: 1.2 }
+                Text { text: qsTr("其他"); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textSubtle; font.letterSpacing: 1.2 }
                 Flow {
                     Layout.fillWidth: true; spacing: 8
 
                     ShadowButton {
                         Layout.preferredWidth: 130; Layout.preferredHeight: 32
                         text: qsTr("复制版本路径"); iconSource: "icons/lucide/clipboard-copy.svg"; iconSize: 14
-                        accentColor: "#2a4590"
+                        accentColor: StyleTokens.accentSubtle
                         font.pixelSize: StyleTokens.fontSizeSm
                         onClicked: {
                             if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }
@@ -474,7 +474,7 @@ Rectangle {
                     ShadowButton {
                         Layout.preferredWidth: 130; Layout.preferredHeight: 32
                         text: qsTr("导出启动脚本"); iconSource: "icons/lucide/terminal.svg"; iconSize: 14
-                        accentColor: "#2a5a40"
+                        accentColor: StyleTokens.successBg
                         font.pixelSize: StyleTokens.fontSizeSm
                         onClicked: {
                             if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }
@@ -497,7 +497,7 @@ Rectangle {
                     Layout.fillWidth: true
                     text: qsTr("导出启动脚本会包含当前登录凭据（正版/外置），请勿分享给他人")
                     font.pixelSize: StyleTokens.fontSizeXs
-                    color: "#8a6d3b"
+                    color: StyleTokens.warning
                     wrapMode: Text.WordWrap
                 }
 
@@ -571,7 +571,7 @@ Rectangle {
                         ShadowButton {
                             Layout.preferredWidth: 80; Layout.preferredHeight: 30
                             text: qsTr("全部启用"); iconSource: "icons/lucide/check-circle.svg"; iconSize: 13
-                            accentColor: "#2a5a40"
+                            accentColor: StyleTokens.successBg
                             font.pixelSize: StyleTokens.fontSizeSm
                             onClicked: {
                                 if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }
@@ -584,7 +584,7 @@ Rectangle {
                         ShadowButton {
                             Layout.preferredWidth: 80; Layout.preferredHeight: 30
                             text: qsTr("全部禁用"); iconSource: "icons/lucide/x-circle.svg"; iconSize: 13
-                            accentColor: "#9a3838"
+                            accentColor: StyleTokens.statusOff
                             font.pixelSize: StyleTokens.fontSizeSm
                             onClicked: {
                                 if (!currentSelectedVersion) { toastManager.show("请先选择一个版本"); return }
@@ -597,7 +597,7 @@ Rectangle {
 
                         // Open folder button
                         Rectangle {
-                            width: 30; height: 30; radius: StyleTokens.radiusMd; color: modFolderBtnH.hovered ? "#222a3a" : "#141820"
+                            width: 30; height: 30; radius: StyleTokens.radiusMd; color: modFolderBtnH.hovered ? StyleTokens.accentSubtle : StyleTokens.accentSubtle
                             border.color: StyleTokens.bgHover
                             scale: modFolderBtnM.pressed ? 0.88 : 1.0
                             Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
@@ -655,8 +655,8 @@ Rectangle {
                                 height: 128
                                 radius: StyleTokens.radiusLg
                                 clip: true
-                                color: cardHover.hovered ? "#121620" : "#0e1018"
-                                border { width: 1; color: cardHover.hovered ? StyleTokens.accent : "#1e2430" }
+                                color: cardHover.hovered ? StyleTokens.accentSubtle : StyleTokens.bgPrimary
+                                border { width: 1; color: cardHover.hovered ? StyleTokens.accent : StyleTokens.accentSubtle }
 
                                 Behavior on color { ColorAnimation { duration: 150 } }
                                 Behavior on border.color { ColorAnimation { duration: 150 } }
@@ -709,7 +709,7 @@ Rectangle {
                                             spacing: 4
                                             Text {
                                                 text: "v" + (model.version || "?")
-                                                font.pixelSize: StyleTokens.fontSizeXs; color: "#6ab04c"
+                                                font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.success
                                                 elide: Text.ElideRight; Layout.fillWidth: true; Layout.minimumWidth: 0
                                             }
                                             Rectangle {
@@ -717,7 +717,7 @@ Rectangle {
                                                 width: loaderText.implicitWidth + 10; height: 16; radius: StyleTokens.radiusXs
                                                 Layout.maximumWidth: 130
                                                 property string _l: (model.loader || "").toLowerCase()
-                                                color: _l === "forge" ? "#c05050" : (_l === "fabric" ? "#3a7a9a" : (_l === "neoforge" ? "#c08050" : (_l === "quilt" ? "#3a8a7a" : (_l === "liteloader" ? "#7070a0" : (_l === "optifine" ? "#8a8a5a" : "#4a6a8a")))))
+                                                color: _l === "forge" ? StyleTokens.textDanger : (_l === "fabric" ? StyleTokens.loaderFabric : (_l === "neoforge" ? StyleTokens.loaderNeoforge : (_l === "quilt" ? StyleTokens.success : (_l === "liteloader" ? StyleTokens.accentHover : (_l === "optifine" ? StyleTokens.loaderOptifine : StyleTokens.loaderDefault)))))
                                                 Text {
                                                     id: loaderText
                                                     anchors.centerIn: parent
@@ -733,7 +733,7 @@ Rectangle {
                                         // Description (2 lines)
                                         Text {
                                             text: model.description || ""
-                                            font.pixelSize: StyleTokens.fontSizeXs; color: "#7880a0"
+                                            font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textSubtle
                                             elide: Text.ElideRight; maximumLineCount: 2; wrapMode: Text.WordWrap
                                             Layout.fillWidth: true; Layout.minimumWidth: 0; Layout.preferredHeight: 28
                                             visible: text !== ""
@@ -744,7 +744,7 @@ Rectangle {
                                             Layout.fillWidth: true; Layout.minimumWidth: 0
                                             Text {
                                                 text: model.fileSizeText || ""
-                                                font.pixelSize: StyleTokens.fontSizeXs; color: "#586080"
+                                                font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textMuted
                                                 elide: Text.ElideRight; Layout.maximumWidth: 120
                                             }
                                             Item { Layout.fillWidth: true }
@@ -752,8 +752,8 @@ Rectangle {
                                             // Toggle enable/disable (rename *.jar ↔ *.jar.disabled, 2026-08-07)
                                             Rectangle {
                                                 width: 44; height: 22; radius: StyleTokens.radiusSm
-                                                color: toggleBtnH.hovered ? "#2a3550" : "#1a2130"
-                                                border.color: toggleBtnH.hovered ? StyleTokens.accent : "#2a3450"
+                                                color: toggleBtnH.hovered ? StyleTokens.infoBg : StyleTokens.accentSubtle
+                                                border.color: toggleBtnH.hovered ? StyleTokens.accent : StyleTokens.infoBg
                                                 border.width: 1
                                                 opacity: cardHover.hovered ? 1.0 : 0.0
                                                 Behavior on opacity { NumberAnimation { duration: 200 } }
@@ -765,7 +765,7 @@ Rectangle {
                                                     anchors.centerIn: parent
                                                     text: model.enabled === false ? qsTr("启用") : qsTr("禁用")
                                                     font.pixelSize: StyleTokens.fontSizeXs
-                                                    color: model.enabled === false ? "#6ab04c" : "#a0a8c0"
+                                                    color: model.enabled === false ? StyleTokens.success : StyleTokens.textTertiary
                                                 }
                                                 MouseArea {
                                                     id: toggleBtnM; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; hoverEnabled: true
@@ -860,7 +860,7 @@ Rectangle {
 
                         // Open folder button
                         Rectangle {
-                            width: 30; height: 30; radius: StyleTokens.radiusMd; color: rpFolderBtnH.hovered ? "#222a3a" : "#141820"
+                            width: 30; height: 30; radius: StyleTokens.radiusMd; color: rpFolderBtnH.hovered ? StyleTokens.accentSubtle : StyleTokens.accentSubtle
                             border.color: StyleTokens.bgHover
                             scale: rpFolderBtnM.pressed ? 0.88 : 1.0
                             Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
@@ -918,8 +918,8 @@ Rectangle {
                                 height: 128
                                 radius: StyleTokens.radiusLg
                                 clip: true
-                                color: rpCardHover.hovered ? "#121620" : "#0e1018"
-                                border { width: 1; color: rpCardHover.hovered ? StyleTokens.accent : "#1e2430" }
+                                color: rpCardHover.hovered ? StyleTokens.accentSubtle : StyleTokens.bgPrimary
+                                border { width: 1; color: rpCardHover.hovered ? StyleTokens.accent : StyleTokens.accentSubtle }
 
                                 Behavior on color { ColorAnimation { duration: 150 } }
                                 Behavior on border.color { ColorAnimation { duration: 150 } }
@@ -968,7 +968,7 @@ Rectangle {
                                         // Version text (green, like Mod page v0.6.10)
                                         Text {
                                             text: model.versionText || ""
-                                            font.pixelSize: StyleTokens.fontSizeXs; color: "#6ab04c"
+                                            font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.success
                                             Layout.fillWidth: true; elide: Text.ElideRight; Layout.minimumWidth: 0
                                             visible: text !== ""
                                         }
@@ -976,7 +976,7 @@ Rectangle {
                                         // Author
                                         Text {
                                             text: model.authorText || ""
-                                            font.pixelSize: StyleTokens.fontSizeXs; color: "#7880a0"
+                                            font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textSubtle
                                             elide: Text.ElideRight; maximumLineCount: 2; wrapMode: Text.WordWrap
                                             Layout.fillWidth: true; Layout.minimumWidth: 0; Layout.preferredHeight: 28
                                             visible: text !== ""
@@ -987,7 +987,7 @@ Rectangle {
                                             Layout.fillWidth: true; Layout.minimumWidth: 0
                                             Text {
                                                 text: model.fileSizeText || ""
-                                                font.pixelSize: StyleTokens.fontSizeXs; color: "#586080"
+                                                font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textMuted
                                                 elide: Text.ElideRight; Layout.maximumWidth: 120
                                             }
                                             Item { Layout.fillWidth: true }
@@ -1055,7 +1055,7 @@ Rectangle {
 
                     // Open folder button
                     Rectangle {
-                        width: 30; height: 30; radius: StyleTokens.radiusMd; color: saveFolderBtnH.hovered ? "#222a3a" : "#141820"
+                        width: 30; height: 30; radius: StyleTokens.radiusMd; color: saveFolderBtnH.hovered ? StyleTokens.accentSubtle : StyleTokens.accentSubtle
                         border.color: StyleTokens.bgHover
                         scale: saveFolderBtnM.pressed ? 0.88 : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
@@ -1108,9 +1108,9 @@ Rectangle {
                         Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
                         RowLayout {
                             anchors.fill: parent; anchors.margins: 10; spacing: 10
-                            Text { text: name; font.pixelSize: StyleTokens.fontSizeSm; color: "#d4d8e8"; Layout.fillWidth: true; elide: Text.ElideRight }
+                            Text { text: name; font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSecondary; Layout.fillWidth: true; elide: Text.ElideRight }
                             Text { text: sizeDisplay; font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textTertiary }
-                            Rectangle { width: 60; height: 24; radius: StyleTokens.radiusXs; color: "transparent"; border.color: "#4a2828"
+                            Rectangle { width: 60; height: 24; radius: StyleTokens.radiusXs; color: "transparent"; border.color: StyleTokens.errorBg
                                 Row { anchors.centerIn: parent; spacing: 3
                                 Image { source: "icons/lucide/trash-2.svg"; width: 12; height: 12; anchors.verticalCenter: parent.verticalCenter }
                                 Text { text: qsTr("删除"); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textDanger }
@@ -1142,7 +1142,7 @@ Rectangle {
                 // Start button
                 Rectangle {
                     width: 140; height: 36; radius: StyleTokens.radiusMd
-                    color: versionSettingsOverlay._verifyRunning ? StyleTokens.borderLight : (verifyBtnMouse.containsMouse ? "#2563EB" : StyleTokens.accent)
+                    color: versionSettingsOverlay._verifyRunning ? StyleTokens.borderLight : (verifyBtnMouse.containsMouse ? StyleTokens.accent : StyleTokens.accent)
                     scale: verifyBtnMouse.containsMouse && !versionSettingsOverlay._verifyRunning ? 1.04 : 1.0
                     Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                     Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
@@ -1164,7 +1164,7 @@ Rectangle {
                         Rectangle {
                             height: 8; radius: StyleTokens.radiusSm
                             width: versionSettingsOverlay._verifyProgressTotal > 0 ? parent.width * (versionSettingsOverlay._verifyProgressDone / versionSettingsOverlay._verifyProgressTotal) : 0
-                            color: versionSettingsOverlay._verifyRunning ? "#6080e8" : (versionSettingsOverlay._verifyProgressDone === versionSettingsOverlay._verifyProgressTotal ? StyleTokens.success : "#c05050")
+                            color: versionSettingsOverlay._verifyRunning ? StyleTokens.accentLight : (versionSettingsOverlay._verifyProgressDone === versionSettingsOverlay._verifyProgressTotal ? StyleTokens.success : StyleTokens.textDanger)
                             Behavior on width { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                         }
                     }
@@ -1187,7 +1187,7 @@ Rectangle {
                     Layout.fillWidth: true
                     height: 40; radius: StyleTokens.radiusMd
                     color: StyleTokens.errorBg
-                    border.color: "#804040"
+                    border.color: StyleTokens.statusOff
                     border.width: 1
                     visible: versionSettingsOverlay._verifyHasFailed && versionSettingsOverlay._verifyFailedFiles.length > 0
                     RowLayout {
@@ -1195,7 +1195,7 @@ Rectangle {
                         spacing: 8
                         Text {
                             text: "✗ " + qsTr("检测到 ") + versionSettingsOverlay._verifyFailedFiles.length + " 个文件异常"
-                            font.pixelSize: StyleTokens.fontSizeSm; color: "#ff8080"
+                            font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.errorLight
                         }
                     }
                 }
@@ -1209,7 +1209,7 @@ Rectangle {
                     Rectangle {
                         width: 140; height: 36; radius: StyleTokens.radiusMd
                         color: "transparent"
-                        border.color: repairBtnHover.hovered ? "#ff8c42" : "#c06420"
+                        border.color: repairBtnHover.hovered ? StyleTokens.warning : StyleTokens.warning
                         border.width: 1.5
                         Row {
                             anchors.centerIn: parent; spacing: 6
@@ -1219,7 +1219,7 @@ Rectangle {
                                 sourceSize.width: 14; sourceSize.height: 14
                                 anchors.verticalCenter: parent.verticalCenter
                             }
-                            Text { text: qsTr("一键修复"); font.pixelSize: StyleTokens.fontSizeSm; color: repairBtnHover.hovered ? "#ff8c42" : "#e08050" }
+                            Text { text: qsTr("一键修复"); font.pixelSize: StyleTokens.fontSizeSm; color: repairBtnHover.hovered ? StyleTokens.warning : StyleTokens.warning }
                         }
                         HoverHandler { id: repairBtnHover }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
@@ -1238,9 +1238,9 @@ Rectangle {
                     Rectangle {
                         width: 140; height: 36; radius: StyleTokens.radiusMd
                         color: "transparent"
-                        border.color: reportBtnHover.hovered ? "#ff8080" : "#804040"
+                        border.color: reportBtnHover.hovered ? StyleTokens.errorLight : StyleTokens.statusOff
                         border.width: 1.5
-                        Text { anchors.centerIn: parent; text: qsTr("[详情] 查看异常详情"); font.pixelSize: StyleTokens.fontSizeSm; color: reportBtnHover.hovered ? "#ff8080" : "#e07070" }
+                        Text { anchors.centerIn: parent; text: qsTr("[详情] 查看异常详情"); font.pixelSize: StyleTokens.fontSizeSm; color: reportBtnHover.hovered ? StyleTokens.errorLight : StyleTokens.errorLight }
                         HoverHandler { id: reportBtnHover }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                             onClicked: {
@@ -1253,12 +1253,12 @@ Rectangle {
                 Item { height: 12; width: 1 }
 
                 // Version tools
-                Text { text: qsTr("版本工具"); font.pixelSize: StyleTokens.fontSizeXs; color: "#9ca0b4"; font.letterSpacing: 1.5 }
+                Text { text: qsTr("版本工具"); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textTertiary; font.letterSpacing: 1.5 }
                 Flow {
                     Layout.fillWidth: true; spacing: 8
 
                     // Clone
-                    Rectangle { width: 110; height: 32; radius: StyleTokens.radiusSm; color: cloneHover.hovered ? StyleTokens.accentSubtle : "#0d1018"; border.color: StyleTokens.bgCard
+                    Rectangle { width: 110; height: 32; radius: StyleTokens.radiusSm; color: cloneHover.hovered ? StyleTokens.accentSubtle : StyleTokens.bgPrimary; border.color: StyleTokens.bgCard
                         Text { anchors.centerIn: parent; text: qsTr("克隆版本"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSecondary }
                         HoverHandler { id: cloneHover }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
@@ -1277,7 +1277,7 @@ Rectangle {
                     }
 
                     // Rename
-                    Rectangle { width: 110; height: 32; radius: StyleTokens.radiusSm; color: renameHover.hovered ? StyleTokens.accentSubtle : "#0d1018"; border.color: StyleTokens.bgCard
+                    Rectangle { width: 110; height: 32; radius: StyleTokens.radiusSm; color: renameHover.hovered ? StyleTokens.accentSubtle : StyleTokens.bgPrimary; border.color: StyleTokens.bgCard
                         Text { anchors.centerIn: parent; text: qsTr("重命名版本"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSecondary }
                         HoverHandler { id: renameHover }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
@@ -1289,7 +1289,7 @@ Rectangle {
                     }
 
                     // Migrate (disabled until implemented properly)
-                    Rectangle { width: 110; height: 32; radius: StyleTokens.radiusSm; color: "#0d1018"; border.color: StyleTokens.surfaceOverlay
+                    Rectangle { width: 110; height: 32; radius: StyleTokens.radiusSm; color: StyleTokens.bgPrimary; border.color: StyleTokens.surfaceOverlay
                         Text { anchors.centerIn: parent; text: qsTr("迁移目录"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textMuted }
                     }
 
@@ -1302,8 +1302,8 @@ Rectangle {
                             id: exportBtn
                             visible: !isExporting
                             width: 110; height: 32; radius: StyleTokens.radiusSm
-                            color: exportHover.containsMouse ? StyleTokens.accentSubtle : "#0d1018"
-                            border.color: exportHover.containsMouse ? "#7c3aed" : StyleTokens.bgCard
+                            color: exportHover.containsMouse ? StyleTokens.accentSubtle : StyleTokens.bgPrimary
+                            border.color: exportHover.containsMouse ? StyleTokens.accentViolet : StyleTokens.bgCard
                             Behavior on color { ColorAnimation { duration: 200 } }
                             Behavior on border.color { ColorAnimation { duration: 200 } }
                             scale: exportHover.containsMouse ? 1.05 : 1.0
@@ -1337,7 +1337,7 @@ Rectangle {
                                 }
                                 Text {
                                     text: qsTr("导出用户数据")
-                                    font.pixelSize: StyleTokens.fontSizeSm; color: "#b4a0f0"
+                                    font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.accentLink
                                     anchors.verticalCenter: parent.verticalCenter
                                 }
                             }
@@ -1348,7 +1348,7 @@ Rectangle {
                             id: exportProgress
                             visible: isExporting
                             width: 220; height: 32; radius: StyleTokens.radiusSm
-                            color: "#141028"; border.color: StyleTokens.bgHover
+                            color: StyleTokens.accentSubtle; border.color: StyleTokens.bgHover
                             clip: true
 
                             // Fill bar
@@ -1368,13 +1368,13 @@ Rectangle {
                                 }
                                 Text {
                                     text: "导出中: " + exportStatus
-                                    font.pixelSize: StyleTokens.fontSizeXs; color: "#b4a0f0"
+                                    font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.accentLink
                                     elide: Text.ElideRight
                                     Layout.maximumWidth: 130
                                 }
                                 Text {
                                     text: exportPct + "%"
-                                    font.pixelSize: StyleTokens.fontSizeXs; font.weight: Font.Bold; color: "#a78bfa"
+                                    font.pixelSize: StyleTokens.fontSizeXs; font.weight: Font.Bold; color: StyleTokens.accentLink
                                 }
                             }
                         }
@@ -1389,7 +1389,7 @@ Rectangle {
                     Layout.fillWidth: true; height: 36; radius: StyleTokens.radiusMd; color: "transparent"; border.color: StyleTokens.surfaceLight
                     scale: delVerHover.containsMouse ? 1.02 : 1.0
                     Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                    Text { anchors.left: parent.left; anchors.leftMargin: 14; anchors.verticalCenter: parent.verticalCenter; text: qsTr("删除此版本"); font.pixelSize: StyleTokens.fontSizeMd; color: delVerHover.containsMouse ? "#f05050" : "#c05050" }
+                    Text { anchors.left: parent.left; anchors.leftMargin: 14; anchors.verticalCenter: parent.verticalCenter; text: qsTr("删除此版本"); font.pixelSize: StyleTokens.fontSizeMd; color: delVerHover.containsMouse ? StyleTokens.error : StyleTokens.textDanger }
                     MouseArea {
                         id: delVerHover
                         anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
@@ -1440,7 +1440,7 @@ function _showToast(msg) {
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.bottom: parent.bottom; anchors.bottomMargin: 24
             width: _toastLabel.implicitWidth + 32; height: 36; radius: StyleTokens.radiusLg
-            color: "#222840"; border.color: StyleTokens.accent; border.width: 1
+            color: StyleTokens.accentSubtle; border.color: StyleTokens.accent; border.width: 1
             opacity: _toastVisible ? 1 : 0; z: 100
             visible: opacity > 0
             Behavior on opacity { NumberAnimation { duration: 200 } }
@@ -1470,14 +1470,14 @@ function _showToast(msg) {
             // Backdrop (semi-transparent)
             Rectangle {
                 anchors.fill: parent
-                color: "#000000"; opacity: _confirmVisible ? 0.55 : 0
+                color: StyleTokens.scrim; opacity: _confirmVisible ? 0.55 : 0
                 Behavior on opacity { NumberAnimation { duration: 150 } }
                 MouseArea { anchors.fill: parent; onClicked: _confirmVisible = false }
             }
             // Panel (fully opaque sibling)
             Rectangle {
                 anchors.centerIn: parent; width: 360; height: 190; radius: StyleTokens.radiusLg
-                color: StyleTokens.surfaceOverlay; border.color: "#2a1f24"; border.width: 1
+                color: StyleTokens.surfaceOverlay; border.color: StyleTokens.errorBg; border.width: 1
                 ColumnLayout {
                     anchors.fill: parent; anchors.margins: 20; spacing: 12
                     Text { text: _confirmTitle; font.pixelSize: StyleTokens.fontSizeLg; font.weight: Font.Bold; color: StyleTokens.textSecondary }
@@ -1520,7 +1520,7 @@ function _showToast(msg) {
             // Backdrop (semi-transparent)
             Rectangle {
                 anchors.fill: parent
-                color: "#000000"; opacity: _renameVisible ? 0.55 : 0
+                color: StyleTokens.scrim; opacity: _renameVisible ? 0.55 : 0
                 Behavior on opacity { NumberAnimation { duration: 150 } }
                 MouseArea { anchors.fill: parent; onClicked: _renameVisible = false }
             }
@@ -1533,7 +1533,7 @@ function _showToast(msg) {
                     Text { text: "重命名版本"; font.pixelSize: StyleTokens.fontSizeLg; font.weight: Font.Bold; color: StyleTokens.textSecondary }
                     Text { text: "请输入新的版本名称"; font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary }
                     Rectangle {
-                        Layout.fillWidth: true; height: 36; radius: StyleTokens.radiusMd; color: "#1a1d28"; border.color: StyleTokens.bgHover
+                        Layout.fillWidth: true; height: 36; radius: StyleTokens.radiusMd; color: StyleTokens.accentSubtle; border.color: StyleTokens.bgHover
                         TextInput {
                             anchors.fill: parent; anchors.margins: 10
                             text: _renameNewId; font.pixelSize: StyleTokens.fontSizeMd; color: StyleTokens.textSecondary

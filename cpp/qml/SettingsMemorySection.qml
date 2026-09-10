@@ -99,8 +99,8 @@ Item {
         // ═══ 选项 1: 自动配置 ═══
         Rectangle {
             Layout.fillWidth: true; Layout.preferredHeight: 48; radius: StyleTokens.radiusMd
-            color: allocMode === 0 ? "#181F30" : "#0f111a"
-            border.color: allocMode === 0 ? "#4A8FE7" : StyleTokens.bgInput
+            color: allocMode === 0 ? StyleTokens.accentSubtle : StyleTokens.bgSecondary
+            border.color: allocMode === 0 ? StyleTokens.accentVivid : StyleTokens.bgInput
             border.width: allocMode === 0 ? 1.5 : 1
             Behavior on color { ColorAnimation { duration: 200 } }
             Behavior on border.color { ColorAnimation { duration: 200 } }
@@ -115,12 +115,12 @@ Item {
                     Layout.fillWidth: true; spacing: 8
                     Rectangle {
                         width: 16; height: 16; radius: StyleTokens.radiusLg
-                        color: allocMode === 0 ? "#4A8FE7" : "#2a2f3a"
+                        color: allocMode === 0 ? StyleTokens.accentVivid : StyleTokens.accentSubtle
                     }
                     Text {
                         text: qsTr("自动配置")
                         font.pixelSize: StyleTokens.fontSizeMd; font.weight: allocMode === 0 ? Font.Medium : Font.Normal
-                        color: allocMode === 0 ? StyleTokens.textPrimary : "#8890a0"
+                        color: allocMode === 0 ? StyleTokens.textPrimary : StyleTokens.textSubtle
                     }
                 }
                 Text {
@@ -147,8 +147,8 @@ Item {
         Rectangle {
             id: customRow
             Layout.fillWidth: true; Layout.preferredHeight: allocMode === 1 ? 84 : 48; radius: StyleTokens.radiusMd
-            color: allocMode === 1 ? "#181F30" : "#0f111a"
-            border.color: allocMode === 1 ? "#4A8FE7" : StyleTokens.bgInput
+            color: allocMode === 1 ? StyleTokens.accentSubtle : StyleTokens.bgSecondary
+            border.color: allocMode === 1 ? StyleTokens.accentVivid : StyleTokens.bgInput
             border.width: allocMode === 1 ? 1.5 : 1
             Behavior on color { ColorAnimation { duration: 200 } }
             Behavior on border.color { ColorAnimation { duration: 200 } }
@@ -166,12 +166,12 @@ Item {
                     Layout.fillWidth: true; spacing: 8
                     Rectangle {
                         width: 16; height: 16; radius: StyleTokens.radiusLg
-                        color: allocMode === 1 ? "#4A8FE7" : "#2a2f3a"
+                        color: allocMode === 1 ? StyleTokens.accentVivid : StyleTokens.accentSubtle
                     }
                     Text {
                         text: qsTr("自定义")
                         font.pixelSize: StyleTokens.fontSizeMd; font.weight: allocMode === 1 ? Font.Medium : Font.Normal
-                        color: allocMode === 1 ? StyleTokens.textPrimary : "#8890a0"
+                        color: allocMode === 1 ? StyleTokens.textPrimary : StyleTokens.textSubtle
                     }
                     Item { Layout.fillWidth: true }
                     Text {
@@ -221,7 +221,7 @@ Item {
                         id: knob
                         width: 18; height: 18; radius: StyleTokens.radiusLg
                         anchors.verticalCenter: parent.verticalCenter
-                        color: dragArea.drag.active ? "#7BA8F0" : "#5A9CF0"
+                        color: dragArea.drag.active ? StyleTokens.accentLink : StyleTokens.info
                         border.color: StyleTokens.textInverse; border.width: 1.5
                         x: ((customMB - 512) / (sliderMax() - 512)) * (track.width - width)
                         visible: allocMode === 1; opacity: allocMode === 1 ? 1 : 0
@@ -325,7 +325,7 @@ Item {
                     anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
                     height: 6; radius: StyleTokens.radiusXs
                     width: Math.max(0, parent.width * barContainer.usedW)
-                    color: "#4E88C8"
+                    color: StyleTokens.accentVivid
                     Behavior on width { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
                 }
 
@@ -337,7 +337,7 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     height: 6; radius: StyleTokens.radiusXs
                     width: Math.max(0, parent.width * barContainer.gameW - 3)
-                    color: "#88B8E0"
+                    color: StyleTokens.accentLink
                     Behavior on width { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
                     Behavior on anchors.leftMargin { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
                 }
@@ -349,7 +349,7 @@ Item {
                 x: 18
                 y: 40
                 text: sysUsedGB() + " GB / " + sysTotalGB() + " GB"
-                font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Medium; color: "#C0C8D8"
+                font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Medium; color: StyleTokens.textSecondary
             }
             Text {
                 id: gameNum
@@ -358,7 +358,7 @@ Item {
                 x: Math.min(Math.max(_anchorX, usedNum.x + usedNum.width + 10), barContainer.width - implicitWidth - 18)
                 y: 40
                 text: gameAllocGB() + " GB"
-                font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Medium; color: "#9CB8E0"
+                font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.Medium; color: StyleTokens.accentLink
                 Behavior on x { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
             }
         }

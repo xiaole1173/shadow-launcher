@@ -1,0 +1,2848 @@
+{
+ "mapping": {
+  "#4a8fe7": "accentVivid",
+  "#c05050": "textDanger",
+  "#6080e8": "accentLight",
+  "#ffffff": "textInverse",
+  "#141820": "surfaceOverlay",
+  "#1a1d24": "surfaceLight",
+  "#5068c8": "accentHover",
+  "#1e2230": "bgElevated",
+  "#1a3a5c": "infoBg",
+  "#5098e8": "info",
+  "#1a3a1a": "successBg",
+  "#ef4444": "error",
+  "#2a3040": "bgHover",
+  "#0c0f16": "bgPrimary",
+  "#11141c": "bgSecondary",
+  "#1a1f2e": "bgCard",
+  "#1a1f2a": "bgInput",
+  "#e8ecf8": "textPrimary",
+  "#e4e8f2": "textSecondary",
+  "#a8b0c0": "textTertiary",
+  "#8088a0": "textSubtle",
+  "#505468": "textMuted",
+  "#3b82f6": "accent",
+  "#8aaeff": "accentLink",
+  "#1a2848": "accentSubtle",
+  "#4bc870": "success",
+  "#ff9800": "warning",
+  "#3a3000": "warningBg",
+  "#3a1a1a": "errorBg",
+  "#e06060": "errorLight",
+  "#0a0a12": "shadowColor",
+  "#2a2f3a": "bgHover",
+  "#0d1018": "bgPrimary",
+  "#7888a8": "textSubtle",
+  "#181f30": "bgCard",
+  "#0f111a": "bgSecondary",
+  "#161a24": "surfaceLight",
+  "#0e1018": "bgPrimary",
+  "#1a2440": "accentSubtle",
+  "#121620": "surfaceOverlay",
+  "#151922": "surfaceOverlay",
+  "#161a26": "surfaceLight",
+  "#1a202c": "bgCard",
+  "#0e1118": "bgPrimary",
+  "#1e2840": "accentSubtle",
+  "#151c30": "bgCard",
+  "#141a24": "surfaceOverlay",
+  "#151a24": "surfaceOverlay",
+  "#3a1518": "errorBg",
+  "#3a1818": "errorBg",
+  "#505868": "textMuted",
+  "#808aa0": "textSubtle",
+  "#191e2a": "bgInput",
+  "#1e2430": "bgElevated",
+  "#2a2e42": "bgHover",
+  "#2a2a3a": "bgHover",
+  "#192650": "accentSubtle",
+  "#0d1117": "bgPrimary",
+  "#1a2030": "bgCard",
+  "#1a1e28": "bgInput",
+  "#12151c": "bgSecondary",
+  "#111520": "bgSecondary",
+  "#0e111a": "bgSecondary",
+  "#121418": "bgSecondary",
+  "#252835": "bgElevated",
+  "#151830": "bgCard",
+  "#f01e1f26": "surfaceLight",
+  "#0a0c12": "shadowColor",
+  "#151a26": "surfaceLight",
+  "#253545": "bgHover",
+  "#1a1a24": "surfaceLight",
+  "#151520": "surfaceOverlay",
+  "#1a1e2a": "bgInput",
+  "#1e2a40": "accentSubtle",
+  "#301a1a": "errorBg",
+  "#181c28": "bgInput",
+  "#3a2020": "errorBg",
+  "#0c0e14": "bgPrimary",
+  "#505568": "textMuted",
+  "#808898": "textSubtle",
+  "#123a22": "successBg",
+  "#1e212a": "bgInput",
+  "#e0e4f8": "textSecondary",
+  "#e4e8fc": "textPrimary",
+  "#1a2130": "bgCard",
+  "#222840": "accentSubtle",
+  "#1a1d28": "bgInput",
+  "#1a2434": "bgElevated"
+ },
+ "far": {
+  "#b4bac6": {
+   "count": 20,
+   "token": "textTertiary",
+   "token_hex": "#a8b0c0",
+   "dist": 28.2,
+   "files": [
+    "SettingsGeneralPage.qml",
+    "SettingsJavaPage.qml",
+    "ShadowDropdown.qml",
+    "VersionSelectPage.qml",
+    "VersionSettingsPage.qml"
+   ]
+  },
+  "#7e8596": {
+   "count": 19,
+   "token": "textSubtle",
+   "token_hex": "#8088a0",
+   "dist": 18.5,
+   "files": [
+    "HomePage.qml",
+    "SettingsGeneralPage.qml",
+    "SettingsJavaPage.qml",
+    "VersionSelectOverlay.qml",
+    "VersionSelectPage.qml",
+    "VersionSettingsPage.qml"
+   ]
+  },
+  "#8890a0": {
+   "count": 15,
+   "token": "textSubtle",
+   "token_hex": "#8088a0",
+   "dist": 19.6,
+   "files": [
+    "InstallConfigOverlay.qml",
+    "ModDetailPage.qml",
+    "SettingsMemoryPage.qml",
+    "SettingsMemorySection.qml",
+    "SettingsPage.qml",
+    "VersionMemorySection.qml"
+   ]
+  },
+  "#d0d4e0": {
+   "count": 13,
+   "token": "textSecondary",
+   "token_hex": "#e4e8f2",
+   "dist": 58.1,
+   "files": [
+    "DetailVersionCard.qml",
+    "DownloadCard.qml",
+    "DownloadPage.qml",
+    "JavaPage.qml",
+    "LaunchOverlay.qml",
+    "SettingsExperimentalPage.qml",
+    "ShadowIconButton.qml",
+    "VersionCard.qml"
+   ]
+  },
+  "#44ff44": {
+   "count": 12,
+   "token": "success",
+   "token_hex": "#4bc870",
+   "dist": 134.2,
+   "files": [
+    "JavaPage.qml"
+   ]
+  },
+  "#a0a8c0": {
+   "count": 11,
+   "token": "textTertiary",
+   "token_hex": "#a8b0c0",
+   "dist": 19.6,
+   "files": [
+    "DataPackDetailPage.qml",
+    "InstallPage.qml",
+    "ModDetailPage.qml",
+    "ResourcePackDetailPage.qml",
+    "SettingsExperimentalPage.qml",
+    "ShaderDetailPage.qml",
+    "VersionSettingsOverlay.qml"
+   ]
+  },
+  "#606478": {
+   "count": 10,
+   "token": "textMuted",
+   "token_hex": "#505468",
+   "dist": 48.0,
+   "files": [
+    "DataPackDetailPage.qml",
+    "DetailVersionCard.qml",
+    "DownloadPage.qml",
+    "LaunchOverlay.qml",
+    "LoadStatus.qml",
+    "ModDetailPage.qml",
+    "PaginationFooter.qml",
+    "ResourcePackDetailPage.qml",
+    "ShaderDetailPage.qml",
+    "StatsPage.qml"
+   ]
+  },
+  "#687080": {
+   "count": 10,
+   "token": "textMuted",
+   "token_hex": "#505468",
+   "dist": 77.6,
+   "files": [
+    "DownloadCard.qml",
+    "FilterCard.qml",
+    "JavaPage.qml",
+    "ModLoaderCard.qml"
+   ]
+  },
+  "#3a50b0": {
+   "count": 9,
+   "token": "accentHover",
+   "token_hex": "#5068c8",
+   "dist": 70.7,
+   "files": [
+    "DataPackDetailPage.qml",
+    "InstallPage.qml",
+    "ModDetailPage.qml",
+    "ModLoaderCard.qml",
+    "ModpackDetailPage.qml",
+    "ResourcePackDetailPage.qml",
+    "ShaderDetailPage.qml"
+   ]
+  },
+  "#707888": {
+   "count": 9,
+   "token": "textSubtle",
+   "token_hex": "#8088a0",
+   "dist": 57.1,
+   "files": [
+    "SettingsExperimentalPage.qml",
+    "SettingsPage.qml",
+    "StatsPage.qml"
+   ]
+  },
+  "#000000": {
+   "count": 7,
+   "token": "shadowColor",
+   "token_hex": "#0a0a12",
+   "dist": 39.6,
+   "files": [
+    "BackgroundCropOverlay.qml",
+    "ConfirmDialog.qml",
+    "InstallPage.qml",
+    "MainWindow.qml",
+    "VersionSettingsOverlay.qml"
+   ]
+  },
+  "#252a38": {
+   "count": 7,
+   "token": "bgHover",
+   "token_hex": "#2a3040",
+   "dist": 19.6,
+   "files": [
+    "BackgroundCropOverlay.qml",
+    "FilterCard.qml",
+    "LoadingSpinner.qml",
+    "PaginationFooter.qml",
+    "SettingsExperimentalPage.qml"
+   ]
+  },
+  "#788090": {
+   "count": 7,
+   "token": "textSubtle",
+   "token_hex": "#8088a0",
+   "dist": 33.9,
+   "files": [
+    "DetailVersionCard.qml",
+    "DownloadCard.qml",
+    "DownloadCardTagRow.qml",
+    "DownloadQueueCard.qml",
+    "ShadowDropdown.qml"
+   ]
+  },
+  "#b8c0d0": {
+   "count": 7,
+   "token": "textTertiary",
+   "token_hex": "#a8b0c0",
+   "dist": 48.0,
+   "files": [
+    "InstallConfigOverlay.qml",
+    "MainWindow.qml",
+    "SettingsPage.qml"
+   ]
+  },
+  "#884444": {
+   "count": 7,
+   "token": "textDanger",
+   "token_hex": "#c05050",
+   "dist": 85.3,
+   "files": [
+    "JavaPage.qml"
+   ]
+  },
+  "#5a6173": {
+   "count": 7,
+   "token": "textMuted",
+   "token_hex": "#505468",
+   "dist": 35.2,
+   "files": [
+    "SettingsGeneralPage.qml",
+    "SettingsJavaPage.qml",
+    "SettingsMemoryPage.qml",
+    "VersionMemorySection.qml",
+    "VersionSettingsPage.qml"
+   ]
+  },
+  "#6090d0": {
+   "count": 6,
+   "token": "info",
+   "token_hex": "#5098e8",
+   "dist": 50.0,
+   "files": [
+    "AgreementOverlay.qml",
+    "LaunchOverlay.qml"
+   ]
+  },
+  "#3a5ed0": {
+   "count": 6,
+   "token": "accentHover",
+   "token_hex": "#5068c8",
+   "dist": 39.5,
+   "files": [
+    "DataPackDetailPage.qml",
+    "DetailLinkBar.qml",
+    "InstallPage.qml",
+    "ModDetailPage.qml",
+    "SettingsExperimentalPage.qml"
+   ]
+  },
+  "#4caf50": {
+   "count": 6,
+   "token": "success",
+   "token_hex": "#4bc870",
+   "dist": 74.7,
+   "files": [
+    "DebugPanel.qml",
+    "DebugWindow.qml"
+   ]
+  },
+  "#f44336": {
+   "count": 6,
+   "token": "error",
+   "token_hex": "#ef4444",
+   "dist": 25.3,
+   "files": [
+    "DebugPanel.qml",
+    "DebugWindow.qml"
+   ]
+  },
+  "#9094a8": {
+   "count": 6,
+   "token": "textSubtle",
+   "token_hex": "#8088a0",
+   "dist": 35.8,
+   "files": [
+    "DownloadPage.qml",
+    "FilterCard.qml",
+    "LabeledDropdown.qml",
+    "LaunchOverlay.qml",
+    "ShadowDropdown.qml"
+   ]
+  },
+  "#80000000": {
+   "count": 6,
+   "token": "shadowColor",
+   "token_hex": "#0a0a12",
+   "dist": 103.1,
+   "files": [
+    "GenericPopup.qml",
+    "HomePage.qml",
+    "ModpackDetailPage.qml",
+    "ModpackImportOverlay.qml",
+    "ProfileSelectPopup.qml",
+    "SelectionPopup.qml"
+   ]
+  },
+  "#4a5ec8": {
+   "count": 6,
+   "token": "accentHover",
+   "token_hex": "#5068c8",
+   "dist": 21.7,
+   "files": [
+    "HomePage.qml",
+    "SettingsJavaPage.qml",
+    "VersionSelectOverlay.qml",
+    "VersionSettingsOverlay.qml"
+   ]
+  },
+  "#c0c8d8": {
+   "count": 6,
+   "token": "textTertiary",
+   "token_hex": "#a8b0c0",
+   "dist": 72.0,
+   "files": [
+    "InstallPage.qml",
+    "PaginationFooter.qml",
+    "SettingsMemoryPage.qml",
+    "SettingsMemorySection.qml",
+    "VersionMemorySection.qml",
+    "VersionSelectOverlay.qml"
+   ]
+  },
+  "#f59e0b": {
+   "count": 6,
+   "token": "warning",
+   "token_hex": "#ff9800",
+   "dist": 26.6,
+   "files": [
+    "MultiplayerPlayerCard.qml",
+    "MultiplayerRoomCodeCard.qml",
+    "MultiplayerStateIndicator.qml",
+    "SettingsGeneralPage.qml",
+    "VersionSelectPage.qml"
+   ]
+  },
+  "#2a4590": {
+   "count": 6,
+   "token": "textMuted",
+   "token_hex": "#505468",
+   "dist": 92.7,
+   "files": [
+    "VersionSettingsOverlay.qml"
+   ]
+  },
+  "#7880a0": {
+   "count": 5,
+   "token": "textSubtle",
+   "token_hex": "#8088a0",
+   "dist": 19.6,
+   "files": [
+    "AgreementOverlay.qml",
+    "VersionSettingsOverlay.qml"
+   ]
+  },
+  "#2a3a68": {
+   "count": 5,
+   "token": "infoBg",
+   "token_hex": "#1a3a5c",
+   "dist": 30.7,
+   "files": [
+    "BackgroundCropOverlay.qml",
+    "DataPackDetailPage.qml",
+    "ModpackDetailPage.qml",
+    "ResourcePackDetailPage.qml",
+    "ShaderDetailPage.qml"
+   ]
+  },
+  "#5b8def": {
+   "count": 5,
+   "token": "accentVivid",
+   "token_hex": "#4a8fe7",
+   "dist": 28.0,
+   "files": [
+    "DataPackDetailPage.qml",
+    "MinecraftHead2D.qml",
+    "ModDetailPage.qml",
+    "ResourcePackDetailPage.qml",
+    "ShaderDetailPage.qml"
+   ]
+  },
+  "#9ca0b4": {
+   "count": 5,
+   "token": "textTertiary",
+   "token_hex": "#a8b0c0",
+   "dist": 41.8,
+   "files": [
+    "ExportModpackSection.qml",
+    "VersionSelectOverlay.qml",
+    "VersionSettingsOverlay.qml"
+   ]
+  },
+  "#9498a8": {
+   "count": 5,
+   "token": "textSubtle",
+   "token_hex": "#8088a0",
+   "dist": 44.9,
+   "files": [
+    "HomePage.qml",
+    "MainWindow.qml"
+   ]
+  },
+  "#5068d8": {
+   "count": 5,
+   "token": "accentHover",
+   "token_hex": "#5068c8",
+   "dist": 27.7,
+   "files": [
+    "InstallConfigOverlay.qml",
+    "SettingsJavaPage.qml",
+    "StatsPage.qml"
+   ]
+  },
+  "#606878": {
+   "count": 5,
+   "token": "textMuted",
+   "token_hex": "#505468",
+   "dist": 53.7,
+   "files": [
+    "InstallPage.qml",
+    "ModLoaderCard.qml",
+    "VersionSelectOverlay.qml"
+   ]
+  },
+  "#885555": {
+   "count": 5,
+   "token": "textDanger",
+   "token_hex": "#c05050",
+   "dist": 80.3,
+   "files": [
+    "JavaPage.qml"
+   ]
+  },
+  "#ff8080": {
+   "count": 5,
+   "token": "errorLight",
+   "token_hex": "#e06060",
+   "dist": 95.3,
+   "files": [
+    "LaunchOverlay.qml",
+    "VersionSettingsOverlay.qml",
+    "VersionSettingsPage.qml"
+   ]
+  },
+  "#2563eb": {
+   "count": 5,
+   "token": "accent",
+   "token_hex": "#3b82f6",
+   "dist": 71.9,
+   "files": [
+    "SettingsGeneralPage.qml",
+    "VersionSelectPage.qml",
+    "VersionSettingsOverlay.qml",
+    "VersionSettingsPage.qml"
+   ]
+  },
+  "#9088e0": {
+   "count": 4,
+   "token": "accentLight",
+   "token_hex": "#6080e8",
+   "dist": 71.1,
+   "files": [
+    "DataPackDetailPage.qml",
+    "DownloadCard.qml",
+    "FilterCard.qml",
+    "ModpackDetailPage.qml"
+   ]
+  },
+  "#3fb950": {
+   "count": 4,
+   "token": "success",
+   "token_hex": "#4bc870",
+   "dist": 65.3,
+   "files": [
+    "DownloadQueueCard.qml"
+   ]
+  },
+  "#aa6666": {
+   "count": 4,
+   "token": "textDanger",
+   "token_hex": "#c05050",
+   "dist": 66.0,
+   "files": [
+    "JavaPage.qml"
+   ]
+  },
+  "#88aadd": {
+   "count": 4,
+   "token": "accentLink",
+   "token_hex": "#8aaeff",
+   "dist": 59.5,
+   "files": [
+    "JavaPage.qml"
+   ]
+  },
+  "#ffaa00": {
+   "count": 4,
+   "token": "warning",
+   "token_hex": "#ff9800",
+   "dist": 36.0,
+   "files": [
+    "JavaPage.qml"
+   ]
+  },
+  "#664400": {
+   "count": 4,
+   "token": "warningBg",
+   "token_hex": "#3a3000",
+   "dist": 74.0,
+   "files": [
+    "JavaPage.qml"
+   ]
+  },
+  "#222a3a": {
+   "count": 4,
+   "token": "bgHover",
+   "token_hex": "#2a3040",
+   "dist": 19.5,
+   "files": [
+    "RefreshButton.qml",
+    "VersionSettingsOverlay.qml"
+   ]
+  },
+  "#a098e0": {
+   "count": 4,
+   "token": "textTertiary",
+   "token_hex": "#a8b0c0",
+   "dist": 74.2,
+   "files": [
+    "SettingsExperimentalPage.qml"
+   ]
+  },
+  "#4a6a8a": {
+   "count": 4,
+   "token": "textMuted",
+   "token_hex": "#505468",
+   "dist": 74.0,
+   "files": [
+    "VersionSettingsOverlay.qml"
+   ]
+  },
+  "#d08080": {
+   "count": 3,
+   "token": "errorLight",
+   "token_hex": "#e06060",
+   "dist": 87.6,
+   "files": [
+    "BackgroundCropOverlay.qml",
+    "MainWindow.qml",
+    "SettingsExperimentalPage.qml"
+   ]
+  },
+  "#f08a5d": {
+   "count": 3,
+   "token": "errorLight",
+   "token_hex": "#e06060",
+   "dist": 87.1,
+   "files": [
+    "DataPackDetailPage.qml",
+    "DownloadCard.qml",
+    "ModpackDetailPage.qml"
+   ]
+  },
+  "#d0a050": {
+   "count": 3,
+   "token": "errorLight",
+   "token_hex": "#e06060",
+   "dist": 132.9,
+   "files": [
+    "DataPackDetailPage.qml",
+    "ModDetailPage.qml",
+    "ShaderDetailPage.qml"
+   ]
+  },
+  "#382818": {
+   "count": 3,
+   "token": "errorBg",
+   "token_hex": "#3a1a1a",
+   "dist": 28.4,
+   "files": [
+    "DataPackDetailPage.qml",
+    "ModDetailPage.qml",
+    "ShaderDetailPage.qml"
+   ]
+  },
+  "#b0b8c8": {
+   "count": 3,
+   "token": "textTertiary",
+   "token_hex": "#a8b0c0",
+   "dist": 24.0,
+   "files": [
+    "FilterCard.qml",
+    "ModpackDetailPage.qml",
+    "PaginationFooter.qml"
+   ]
+  },
+  "#3a3d50": {
+   "count": 3,
+   "token": "bgHover",
+   "token_hex": "#2a3040",
+   "dist": 44.2,
+   "files": [
+    "HomePage.qml"
+   ]
+  },
+  "#787c90": {
+   "count": 3,
+   "token": "textSubtle",
+   "token_hex": "#8088a0",
+   "dist": 38.4,
+   "files": [
+    "HomePage.qml",
+    "ModLoaderCard.qml"
+   ]
+  },
+  "#5d6fe0": {
+   "count": 3,
+   "token": "accentLight",
+   "token_hex": "#6080e8",
+   "dist": 37.0,
+   "files": [
+    "InstallConfigOverlay.qml",
+    "SettingsPage.qml"
+   ]
+  },
+  "#b4a0f0": {
+   "count": 3,
+   "token": "accentLink",
+   "token_hex": "#8aaeff",
+   "dist": 70.6,
+   "files": [
+    "InstallPage.qml",
+    "VersionSettingsOverlay.qml"
+   ]
+  },
+  "#c06060": {
+   "count": 3,
+   "token": "textDanger",
+   "token_hex": "#c05050",
+   "dist": 42.3,
+   "files": [
+    "LaunchOverlay.qml",
+    "MainWindow.qml",
+    "VersionSettingsPage.qml"
+   ]
+  },
+  "#60c060": {
+   "count": 3,
+   "token": "success",
+   "token_hex": "#4bc870",
+   "dist": 43.7,
+   "files": [
+    "LaunchOverlay.qml",
+    "MultiplayerPlayerCard.qml"
+   ]
+  },
+  "#3a7a9a": {
+   "count": 3,
+   "token": "accentHover",
+   "token_hex": "#5068c8",
+   "dist": 92.8,
+   "files": [
+    "ModDetailPage.qml",
+    "VersionSettingsOverlay.qml"
+   ]
+  },
+  "#c08050": {
+   "count": 3,
+   "token": "errorLight",
+   "token_hex": "#e06060",
+   "dist": 83.1,
+   "files": [
+    "ModDetailPage.qml",
+    "VersionSettingsOverlay.qml"
+   ]
+  },
+  "#3a8a7a": {
+   "count": 3,
+   "token": "textMuted",
+   "token_hex": "#505468",
+   "dist": 116.6,
+   "files": [
+    "ModDetailPage.qml",
+    "VersionSettingsOverlay.qml"
+   ]
+  },
+  "#7070a0": {
+   "count": 3,
+   "token": "textSubtle",
+   "token_hex": "#8088a0",
+   "dist": 53.1,
+   "files": [
+    "ModDetailPage.qml",
+    "VersionSettingsOverlay.qml"
+   ]
+  },
+  "#8a8a5a": {
+   "count": 3,
+   "token": "textSubtle",
+   "token_hex": "#8088a0",
+   "dist": 122.1,
+   "files": [
+    "ModDetailPage.qml",
+    "VersionSettingsOverlay.qml"
+   ]
+  },
+  "#20f59e0b": {
+   "count": 3,
+   "token": "warning",
+   "token_hex": "#ff9800",
+   "dist": 138.1,
+   "files": [
+    "MultiplayerPlayerCard.qml",
+    "MultiplayerStateIndicator.qml"
+   ]
+  },
+  "#4ade80": {
+   "count": 3,
+   "token": "success",
+   "token_hex": "#4bc870",
+   "dist": 52.0,
+   "files": [
+    "MultiplayerPlayerCard.qml",
+    "MultiplayerRoomCodeCard.qml",
+    "MultiplayerStateIndicator.qml"
+   ]
+  },
+  "#7ba8f0": {
+   "count": 3,
+   "token": "accentLink",
+   "token_hex": "#8aaeff",
+   "dist": 35.6,
+   "files": [
+    "SettingsMemoryPage.qml",
+    "SettingsMemorySection.qml",
+    "VersionMemorySection.qml"
+   ]
+  },
+  "#5a9cf0": {
+   "count": 3,
+   "token": "info",
+   "token_hex": "#5098e8",
+   "dist": 21.4,
+   "files": [
+    "SettingsMemoryPage.qml",
+    "SettingsMemorySection.qml",
+    "VersionMemorySection.qml"
+   ]
+  },
+  "#4e88c8": {
+   "count": 3,
+   "token": "accentVivid",
+   "token_hex": "#4a8fe7",
+   "dist": 55.8,
+   "files": [
+    "SettingsMemoryPage.qml",
+    "SettingsMemorySection.qml",
+    "VersionMemorySection.qml"
+   ]
+  },
+  "#88b8e0": {
+   "count": 3,
+   "token": "accentLink",
+   "token_hex": "#8aaeff",
+   "dist": 57.4,
+   "files": [
+    "SettingsMemoryPage.qml",
+    "SettingsMemorySection.qml",
+    "VersionMemorySection.qml"
+   ]
+  },
+  "#9cb8e0": {
+   "count": 3,
+   "token": "textTertiary",
+   "token_hex": "#a8b0c0",
+   "dist": 60.1,
+   "files": [
+    "SettingsMemoryPage.qml",
+    "SettingsMemorySection.qml",
+    "VersionMemorySection.qml"
+   ]
+  },
+  "#6a7088": {
+   "count": 3,
+   "token": "textSubtle",
+   "token_hex": "#8088a0",
+   "dist": 70.7,
+   "files": [
+    "VersionSettingsOverlay.qml"
+   ]
+  },
+  "#6ab04c": {
+   "count": 3,
+   "token": "success",
+   "token_hex": "#4bc870",
+   "dist": 90.1,
+   "files": [
+    "VersionSettingsOverlay.qml"
+   ]
+  },
+  "#3a3e52": {
+   "count": 2,
+   "token": "bgHover",
+   "token_hex": "#2a3040",
+   "dist": 47.6,
+   "files": [
+    "AgreementOverlay.qml"
+   ]
+  },
+  "#b0b8d0": {
+   "count": 2,
+   "token": "textTertiary",
+   "token_hex": "#a8b0c0",
+   "dist": 33.9,
+   "files": [
+    "AgreementOverlay.qml"
+   ]
+  },
+  "#d0d4e8": {
+   "count": 2,
+   "token": "textSecondary",
+   "token_hex": "#e4e8f2",
+   "dist": 52.0,
+   "files": [
+    "AgreementOverlay.qml"
+   ]
+  },
+  "#606480": {
+   "count": 2,
+   "token": "textMuted",
+   "token_hex": "#505468",
+   "dist": 57.1,
+   "files": [
+    "BackgroundCropOverlay.qml",
+    "SettingsExperimentalPage.qml"
+   ]
+  },
+  "#302020": {
+   "count": 2,
+   "token": "errorBg",
+   "token_hex": "#3a1a1a",
+   "dist": 21.3,
+   "files": [
+    "BackgroundCropOverlay.qml",
+    "SettingsExperimentalPage.qml"
+   ]
+  },
+  "#7ec8e3": {
+   "count": 2,
+   "token": "accentLink",
+   "token_hex": "#8aaeff",
+   "dist": 73.1,
+   "files": [
+    "BetaKeyDialog.qml"
+   ]
+  },
+  "#ff8844": {
+   "count": 2,
+   "token": "errorLight",
+   "token_hex": "#e06060",
+   "dist": 103.3,
+   "files": [
+    "BetaKeyDialog.qml",
+    "JavaPage.qml"
+   ]
+  },
+  "#2a1f24": {
+   "count": 2,
+   "token": "surfaceLight",
+   "token_hex": "#1a1d24",
+   "dist": 23.0,
+   "files": [
+    "ConfirmDialog.qml",
+    "VersionSettingsOverlay.qml"
+   ]
+  },
+  "#2b1a12": {
+   "count": 2,
+   "token": "errorBg",
+   "token_hex": "#3a1a1a",
+   "dist": 25.3,
+   "files": [
+    "DataPackDetailPage.qml",
+    "DownloadCard.qml"
+   ]
+  },
+  "#1a3a68": {
+   "count": 2,
+   "token": "infoBg",
+   "token_hex": "#1a3a5c",
+   "dist": 20.8,
+   "files": [
+    "DataPackDetailPage.qml",
+    "ModDetailPage.qml"
+   ]
+  },
+  "#90a0c8": {
+   "count": 2,
+   "token": "textTertiary",
+   "token_hex": "#a8b0c0",
+   "dist": 48.7,
+   "files": [
+    "DownloadPage.qml"
+   ]
+  },
+  "#2a3a4a": {
+   "count": 2,
+   "token": "bgHover",
+   "token_hex": "#2a3040",
+   "dist": 26.5,
+   "files": [
+    "DownloadQueueCard.qml",
+    "MainWindow.qml"
+   ]
+  },
+  "#b8860b": {
+   "count": 2,
+   "token": "warning",
+   "token_hex": "#ff9800",
+   "dist": 108.4,
+   "files": [
+    "ExportModpackSection.qml"
+   ]
+  },
+  "#3a4aa0": {
+   "count": 2,
+   "token": "accentHover",
+   "token_hex": "#5068c8",
+   "dist": 96.8,
+   "files": [
+    "HomePage.qml",
+    "MainWindow.qml"
+   ]
+  },
+  "#2a3878": {
+   "count": 2,
+   "token": "infoBg",
+   "token_hex": "#1a3a5c",
+   "dist": 53.7,
+   "files": [
+    "HomePage.qml",
+    "MainWindow.qml"
+   ]
+  },
+  "#8aa8f0": {
+   "count": 2,
+   "token": "accentLink",
+   "token_hex": "#8aaeff",
+   "dist": 28.6,
+   "files": [
+    "HomePage.qml",
+    "ModLoaderCard.qml"
+   ]
+  },
+  "#2a3a90": {
+   "count": 2,
+   "token": "infoBg",
+   "token_hex": "#1a3a5c",
+   "dist": 92.9,
+   "files": [
+    "HomePage.qml",
+    "VersionSettingsOverlay.qml"
+   ]
+  },
+  "#e85050": {
+   "count": 2,
+   "token": "error",
+   "token_hex": "#ef4444",
+   "dist": 33.3,
+   "files": [
+    "InlineToast.qml"
+   ]
+  },
+  "#f0c8c8": {
+   "count": 2,
+   "token": "textSecondary",
+   "token_hex": "#e4e8f2",
+   "dist": 98.4,
+   "files": [
+    "InlineToast.qml"
+   ]
+  },
+  "#cc5555": {
+   "count": 2,
+   "token": "textDanger",
+   "token_hex": "#c05050",
+   "dist": 21.5,
+   "files": [
+    "InputBox.qml"
+   ]
+  },
+  "#3a4050": {
+   "count": 2,
+   "token": "bgHover",
+   "token_hex": "#2a3040",
+   "dist": 48.0,
+   "files": [
+    "InstallConfigOverlay.qml",
+    "ShadowIconButton.qml"
+   ]
+  },
+  "#6d7de8": {
+   "count": 2,
+   "token": "accentLight",
+   "token_hex": "#6080e8",
+   "dist": 19.3,
+   "files": [
+    "InstallConfigOverlay.qml",
+    "SettingsJavaPage.qml"
+   ]
+  },
+  "#c06050": {
+   "count": 2,
+   "token": "textDanger",
+   "token_hex": "#c05050",
+   "dist": 32.0,
+   "files": [
+    "InstallPage.qml",
+    "ModLoaderCard.qml"
+   ]
+  },
+  "#c0c8e0": {
+   "count": 2,
+   "token": "textTertiary",
+   "token_hex": "#a8b0c0",
+   "dist": 80.8,
+   "files": [
+    "InstallPage.qml",
+    "MainWindow.qml"
+   ]
+  },
+  "#141028": {
+   "count": 2,
+   "token": "surfaceOverlay",
+   "token_hex": "#141820",
+   "dist": 21.2,
+   "files": [
+    "InstallPage.qml",
+    "VersionSettingsOverlay.qml"
+   ]
+  },
+  "#7c3aed": {
+   "count": 2,
+   "token": "accentHover",
+   "token_hex": "#5068c8",
+   "dist": 128.2,
+   "files": [
+    "InstallPage.qml",
+    "VersionSettingsOverlay.qml"
+   ]
+  },
+  "#88ddff": {
+   "count": 2,
+   "token": "accentLink",
+   "token_hex": "#8aaeff",
+   "dist": 94.0,
+   "files": [
+    "JavaPage.qml"
+   ]
+  },
+  "#e74c3c": {
+   "count": 2,
+   "token": "error",
+   "token_hex": "#ef4444",
+   "dist": 24.0,
+   "files": [
+    "KillButton.qml"
+   ]
+  },
+  "#ff6060": {
+   "count": 2,
+   "token": "errorLight",
+   "token_hex": "#e06060",
+   "dist": 43.8,
+   "files": [
+    "LaunchOverlay.qml"
+   ]
+  },
+  "#806060": {
+   "count": 2,
+   "token": "textMuted",
+   "token_hex": "#505468",
+   "dist": 73.3,
+   "files": [
+    "LaunchOverlay.qml",
+    "VersionSettingsPage.qml"
+   ]
+  },
+  "#807880": {
+   "count": 2,
+   "token": "textSubtle",
+   "token_hex": "#8088a0",
+   "dist": 64.0,
+   "files": [
+    "LaunchOverlay.qml",
+    "VersionSettingsPage.qml"
+   ]
+  },
+  "#1a2838": {
+   "count": 2,
+   "token": "bgElevated",
+   "token_hex": "#1e2230",
+   "dist": 19.2,
+   "files": [
+    "LaunchOverlay.qml",
+    "MainWindow.qml"
+   ]
+  },
+  "#283850": {
+   "count": 2,
+   "token": "infoBg",
+   "token_hex": "#1a3a5c",
+   "dist": 29.0,
+   "files": [
+    "LaunchOverlay.qml"
+   ]
+  },
+  "#304070": {
+   "count": 2,
+   "token": "infoBg",
+   "token_hex": "#1a3a5c",
+   "dist": 48.1,
+   "files": [
+    "LaunchOverlay.qml"
+   ]
+  },
+  "#80a0e0": {
+   "count": 2,
+   "token": "accentLink",
+   "token_hex": "#8aaeff",
+   "dist": 62.2,
+   "files": [
+    "LaunchOverlay.qml"
+   ]
+  },
+  "#284028": {
+   "count": 2,
+   "token": "successBg",
+   "token_hex": "#1a3a1a",
+   "dist": 33.5,
+   "files": [
+    "LaunchOverlay.qml"
+   ]
+  },
+  "#402428": {
+   "count": 2,
+   "token": "errorBg",
+   "token_hex": "#3a1a1a",
+   "dist": 32.6,
+   "files": [
+    "LaunchOverlay.qml"
+   ]
+  },
+  "#e0a040": {
+   "count": 2,
+   "token": "warning",
+   "token_hex": "#ff9800",
+   "dist": 120.3,
+   "files": [
+    "MainWindow.qml",
+    "ModLoaderCard.qml"
+   ]
+  },
+  "#e0a050": {
+   "count": 2,
+   "token": "errorLight",
+   "token_hex": "#e06060",
+   "dist": 131.0,
+   "files": [
+    "ModDetailPage.qml",
+    "SettingsExperimentalPage.qml"
+   ]
+  },
+  "#e6a600": {
+   "count": 2,
+   "token": "warning",
+   "token_hex": "#ff9800",
+   "dist": 45.1,
+   "files": [
+    "ModDetailPage.qml"
+   ]
+  },
+  "#204ade80": {
+   "count": 2,
+   "token": "success",
+   "token_hex": "#4bc870",
+   "dist": 163.5,
+   "files": [
+    "MultiplayerPlayerCard.qml",
+    "MultiplayerStateIndicator.qml"
+   ]
+  },
+  "#60a0f0": {
+   "count": 2,
+   "token": "info",
+   "token_hex": "#5098e8",
+   "dist": 31.0,
+   "files": [
+    "MultiplayerPlayerCard.qml",
+    "MultiplayerRoomCodeCard.qml"
+   ]
+  },
+  "#f1f3f6": {
+   "count": 2,
+   "token": "textPrimary",
+   "token_hex": "#e8ecf8",
+   "dist": 19.2,
+   "files": [
+    "SettingsGeneralPage.qml",
+    "VersionSettingsPage.qml"
+   ]
+  },
+  "#10b981": {
+   "count": 2,
+   "token": "success",
+   "token_hex": "#4bc870",
+   "dist": 93.4,
+   "files": [
+    "SettingsGeneralPage.qml",
+    "VersionSelectPage.qml"
+   ]
+  },
+  "#305080": {
+   "count": 2,
+   "token": "textMuted",
+   "token_hex": "#505468",
+   "dist": 62.0,
+   "files": [
+    "SettingsJavaPage.qml",
+    "VersionLaunchSection.qml"
+   ]
+  },
+  "#2d3748": {
+   "count": 2,
+   "token": "bgHover",
+   "token_hex": "#2a3040",
+   "dist": 20.1,
+   "files": [
+    "SettingsPage.qml"
+   ]
+  },
+  "#2a3a6a": {
+   "count": 2,
+   "token": "infoBg",
+   "token_hex": "#1a3a5c",
+   "dist": 33.2,
+   "files": [
+    "VersionLaunchSection.qml"
+   ]
+  },
+  "#3a5ab8": {
+   "count": 2,
+   "token": "accentHover",
+   "token_hex": "#5068c8",
+   "dist": 50.2,
+   "files": [
+    "VersionLaunchSection.qml"
+   ]
+  },
+  "#9911141c": {
+   "count": 2,
+   "token": "bgSecondary",
+   "token_hex": "#11141c",
+   "dist": 51.0,
+   "files": [
+    "VersionSelectOverlay.qml",
+    "VersionSettingsOverlay.qml"
+   ]
+  },
+  "#9a3838": {
+   "count": 2,
+   "token": "textDanger",
+   "token_hex": "#c05050",
+   "dist": 83.2,
+   "files": [
+    "VersionSettingsOverlay.qml"
+   ]
+  },
+  "#2a5a40": {
+   "count": 2,
+   "token": "infoBg",
+   "token_hex": "#1a3a5c",
+   "dist": 83.4,
+   "files": [
+    "VersionSettingsOverlay.qml"
+   ]
+  },
+  "#586080": {
+   "count": 2,
+   "token": "textMuted",
+   "token_hex": "#505468",
+   "dist": 49.3,
+   "files": [
+    "VersionSettingsOverlay.qml"
+   ]
+  },
+  "#804040": {
+   "count": 2,
+   "token": "textDanger",
+   "token_hex": "#c05050",
+   "dist": 99.9,
+   "files": [
+    "VersionSettingsOverlay.qml"
+   ]
+  },
+  "#ff8c42": {
+   "count": 2,
+   "token": "errorLight",
+   "token_hex": "#e06060",
+   "dist": 111.2,
+   "files": [
+    "VersionSettingsOverlay.qml"
+   ]
+  },
+  "#505878": {
+   "count": 1,
+   "token": "textMuted",
+   "token_hex": "#505468",
+   "dist": 28.8,
+   "files": [
+    "AgreementOverlay.qml"
+   ]
+  },
+  "#282838": {
+   "count": 1,
+   "token": "bgHover",
+   "token_hex": "#2a3040",
+   "dist": 21.4,
+   "files": [
+    "BackgroundCropOverlay.qml"
+   ]
+  },
+  "#707890": {
+   "count": 1,
+   "token": "textSubtle",
+   "token_hex": "#8088a0",
+   "dist": 48.0,
+   "files": [
+    "BackgroundCropOverlay.qml"
+   ]
+  },
+  "#304898": {
+   "count": 1,
+   "token": "textMuted",
+   "token_hex": "#505468",
+   "dist": 97.7,
+   "files": [
+    "BackgroundCropOverlay.qml"
+   ]
+  },
+  "#70a0ff": {
+   "count": 1,
+   "token": "accentLink",
+   "token_hex": "#8aaeff",
+   "dist": 46.2,
+   "files": [
+    "BackgroundCropOverlay.qml"
+   ]
+  },
+  "#2a2a4a": {
+   "count": 1,
+   "token": "bgHover",
+   "token_hex": "#2a3040",
+   "dist": 21.1,
+   "files": [
+    "BetaKeyDialog.qml"
+   ]
+  },
+  "#3a7aa5": {
+   "count": 1,
+   "token": "accentHover",
+   "token_hex": "#5068c8",
+   "dist": 77.1,
+   "files": [
+    "BetaKeyDialog.qml"
+   ]
+  },
+  "#4a9ac5": {
+   "count": 1,
+   "token": "info",
+   "token_hex": "#5098e8",
+   "dist": 61.3,
+   "files": [
+    "BetaKeyDialog.qml"
+   ]
+  },
+  "#ff5555": {
+   "count": 1,
+   "token": "error",
+   "token_hex": "#ef4444",
+   "dist": 50.3,
+   "files": [
+    "BetaKeyDialog.qml"
+   ]
+  },
+  "#2a1c1c": {
+   "count": 1,
+   "token": "errorBg",
+   "token_hex": "#3a1a1a",
+   "dist": 23.2,
+   "files": [
+    "CrashDialog.qml"
+   ]
+  },
+  "#2a2420": {
+   "count": 1,
+   "token": "surfaceLight",
+   "token_hex": "#1a1d24",
+   "dist": 27.5,
+   "files": [
+    "CrashDialog.qml"
+   ]
+  },
+  "#685040": {
+   "count": 1,
+   "token": "textMuted",
+   "token_hex": "#505468",
+   "dist": 77.6,
+   "files": [
+    "DetailLinkBar.qml"
+   ]
+  },
+  "#c89860": {
+   "count": 1,
+   "token": "errorLight",
+   "token_hex": "#e06060",
+   "dist": 117.0,
+   "files": [
+    "DetailLinkBar.qml"
+   ]
+  },
+  "#4068c8": {
+   "count": 1,
+   "token": "accentHover",
+   "token_hex": "#5068c8",
+   "dist": 22.6,
+   "files": [
+    "DetailVersionCard.qml"
+   ]
+  },
+  "#1a1428": {
+   "count": 1,
+   "token": "surfaceOverlay",
+   "token_hex": "#141820",
+   "dist": 18.1,
+   "files": [
+    "DownloadCard.qml"
+   ]
+  },
+  "#382848": {
+   "count": 1,
+   "token": "bgHover",
+   "token_hex": "#2a3040",
+   "dist": 29.0,
+   "files": [
+    "DownloadCard.qml"
+   ]
+  },
+  "#a878c8": {
+   "count": 1,
+   "token": "textSubtle",
+   "token_hex": "#8088a0",
+   "dist": 95.0,
+   "files": [
+    "DownloadCard.qml"
+   ]
+  },
+  "#282218": {
+   "count": 1,
+   "token": "errorBg",
+   "token_hex": "#3a1a1a",
+   "dist": 30.3,
+   "files": [
+    "DownloadCard.qml"
+   ]
+  },
+  "#504828": {
+   "count": 1,
+   "token": "bgHover",
+   "token_hex": "#2a3040",
+   "dist": 83.2,
+   "files": [
+    "DownloadCard.qml"
+   ]
+  },
+  "#c8a860": {
+   "count": 1,
+   "token": "errorLight",
+   "token_hex": "#e06060",
+   "dist": 147.9,
+   "files": [
+    "DownloadCard.qml"
+   ]
+  },
+  "#93acf0": {
+   "count": 1,
+   "token": "accentLink",
+   "token_hex": "#8aaeff",
+   "dist": 29.2,
+   "files": [
+    "DownloadPage.qml"
+   ]
+  },
+  "#1e2a3a": {
+   "count": 1,
+   "token": "bgHover",
+   "token_hex": "#2a3040",
+   "dist": 23.2,
+   "files": [
+    "DownloadQueueCard.qml"
+   ]
+  },
+  "#1e3b2e": {
+   "count": 1,
+   "token": "successBg",
+   "token_hex": "#1a3a1a",
+   "dist": 35.2,
+   "files": [
+    "DownloadQueueCard.qml"
+   ]
+  },
+  "#16241c": {
+   "count": 1,
+   "token": "surfaceLight",
+   "token_hex": "#1a1d24",
+   "dist": 20.5,
+   "files": [
+    "DownloadQueueCard.qml"
+   ]
+  },
+  "#4a1a1a": {
+   "count": 1,
+   "token": "errorBg",
+   "token_hex": "#3a1a1a",
+   "dist": 22.6,
+   "files": [
+    "DownloadQueueCard.qml"
+   ]
+  },
+  "#3a2e12": {
+   "count": 1,
+   "token": "warningBg",
+   "token_hex": "#3a3000",
+   "dist": 31.4,
+   "files": [
+    "ExportModpackSection.qml"
+   ]
+  },
+  "#6b5418": {
+   "count": 1,
+   "token": "warningBg",
+   "token_hex": "#3a3000",
+   "dist": 108.2,
+   "files": [
+    "ExportModpackSection.qml"
+   ]
+  },
+  "#d9b45a": {
+   "count": 1,
+   "token": "errorLight",
+   "token_hex": "#e06060",
+   "dist": 168.6,
+   "files": [
+    "ExportModpackSection.qml"
+   ]
+  },
+  "#282040": {
+   "count": 1,
+   "token": "accentSubtle",
+   "token_hex": "#1a2848",
+   "dist": 29.0,
+   "files": [
+    "FilterCard.qml"
+   ]
+  },
+  "#1e1838": {
+   "count": 1,
+   "token": "bgCard",
+   "token_hex": "#1a1f2e",
+   "dist": 23.0,
+   "files": [
+    "FilterCard.qml"
+   ]
+  },
+  "#504080": {
+   "count": 1,
+   "token": "textMuted",
+   "token_hex": "#505468",
+   "dist": 57.7,
+   "files": [
+    "FilterCard.qml"
+   ]
+  },
+  "#5a78e0": {
+   "count": 1,
+   "token": "accentLight",
+   "token_hex": "#6080e8",
+   "dist": 22.8,
+   "files": [
+    "FilterCard.qml"
+   ]
+  },
+  "#604040": {
+   "count": 1,
+   "token": "bgHover",
+   "token_hex": "#2a3040",
+   "dist": 82.8,
+   "files": [
+    "HomePage.qml"
+   ]
+  },
+  "#c8d8f0": {
+   "count": 1,
+   "token": "textSecondary",
+   "token_hex": "#e4e8f2",
+   "dist": 51.0,
+   "files": [
+    "InlineToast.qml"
+   ]
+  },
+  "#40b840": {
+   "count": 1,
+   "token": "success",
+   "token_hex": "#4bc870",
+   "dist": 90.4,
+   "files": [
+    "InlineToast.qml"
+   ]
+  },
+  "#c8f0c8": {
+   "count": 1,
+   "token": "textSecondary",
+   "token_hex": "#e4e8f2",
+   "dist": 84.4,
+   "files": [
+    "InlineToast.qml"
+   ]
+  },
+  "#ff9999": {
+   "count": 1,
+   "token": "textTertiary",
+   "token_hex": "#a8b0c0",
+   "dist": 147.7,
+   "files": [
+    "InputBox.qml"
+   ]
+  },
+  "#882020": {
+   "count": 1,
+   "token": "errorBg",
+   "token_hex": "#3a1a1a",
+   "dist": 111.4,
+   "files": [
+    "InputBox.qml"
+   ]
+  },
+  "#551818": {
+   "count": 1,
+   "token": "errorBg",
+   "token_hex": "#3a1a1a",
+   "dist": 38.5,
+   "files": [
+    "InputBox.qml"
+   ]
+  },
+  "#8090c0": {
+   "count": 1,
+   "token": "textSubtle",
+   "token_hex": "#8088a0",
+   "dist": 57.7,
+   "files": [
+    "InstallConfigOverlay.qml"
+   ]
+  },
+  "#803040": {
+   "count": 1,
+   "token": "textDanger",
+   "token_hex": "#c05050",
+   "dist": 114.3,
+   "files": [
+    "InstallPage.qml"
+   ]
+  },
+  "#2a1850": {
+   "count": 1,
+   "token": "accentSubtle",
+   "token_hex": "#1a2848",
+   "dist": 41.6,
+   "files": [
+    "InstallPage.qml"
+   ]
+  },
+  "#2a1f3e": {
+   "count": 1,
+   "token": "bgElevated",
+   "token_hex": "#1e2230",
+   "dist": 30.2,
+   "files": [
+    "InstallPage.qml"
+   ]
+  },
+  "#4a1a2a": {
+   "count": 1,
+   "token": "errorBg",
+   "token_hex": "#3a1a1a",
+   "dist": 35.8,
+   "files": [
+    "InstallPage.qml"
+   ]
+  },
+  "#e0b040": {
+   "count": 1,
+   "token": "warning",
+   "token_hex": "#ff9800",
+   "dist": 128.5,
+   "files": [
+    "InstallPage.qml"
+   ]
+  },
+  "#3a3040": {
+   "count": 1,
+   "token": "bgHover",
+   "token_hex": "#2a3040",
+   "dist": 22.6,
+   "files": [
+    "InstallPage.qml"
+   ]
+  },
+  "#4a70f0": {
+   "count": 1,
+   "token": "accent",
+   "token_hex": "#3b82f6",
+   "dist": 43.1,
+   "files": [
+    "InstallPage.qml"
+   ]
+  },
+  "#c0b0c0": {
+   "count": 1,
+   "token": "textTertiary",
+   "token_hex": "#a8b0c0",
+   "dist": 33.9,
+   "files": [
+    "InstallPage.qml"
+   ]
+  },
+  "#3ab868": {
+   "count": 1,
+   "token": "success",
+   "token_hex": "#4bc870",
+   "dist": 42.4,
+   "files": [
+    "JavaPage.qml"
+   ]
+  },
+  "#d04848": {
+   "count": 1,
+   "token": "textDanger",
+   "token_hex": "#c05050",
+   "dist": 31.0,
+   "files": [
+    "JavaPage.qml"
+   ]
+  },
+  "#1a0000": {
+   "count": 1,
+   "token": "shadowColor",
+   "token_hex": "#0a0a12",
+   "dist": 43.4,
+   "files": [
+    "JavaPage.qml"
+   ]
+  },
+  "#661111": {
+   "count": 1,
+   "token": "errorBg",
+   "token_hex": "#3a1a1a",
+   "dist": 66.6,
+   "files": [
+    "JavaPage.qml"
+   ]
+  },
+  "#ff4444": {
+   "count": 1,
+   "token": "error",
+   "token_hex": "#ef4444",
+   "dist": 22.6,
+   "files": [
+    "JavaPage.qml"
+   ]
+  },
+  "#4a70e0": {
+   "count": 1,
+   "token": "accentHover",
+   "token_hex": "#5068c8",
+   "dist": 45.3,
+   "files": [
+    "JavaPage.qml"
+   ]
+  },
+  "#c0101114": {
+   "count": 1,
+   "token": "bgPrimary",
+   "token_hex": "#0c0f16",
+   "dist": 39.2,
+   "files": [
+    "KillButton.qml"
+   ]
+  },
+  "#78787887": {
+   "count": 1,
+   "token": "textSubtle",
+   "token_hex": "#8088a0",
+   "dist": 122.5,
+   "files": [
+    "KillButton.qml"
+   ]
+  },
+  "#b4b4c3": {
+   "count": 1,
+   "token": "textTertiary",
+   "token_hex": "#a8b0c0",
+   "dist": 19.5,
+   "files": [
+    "KillButton.qml"
+   ]
+  },
+  "#c08080": {
+   "count": 1,
+   "token": "errorLight",
+   "token_hex": "#e06060",
+   "dist": 96.0,
+   "files": [
+    "LaunchOverlay.qml"
+   ]
+  },
+  "#a08080": {
+   "count": 1,
+   "token": "textSubtle",
+   "token_hex": "#8088a0",
+   "dist": 73.3,
+   "files": [
+    "LaunchOverlay.qml"
+   ]
+  },
+  "#2858a0": {
+   "count": 1,
+   "token": "accentHover",
+   "token_hex": "#5068c8",
+   "dist": 95.0,
+   "files": [
+    "LaunchOverlay.qml"
+   ]
+  },
+  "#80a0ff": {
+   "count": 1,
+   "token": "accentLink",
+   "token_hex": "#8aaeff",
+   "dist": 31.4,
+   "files": [
+    "LaunchOverlay.qml"
+   ]
+  },
+  "#1a1a38": {
+   "count": 1,
+   "token": "bgCard",
+   "token_hex": "#1a1f2e",
+   "dist": 20.0,
+   "files": [
+    "LaunchOverlay.qml"
+   ]
+  },
+  "#3868c0": {
+   "count": 1,
+   "token": "accentHover",
+   "token_hex": "#5068c8",
+   "dist": 36.7,
+   "files": [
+    "LaunchOverlay.qml"
+   ]
+  },
+  "#a0c8ff": {
+   "count": 1,
+   "token": "accentLink",
+   "token_hex": "#8aaeff",
+   "dist": 60.6,
+   "files": [
+    "LaunchOverlay.qml"
+   ]
+  },
+  "#1a2a18": {
+   "count": 1,
+   "token": "successBg",
+   "token_hex": "#1a3a1a",
+   "dist": 32.2,
+   "files": [
+    "LaunchOverlay.qml"
+   ]
+  },
+  "#2a1518": {
+   "count": 1,
+   "token": "errorBg",
+   "token_hex": "#3a1a1a",
+   "dist": 25.0,
+   "files": [
+    "LaunchOverlay.qml"
+   ]
+  },
+  "#286028": {
+   "count": 1,
+   "token": "successBg",
+   "token_hex": "#1a3a1a",
+   "dist": 82.2,
+   "files": [
+    "LaunchOverlay.qml"
+   ]
+  },
+  "#602828": {
+   "count": 1,
+   "token": "errorBg",
+   "token_hex": "#3a1a1a",
+   "dist": 65.3,
+   "files": [
+    "LaunchOverlay.qml"
+   ]
+  },
+  "#80ff80": {
+   "count": 1,
+   "token": "success",
+   "token_hex": "#4bc870",
+   "dist": 136.0,
+   "files": [
+    "LaunchOverlay.qml"
+   ]
+  },
+  "#00000000": {
+   "count": 1,
+   "token": "shadowColor",
+   "token_hex": "#0a0a12",
+   "dist": 167.1,
+   "files": [
+    "MainWindow.qml"
+   ]
+  },
+  "#283260": {
+   "count": 1,
+   "token": "infoBg",
+   "token_hex": "#1a3a5c",
+   "dist": 26.4,
+   "files": [
+    "MainWindow.qml"
+   ]
+  },
+  "#2a1010": {
+   "count": 1,
+   "token": "errorBg",
+   "token_hex": "#3a1a1a",
+   "dist": 34.8,
+   "files": [
+    "MainWindow.qml"
+   ]
+  },
+  "#803838": {
+   "count": 1,
+   "token": "textDanger",
+   "token_hex": "#c05050",
+   "dist": 110.6,
+   "files": [
+    "MainWindow.qml"
+   ]
+  },
+  "#502020": {
+   "count": 1,
+   "token": "errorBg",
+   "token_hex": "#3a1a1a",
+   "dist": 34.9,
+   "files": [
+    "MainWindow.qml"
+   ]
+  },
+  "#3a3020": {
+   "count": 1,
+   "token": "errorBg",
+   "token_hex": "#3a1a1a",
+   "dist": 45.2,
+   "files": [
+    "MainWindow.qml"
+   ]
+  },
+  "#2a2010": {
+   "count": 1,
+   "token": "errorBg",
+   "token_hex": "#3a1a1a",
+   "dist": 30.9,
+   "files": [
+    "MainWindow.qml"
+   ]
+  },
+  "#907030": {
+   "count": 1,
+   "token": "textDanger",
+   "token_hex": "#c05050",
+   "dist": 108.5,
+   "files": [
+    "MainWindow.qml"
+   ]
+  },
+  "#604820": {
+   "count": 1,
+   "token": "warningBg",
+   "token_hex": "#3a3000",
+   "dist": 90.9,
+   "files": [
+    "MainWindow.qml"
+   ]
+  },
+  "#3a5060": {
+   "count": 1,
+   "token": "textMuted",
+   "token_hex": "#505468",
+   "dist": 35.0,
+   "files": [
+    "MainWindow.qml"
+   ]
+  },
+  "#99000000": {
+   "count": 1,
+   "token": "shadowColor",
+   "token_hex": "#0a0a12",
+   "dist": 90.6,
+   "files": [
+    "MainWindow.qml"
+   ]
+  },
+  "#252a1c10": {
+   "count": 1,
+   "token": "errorBg",
+   "token_hex": "#3a1a1a",
+   "dist": 137.8,
+   "files": [
+    "ModDetailPage.qml"
+   ]
+  },
+  "#1a2b1c00": {
+   "count": 1,
+   "token": "warningBg",
+   "token_hex": "#3a3000",
+   "dist": 159.8,
+   "files": [
+    "ModDetailPage.qml"
+   ]
+  },
+  "#804b3a00": {
+   "count": 1,
+   "token": "warningBg",
+   "token_hex": "#3a3000",
+   "dist": 94.8,
+   "files": [
+    "ModDetailPage.qml"
+   ]
+  },
+  "#664b3a00": {
+   "count": 1,
+   "token": "warningBg",
+   "token_hex": "#3a3000",
+   "dist": 107.8,
+   "files": [
+    "ModDetailPage.qml"
+   ]
+  },
+  "#f5d080": {
+   "count": 1,
+   "token": "textTertiary",
+   "token_hex": "#a8b0c0",
+   "dist": 168.1,
+   "files": [
+    "ModDetailPage.qml"
+   ]
+  },
+  "#f0c060": {
+   "count": 1,
+   "token": "warning",
+   "token_hex": "#ff9800",
+   "dist": 185.7,
+   "files": [
+    "ModDetailPage.qml"
+   ]
+  },
+  "#b09040": {
+   "count": 1,
+   "token": "errorLight",
+   "token_hex": "#e06060",
+   "dist": 130.0,
+   "files": [
+    "ModDetailPage.qml"
+   ]
+  },
+  "#3a8050": {
+   "count": 1,
+   "token": "textMuted",
+   "token_hex": "#505468",
+   "dist": 102.2,
+   "files": [
+    "ModLoaderCard.qml"
+   ]
+  },
+  "#a060d0": {
+   "count": 1,
+   "token": "accentHover",
+   "token_hex": "#5068c8",
+   "dist": 115.1,
+   "files": [
+    "ModLoaderCard.qml"
+   ]
+  },
+  "#40a0c0": {
+   "count": 1,
+   "token": "info",
+   "token_hex": "#5098e8",
+   "dist": 74.6,
+   "files": [
+    "ModLoaderCard.qml"
+   ]
+  },
+  "#d06080": {
+   "count": 1,
+   "token": "errorLight",
+   "token_hex": "#e06060",
+   "dist": 59.9,
+   "files": [
+    "ModLoaderCard.qml"
+   ]
+  },
+  "#404858": {
+   "count": 1,
+   "token": "textMuted",
+   "token_hex": "#505468",
+   "dist": 43.1,
+   "files": [
+    "ModLoaderCard.qml"
+   ]
+  },
+  "#1a2e1a": {
+   "count": 1,
+   "token": "successBg",
+   "token_hex": "#1a3a1a",
+   "dist": 24.0,
+   "files": [
+    "ModLoaderCard.qml"
+   ]
+  },
+  "#3a6830": {
+   "count": 1,
+   "token": "successBg",
+   "token_hex": "#1a3a1a",
+   "dist": 109.4,
+   "files": [
+    "ModLoaderCard.qml"
+   ]
+  },
+  "#60b050": {
+   "count": 1,
+   "token": "success",
+   "token_hex": "#4bc870",
+   "dist": 79.1,
+   "files": [
+    "ModLoaderCard.qml"
+   ]
+  },
+  "#60000000": {
+   "count": 1,
+   "token": "shadowColor",
+   "token_hex": "#0a0a12",
+   "dist": 119.1,
+   "files": [
+    "MultiplayerPage.qml"
+   ]
+  },
+  "#2060c060": {
+   "count": 1,
+   "token": "success",
+   "token_hex": "#4bc870",
+   "dist": 155.2,
+   "files": [
+    "MultiplayerPlayerCard.qml"
+   ]
+  },
+  "#20ef4444": {
+   "count": 1,
+   "token": "error",
+   "token_hex": "#ef4444",
+   "dist": 111.5,
+   "files": [
+    "MultiplayerPlayerCard.qml"
+   ]
+  },
+  "#203b82f6": {
+   "count": 1,
+   "token": "accent",
+   "token_hex": "#3b82f6",
+   "dist": 111.5,
+   "files": [
+    "MultiplayerPlayerCard.qml"
+   ]
+  },
+  "#1a4ade80": {
+   "count": 1,
+   "token": "success",
+   "token_hex": "#4bc870",
+   "dist": 166.5,
+   "files": [
+    "MultiplayerRoomCodeCard.qml"
+   ]
+  },
+  "#1a3b82f6": {
+   "count": 1,
+   "token": "accent",
+   "token_hex": "#3b82f6",
+   "dist": 114.5,
+   "files": [
+    "MultiplayerRoomCodeCard.qml"
+   ]
+  },
+  "#1af59e0b": {
+   "count": 1,
+   "token": "warning",
+   "token_hex": "#ff9800",
+   "dist": 141.1,
+   "files": [
+    "MultiplayerRoomCodeCard.qml"
+   ]
+  },
+  "#1aef4444": {
+   "count": 1,
+   "token": "error",
+   "token_hex": "#ef4444",
+   "dist": 114.5,
+   "files": [
+    "MultiplayerRoomCodeCard.qml"
+   ]
+  },
+  "#2a3a5c": {
+   "count": 1,
+   "token": "infoBg",
+   "token_hex": "#1a3a5c",
+   "dist": 22.6,
+   "files": [
+    "SettingsExperimentalPage.qml"
+   ]
+  },
+  "#70b8ff": {
+   "count": 1,
+   "token": "accentLink",
+   "token_hex": "#8aaeff",
+   "dist": 41.9,
+   "files": [
+    "SettingsExperimentalPage.qml"
+   ]
+  },
+  "#4a5ed0": {
+   "count": 1,
+   "token": "accentHover",
+   "token_hex": "#5068c8",
+   "dist": 25.8,
+   "files": [
+    "SettingsExperimentalPage.qml"
+   ]
+  },
+  "#d06060": {
+   "count": 1,
+   "token": "errorLight",
+   "token_hex": "#e06060",
+   "dist": 22.6,
+   "files": [
+    "SettingsExperimentalPage.qml"
+   ]
+  },
+  "#1a3028": {
+   "count": 1,
+   "token": "successBg",
+   "token_hex": "#1a3a1a",
+   "dist": 31.4,
+   "files": [
+    "SettingsJavaPage.qml"
+   ]
+  },
+  "#e05050": {
+   "count": 1,
+   "token": "error",
+   "token_hex": "#ef4444",
+   "dist": 38.2,
+   "files": [
+    "SettingsJavaPage.qml"
+   ]
+  },
+  "#b0b8e0": {
+   "count": 1,
+   "token": "textTertiary",
+   "token_hex": "#a8b0c0",
+   "dist": 58.8,
+   "files": [
+    "SettingsJavaPage.qml"
+   ]
+  },
+  "#7ec8a0": {
+   "count": 1,
+   "token": "textTertiary",
+   "token_hex": "#a8b0c0",
+   "dist": 94.4,
+   "files": [
+    "SettingsPage.qml"
+   ]
+  },
+  "#4a3a20": {
+   "count": 1,
+   "token": "warningBg",
+   "token_hex": "#3a3000",
+   "dist": 63.1,
+   "files": [
+    "SettingsPage.qml"
+   ]
+  },
+  "#1e3260": {
+   "count": 1,
+   "token": "infoBg",
+   "token_hex": "#1a3a5c",
+   "dist": 18.3,
+   "files": [
+    "ShadowDropdown.qml"
+   ]
+  },
+  "#5078e0": {
+   "count": 1,
+   "token": "accentLight",
+   "token_hex": "#6080e8",
+   "dist": 31.0,
+   "files": [
+    "ShadowDropdown.qml"
+   ]
+  },
+  "#252a35": {
+   "count": 1,
+   "token": "bgElevated",
+   "token_hex": "#1e2230",
+   "dist": 20.7,
+   "files": [
+    "ShadowIconButton.qml"
+   ]
+  },
+  "#ff6666": {
+   "count": 1,
+   "token": "errorLight",
+   "token_hex": "#e06060",
+   "dist": 46.6,
+   "files": [
+    "StatsPage.qml"
+   ]
+  },
+  "#5588cc": {
+   "count": 1,
+   "token": "accentVivid",
+   "token_hex": "#4a8fe7",
+   "dist": 51.2,
+   "files": [
+    "StatsPage.qml"
+   ]
+  },
+  "#5aa8c0": {
+   "count": 1,
+   "token": "info",
+   "token_hex": "#5098e8",
+   "dist": 77.6,
+   "files": [
+    "StatsPage.qml"
+   ]
+  },
+  "#60c8b4": {
+   "count": 1,
+   "token": "textTertiary",
+   "token_hex": "#a8b0c0",
+   "dist": 114.5,
+   "files": [
+    "StatsPage.qml"
+   ]
+  },
+  "#6fd4ac": {
+   "count": 1,
+   "token": "textTertiary",
+   "token_hex": "#a8b0c0",
+   "dist": 113.5,
+   "files": [
+    "StatsPage.qml"
+   ]
+  },
+  "#7ee0a0": {
+   "count": 1,
+   "token": "success",
+   "token_hex": "#4bc870",
+   "dist": 120.1,
+   "files": [
+    "StatsPage.qml"
+   ]
+  },
+  "#8dec94": {
+   "count": 1,
+   "token": "success",
+   "token_hex": "#4bc870",
+   "dist": 133.4,
+   "files": [
+    "StatsPage.qml"
+   ]
+  },
+  "#9cf888": {
+   "count": 1,
+   "token": "success",
+   "token_hex": "#4bc870",
+   "dist": 155.1,
+   "files": [
+    "StatsPage.qml"
+   ]
+  },
+  "#abff7c": {
+   "count": 1,
+   "token": "success",
+   "token_hex": "#4bc870",
+   "dist": 176.0,
+   "files": [
+    "StatsPage.qml"
+   ]
+  },
+  "#baff70": {
+   "count": 1,
+   "token": "success",
+   "token_hex": "#4bc870",
+   "dist": 191.7,
+   "files": [
+    "StatsPage.qml"
+   ]
+  },
+  "#2a2508": {
+   "count": 1,
+   "token": "warningBg",
+   "token_hex": "#3a3000",
+   "dist": 34.5,
+   "files": [
+    "ToastManager.qml"
+   ]
+  },
+  "#1d2a3a": {
+   "count": 1,
+   "token": "bgElevated",
+   "token_hex": "#1e2230",
+   "dist": 23.6,
+   "files": [
+    "ToastManager.qml"
+   ]
+  },
+  "#0a1a10": {
+   "count": 1,
+   "token": "bgPrimary",
+   "token_hex": "#0c0f16",
+   "dist": 24.5,
+   "files": [
+    "ToastStyleSuccess.qml"
+   ]
+  },
+  "#105030": {
+   "count": 1,
+   "token": "successBg",
+   "token_hex": "#1a3a1a",
+   "dist": 59.9,
+   "files": [
+    "ToastStyleSuccess.qml"
+   ]
+  },
+  "#28a860": {
+   "count": 1,
+   "token": "success",
+   "token_hex": "#4bc870",
+   "dist": 85.5,
+   "files": [
+    "ToastStyleSuccess.qml"
+   ]
+  },
+  "#70d090": {
+   "count": 1,
+   "token": "success",
+   "token_hex": "#4bc870",
+   "dist": 77.9,
+   "files": [
+    "ToastStyleSuccess.qml"
+   ]
+  },
+  "#50a070": {
+   "count": 1,
+   "token": "success",
+   "token_hex": "#4bc870",
+   "dist": 80.3,
+   "files": [
+    "ToastStyleSuccess.qml"
+   ]
+  },
+  "#1a1800": {
+   "count": 1,
+   "token": "bgPrimary",
+   "token_hex": "#0c0f16",
+   "dist": 46.6,
+   "files": [
+    "ToastStyleWarning.qml"
+   ]
+  },
+  "#5a5010": {
+   "count": 1,
+   "token": "warningBg",
+   "token_hex": "#3a3000",
+   "dist": 83.1,
+   "files": [
+    "ToastStyleWarning.qml"
+   ]
+  },
+  "#d4a020": {
+   "count": 1,
+   "token": "warning",
+   "token_hex": "#ff9800",
+   "dist": 83.8,
+   "files": [
+    "ToastStyleWarning.qml"
+   ]
+  },
+  "#e8d870": {
+   "count": 1,
+   "token": "textTertiary",
+   "token_hex": "#a8b0c0",
+   "dist": 183.8,
+   "files": [
+    "ToastStyleWarning.qml"
+   ]
+  },
+  "#c0b050": {
+   "count": 1,
+   "token": "errorLight",
+   "token_hex": "#e06060",
+   "dist": 168.6,
+   "files": [
+    "ToastStyleWarning.qml"
+   ]
+  },
+  "#104830": {
+   "count": 1,
+   "token": "successBg",
+   "token_hex": "#1a3a1a",
+   "dist": 49.4,
+   "files": [
+    "VersionCard.qml"
+   ]
+  },
+  "#403010": {
+   "count": 1,
+   "token": "warningBg",
+   "token_hex": "#3a3000",
+   "dist": 29.0,
+   "files": [
+    "VersionCard.qml"
+   ]
+  },
+  "#403020": {
+   "count": 1,
+   "token": "errorBg",
+   "token_hex": "#3a1a1a",
+   "dist": 46.0,
+   "files": [
+    "VersionCard.qml"
+   ]
+  },
+  "#282828": {
+   "count": 1,
+   "token": "bgElevated",
+   "token_hex": "#1e2230",
+   "dist": 23.2,
+   "files": [
+    "VersionCard.qml"
+   ]
+  },
+  "#d04040": {
+   "count": 1,
+   "token": "error",
+   "token_hex": "#ef4444",
+   "dist": 45.1,
+   "files": [
+    "VersionLaunchSection.qml"
+   ]
+  },
+  "#e8a0a0": {
+   "count": 1,
+   "token": "textTertiary",
+   "token_hex": "#a8b0c0",
+   "dist": 110.9,
+   "files": [
+    "VersionLaunchSection.qml"
+   ]
+  },
+  "#2553a8": {
+   "count": 1,
+   "token": "accentHover",
+   "token_hex": "#5068c8",
+   "dist": 92.4,
+   "files": [
+    "VersionSelectOverlay.qml"
+   ]
+  },
+  "#33557f": {
+   "count": 1,
+   "token": "textMuted",
+   "token_hex": "#505468",
+   "dist": 57.2,
+   "files": [
+    "VersionSelectOverlay.qml"
+   ]
+  },
+  "#2a1a1a": {
+   "count": 1,
+   "token": "errorBg",
+   "token_hex": "#3a1a1a",
+   "dist": 22.6,
+   "files": [
+    "VersionSelectOverlay.qml"
+   ]
+  },
+  "#162040": {
+   "count": 1,
+   "token": "accentSubtle",
+   "token_hex": "#1a2848",
+   "dist": 21.9,
+   "files": [
+    "VersionSettingsOverlay.qml"
+   ]
+  },
+  "#5080e8": {
+   "count": 1,
+   "token": "accentLight",
+   "token_hex": "#6080e8",
+   "dist": 22.6,
+   "files": [
+    "VersionSettingsOverlay.qml"
+   ]
+  },
+  "#9498ac": {
+   "count": 1,
+   "token": "textSubtle",
+   "token_hex": "#8088a0",
+   "dist": 47.5,
+   "files": [
+    "VersionSettingsOverlay.qml"
+   ]
+  },
+  "#3a4a90": {
+   "count": 1,
+   "token": "textMuted",
+   "token_hex": "#505468",
+   "dist": 78.5,
+   "files": [
+    "VersionSettingsOverlay.qml"
+   ]
+  },
+  "#8a6d3b": {
+   "count": 1,
+   "token": "textDanger",
+   "token_hex": "#c05050",
+   "dist": 102.6,
+   "files": [
+    "VersionSettingsOverlay.qml"
+   ]
+  },
+  "#2a3550": {
+   "count": 1,
+   "token": "bgHover",
+   "token_hex": "#2a3040",
+   "dist": 29.5,
+   "files": [
+    "VersionSettingsOverlay.qml"
+   ]
+  },
+  "#2a3450": {
+   "count": 1,
+   "token": "bgHover",
+   "token_hex": "#2a3040",
+   "dist": 28.8,
+   "files": [
+    "VersionSettingsOverlay.qml"
+   ]
+  },
+  "#d4d8e8": {
+   "count": 1,
+   "token": "textSecondary",
+   "token_hex": "#e4e8f2",
+   "dist": 42.8,
+   "files": [
+    "VersionSettingsOverlay.qml"
+   ]
+  },
+  "#4a2828": {
+   "count": 1,
+   "token": "errorBg",
+   "token_hex": "#3a1a1a",
+   "dist": 43.4,
+   "files": [
+    "VersionSettingsOverlay.qml"
+   ]
+  },
+  "#c06420": {
+   "count": 1,
+   "token": "textDanger",
+   "token_hex": "#c05050",
+   "dist": 92.3,
+   "files": [
+    "VersionSettingsOverlay.qml"
+   ]
+  },
+  "#e08050": {
+   "count": 1,
+   "token": "errorLight",
+   "token_hex": "#e06060",
+   "dist": 69.7,
+   "files": [
+    "VersionSettingsOverlay.qml"
+   ]
+  },
+  "#e07070": {
+   "count": 1,
+   "token": "errorLight",
+   "token_hex": "#e06060",
+   "dist": 42.3,
+   "files": [
+    "VersionSettingsOverlay.qml"
+   ]
+  },
+  "#a78bfa": {
+   "count": 1,
+   "token": "accentLink",
+   "token_hex": "#8aaeff",
+   "dist": 81.6,
+   "files": [
+    "VersionSettingsOverlay.qml"
+   ]
+  },
+  "#f05050": {
+   "count": 1,
+   "token": "error",
+   "token_hex": "#ef4444",
+   "dist": 31.8,
+   "files": [
+    "VersionSettingsOverlay.qml"
+   ]
+  },
+  "#dc2626": {
+   "count": 1,
+   "token": "error",
+   "token_hex": "#ef4444",
+   "dist": 83.8,
+   "files": [
+    "VersionSettingsPage.qml"
+   ]
+  },
+  "#fca5a5": {
+   "count": 1,
+   "token": "textTertiary",
+   "token_hex": "#a8b0c0",
+   "dist": 129.5,
+   "files": [
+    "VersionSettingsPage.qml"
+   ]
+  }
+ }
+}

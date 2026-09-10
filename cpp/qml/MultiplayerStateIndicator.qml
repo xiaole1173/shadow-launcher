@@ -40,7 +40,7 @@ Rectangle {
                 implicitWidth: roleText.implicitWidth + 8
                 implicitHeight: 20
                 radius: StyleTokens.radiusSm
-                color: mp && mp.role === 1 ? "#20f59e0b" : "#204ade80"
+                color: mp && mp.role === 1 ? StyleTokens.warningTint : StyleTokens.accentTint
 
                 Text {
                     id: roleText
@@ -52,7 +52,7 @@ Rectangle {
                         return ""
                     }
                     font.pixelSize: StyleTokens.fontSizeXs
-                    color: mp && mp.role === 1 ? "#f59e0b" : "#4ade80"
+                    color: mp && mp.role === 1 ? StyleTokens.warning : StyleTokens.success
                     font.bold: true
                 }
             }

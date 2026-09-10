@@ -28,18 +28,18 @@ Window {
     }
 
     function info(msg)  { _append("#aaa", "信息", msg) }
-    function ok(msg)    { _append("#4caf50", "完成", msg) }
+    function ok(msg)    { _append(StyleTokens.success, "完成", msg) }
     function warn(msg)  { _append(StyleTokens.warning, "警告", msg) }
-    function error(msg) { _append("#f44336", "错误", msg) }
+    function error(msg) { _append(StyleTokens.error, "错误", msg) }
     function net(url, status, sizebytes, timems) {
         var s = sizebytes < 1024 ? sizebytes + "B" :
                 sizebytes < 1048576 ? (sizebytes/1024).toFixed(1) + "KB" :
                 (sizebytes/1048576).toFixed(1) + "MB"
         var spd = timems > 0 ? (sizebytes*1000/timems/1024).toFixed(0) + "KB/s" : "\u2014"
         if (status === "OK")
-            _append("#4caf50", "网络", "\u2705 " + s + "  " + spd + "  " + timems + "ms  " + url)
+            _append(StyleTokens.success, "网络", "\u2705 " + s + "  " + spd + "  " + timems + "ms  " + url)
         else
-            _append("#f44336", "网络", "\u274c " + timems + "ms  " + status + "  " + url)
+            _append(StyleTokens.error, "网络", "\u274c " + timems + "ms  " + status + "  " + url)
     }
 
     property int entryCount: 0
@@ -144,9 +144,9 @@ Window {
             Row {
                 anchors.centerIn: parent
                 spacing: 16
-                Text { text: "\u2705\u7f51\u7edc"; color: "#4caf50"; font.pixelSize: StyleTokens.fontSizeXs }
+                Text { text: "\u2705\u7f51\u7edc"; color: StyleTokens.success; font.pixelSize: StyleTokens.fontSizeXs }
                 Text { text: "\u26a0\u8b66\u544a"; color: StyleTokens.warning; font.pixelSize: StyleTokens.fontSizeXs }
-                Text { text: "\u274c\u9519\u8bef"; color: "#f44336"; font.pixelSize: StyleTokens.fontSizeXs }
+                Text { text: "\u274c\u9519\u8bef"; color: StyleTokens.error; font.pixelSize: StyleTokens.fontSizeXs }
             }
         }
     }

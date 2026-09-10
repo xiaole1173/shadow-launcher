@@ -239,7 +239,7 @@ Rectangle {
             text: checkFailed ? "启动检查失败" : "正在启动 Minecraft"
             font.pixelSize: StyleTokens.fontSizeXl
             font.bold: true
-            color: checkFailed ? "#ff6060" : "#d0d4e0"
+            color: checkFailed ? StyleTokens.errorLight : StyleTokens.textSecondary
         }
 
         Text {
@@ -257,7 +257,7 @@ Rectangle {
                 var modeLabel = mode === 1 ? "离线" : (mode === 2 ? "外置登录" : "正版")
                 return username ? (modeLabel + "  |  玩家: " + username + "  |  内存: " + memory + " MB") : ""
             }
-            color: "#606478"
+            color: StyleTokens.textMuted
             font.pixelSize: StyleTokens.fontSizeSm
             visible: !checkFailed
         }
@@ -281,7 +281,7 @@ Rectangle {
 
                 Text {
                     text: checkFailedPhase ? ("问题: " + checkFailedPhase) : "启动检查未通过"
-                    color: "#ff8080"
+                    color: StyleTokens.errorLight
                     font.pixelSize: StyleTokens.fontSizeMd
                     font.weight: Font.DemiBold
                     Layout.fillWidth: true
@@ -290,7 +290,7 @@ Rectangle {
 
                 Text {
                     text: checkFailedDetails
-                    color: "#c08080"
+                    color: StyleTokens.errorLight
                     font.pixelSize: StyleTokens.fontSizeSm
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
@@ -313,7 +313,7 @@ Rectangle {
                         spacing: 2
                         delegate: Text {
                             text: "- " + modelData
-                            color: "#c06060"
+                            color: StyleTokens.textDanger
                             font.pixelSize: StyleTokens.fontSizeSm
                             font.family: StyleTokens.fontFamilyMono
                             width: missingListView.width
@@ -326,7 +326,7 @@ Rectangle {
                         anchors.right: parent.right
                         anchors.margins: 4
                         text: missingFilesList.length > 10 ? ("... 等共 " + missingFilesList.length + " 个文件") : ""
-                        color: "#806060"
+                        color: StyleTokens.statusOff
                         font.pixelSize: StyleTokens.fontSizeXs
                         visible: missingFilesList.length > 10
                     }
@@ -334,7 +334,7 @@ Rectangle {
 
                 Text {
                     text: qsTr("建议: 请重新下载该版本以恢复缺失文件")
-                    color: "#807880"
+                    color: StyleTokens.textSubtle
                     font.pixelSize: StyleTokens.fontSizeSm
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
@@ -376,7 +376,7 @@ Rectangle {
                     text: progressValue + "%"
                     font.pixelSize: StyleTokens.fontSize2xl
                     font.bold: true
-                    color: "#d0d4e0"
+                    color: StyleTokens.textSecondary
                 }
             }
         }
@@ -389,7 +389,7 @@ Rectangle {
             Layout.fillWidth: true
             Layout.maximumHeight: 48
             text: statusText
-            color: checkFailed ? "#a08080" : "#9094a8"
+            color: checkFailed ? StyleTokens.textSubtle : StyleTokens.textSubtle
             font.pixelSize: StyleTokens.fontSizeSm
             elide: Text.ElideRight
             maximumLineCount: 3
@@ -406,8 +406,8 @@ Rectangle {
 
             Rectangle {
                 width: 100; height: 34; radius: StyleTokens.radiusMd
-                color: logMouse ? (logMouse.containsMouse ? "#1a2838" : "transparent") : "transparent"
-                border.color: logMouse ? (logMouse.containsMouse ? "#2858a0" : "#283850") : "#283850"
+                color: logMouse ? (logMouse.containsMouse ? StyleTokens.accentSubtle : "transparent") : "transparent"
+                border.color: logMouse ? (logMouse.containsMouse ? StyleTokens.accentHover : StyleTokens.infoBg) : StyleTokens.infoBg
                 scale: logMouse ? (logMouse.pressed ? 0.9 : (logMouse.containsMouse ? 1.04 : 1.0)) : 1.0
                 visible: checkFailed
                 opacity: checkFailed ? 1 : 0
@@ -420,7 +420,7 @@ Rectangle {
                     anchors.centerIn: parent
                     text: qsTr("查看日志")
                     font.pixelSize: StyleTokens.fontSizeSm
-                    color: logMouse ? (logMouse.containsMouse ? "#80a0ff" : "#6090d0") : "#6090d0"
+                    color: logMouse ? (logMouse.containsMouse ? StyleTokens.accentLink : StyleTokens.info) : StyleTokens.info
                 }
 
                 MouseArea {
@@ -440,8 +440,8 @@ Rectangle {
             // ── Relogin button (login check failures) ──
             Rectangle {
                 width: 120; height: 34; radius: StyleTokens.radiusMd
-                color: reloginMouse ? (reloginMouse.containsMouse ? "#1a1a38" : "transparent") : "transparent"
-                border.color: reloginMouse ? (reloginMouse.containsMouse ? "#3868c0" : "#304070") : "#304070"
+                color: reloginMouse ? (reloginMouse.containsMouse ? StyleTokens.accentSubtle : "transparent") : "transparent"
+                border.color: reloginMouse ? (reloginMouse.containsMouse ? StyleTokens.accentHover : StyleTokens.infoBg) : StyleTokens.infoBg
                 scale: reloginMouse ? (reloginMouse.pressed ? 0.9 : (reloginMouse.containsMouse ? 1.04 : 1.0)) : 1.0
                 visible: checkFailed && checkFailedPhase === "登录状态"
                 opacity: (checkFailed && checkFailedPhase === "登录状态") ? 1 : 0
@@ -455,7 +455,7 @@ Rectangle {
                     text: qsTr("重新登录")
                     font.pixelSize: StyleTokens.fontSizeSm
                     font.weight: Font.DemiBold
-                    color: reloginMouse ? (reloginMouse.containsMouse ? "#a0c8ff" : "#80a0e0") : "#80a0e0"
+                    color: reloginMouse ? (reloginMouse.containsMouse ? StyleTokens.accentLink : StyleTokens.accentLink) : StyleTokens.accentLink
                 }
 
                 MouseArea {
@@ -475,10 +475,10 @@ Rectangle {
 
             Rectangle {
                 width: checkFailed ? 140 : 120; height: 34; radius: StyleTokens.radiusMd
-                color: checkFailed ? (actionMouse ? (actionMouse.containsMouse ? "#1a2a18" : "transparent") : "transparent")
-                                   : (actionMouse ? (actionMouse.containsMouse ? "#2a1518" : "transparent") : "transparent")
-                border.color: checkFailed ? (actionMouse ? (actionMouse.containsMouse ? "#286028" : "#284028") : "#284028")
-                                          : (actionMouse ? (actionMouse.containsMouse ? "#602828" : "#402428") : "#402428")
+                color: checkFailed ? (actionMouse ? (actionMouse.containsMouse ? StyleTokens.successBg : "transparent") : "transparent")
+                                   : (actionMouse ? (actionMouse.containsMouse ? StyleTokens.errorBg : "transparent") : "transparent")
+                border.color: checkFailed ? (actionMouse ? (actionMouse.containsMouse ? StyleTokens.successBg : StyleTokens.successBg) : StyleTokens.successBg)
+                                          : (actionMouse ? (actionMouse.containsMouse ? StyleTokens.errorBg : StyleTokens.errorBg) : StyleTokens.errorBg)
                 scale: actionMouse ? (actionMouse.pressed ? 0.9 : (actionMouse.containsMouse ? 1.04 : 1.0)) : 1.0
                 Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
                 Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
@@ -488,8 +488,8 @@ Rectangle {
                     anchors.centerIn: parent
                     text: checkFailed ? "返回启动页" : "取消启动"
                     font.pixelSize: StyleTokens.fontSizeSm
-                    color: checkFailed ? (actionMouse ? (actionMouse.containsMouse ? "#80ff80" : "#60c060") : "#60c060")
-                                       : (actionMouse ? (actionMouse.containsMouse ? "#ff6060" : "#c05050") : "#c05050")
+                    color: checkFailed ? (actionMouse ? (actionMouse.containsMouse ? StyleTokens.success : StyleTokens.success) : StyleTokens.success)
+                                       : (actionMouse ? (actionMouse.containsMouse ? StyleTokens.errorLight : StyleTokens.textDanger) : StyleTokens.textDanger)
                 }
 
                 MouseArea {

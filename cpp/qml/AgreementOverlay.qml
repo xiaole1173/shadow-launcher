@@ -43,8 +43,8 @@ Rectangle {
             Layout.preferredWidth: 16
             Layout.preferredHeight: 16
             radius: StyleTokens.radiusXs
-            color: row.checked ? "#6090d0" : "transparent"
-            border.color: row.checked ? "#6090d0" : "#3a3e52"
+            color: row.checked ? StyleTokens.info : "transparent"
+            border.color: row.checked ? StyleTokens.info : StyleTokens.infoBg
             border.width: 1.5
             Text {
                 anchors.centerIn: parent
@@ -62,13 +62,13 @@ Rectangle {
         Text {
             text: row.labelText
             font.pixelSize: StyleTokens.fontSizeSm
-            color: "#b0b8d0"
+            color: StyleTokens.textTertiary
             Layout.leftMargin: 6
         }
         Text {
             text: row.linkText
             font.pixelSize: StyleTokens.fontSizeSm
-            color: "#6090d0"
+            color: StyleTokens.info
             font.underline: true
             MouseArea {
                 anchors.fill: parent
@@ -157,14 +157,14 @@ Rectangle {
             text: betaGateEnabled ? "欢迎使用 Shadow Launcher 内测版！" : "欢迎使用 Shadow Launcher！"
             font.pixelSize: StyleTokens.fontSizeMd
             font.weight: Font.Medium
-            color: "#d0d4e8"
+            color: StyleTokens.textSecondary
         }
         Text {
             Layout.alignment: Qt.AlignHCenter
             Layout.topMargin: 4
             text: "请仔细阅读并同意以下协议后开始使用。"
             font.pixelSize: StyleTokens.fontSizeSm
-            color: "#7880a0"
+            color: StyleTokens.textSubtle
         }
 
         Item { Layout.preferredHeight: 20 }
@@ -218,13 +218,13 @@ Rectangle {
                 Layout.preferredWidth: 160
                 Layout.preferredHeight: 40
                 radius: StyleTokens.radiusLg
-                color: btnEnabled ? "#6090d0" : "#2a2e42"
+                color: btnEnabled ? StyleTokens.info : StyleTokens.accentSubtle
                 Text {
                     anchors.centerIn: parent
                     text: "同意并继续"
                     font.pixelSize: StyleTokens.fontSizeMd
                     font.weight: Font.Medium
-                    color: agreeBtn.btnEnabled ? StyleTokens.textInverse : "#505878"
+                    color: agreeBtn.btnEnabled ? StyleTokens.textInverse : StyleTokens.textMuted
                 }
                 MouseArea {
                     anchors.fill: parent
@@ -240,13 +240,13 @@ Rectangle {
                 Layout.preferredHeight: 40
                 radius: StyleTokens.radiusLg
                 color: "transparent"
-                border.color: "#3a3e52"
+                border.color: StyleTokens.infoBg
                 border.width: 1
                 Text {
                     anchors.centerIn: parent
                     text: "不同意并退出"
                     font.pixelSize: StyleTokens.fontSizeMd
-                    color: "#7880a0"
+                    color: StyleTokens.textSubtle
                 }
                 MouseArea {
                     anchors.fill: parent
@@ -280,7 +280,7 @@ Rectangle {
                         text: currentAgreementTitle
                         font.pixelSize: StyleTokens.fontSizeMd
                         font.weight: Font.Medium
-                        color: "#d0d4e8"
+                        color: StyleTokens.textSecondary
                         Layout.fillWidth: true
                     }
                     Rectangle {
@@ -292,7 +292,7 @@ Rectangle {
                             anchors.centerIn: parent
                             text: "\u2715"
                             font.pixelSize: StyleTokens.fontSizeMd
-                            color: "#7880a0"
+                            color: StyleTokens.textSubtle
                         }
                         MouseArea {
                             anchors.fill: parent
@@ -315,7 +315,7 @@ Rectangle {
                     text: currentAgreementHtml || "<p style='color:#7880a0'>无法加载协议文件</p>"
                     textFormat: Text.RichText
                     font.pixelSize: StyleTokens.fontSizeMd
-                    color: "#b0b8d0"
+                    color: StyleTokens.textTertiary
                     wrapMode: Text.WordWrap
                     onLinkActivated: function(url) {
                         Qt.openUrlExternally(url)

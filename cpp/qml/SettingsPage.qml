@@ -89,7 +89,7 @@ Rectangle {
 
                 delegate: Rectangle {
                     width: nav.width - 16; height: 38; radius: StyleTokens.radiusMd
-                    color: nav.currentIndex === index ? "#181c28" : (navMouse.containsMouse ? StyleTokens.bgSecondary : "transparent")
+                    color: nav.currentIndex === index ? StyleTokens.accentSubtle : (navMouse.containsMouse ? StyleTokens.bgSecondary : "transparent")
                     Behavior on color { ColorAnimation { duration: 200; easing.type: Easing.OutCubic } }
                     scale: navMouse.containsMouse ? 1.02 : 1.0
                     Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
@@ -102,7 +102,7 @@ Rectangle {
                             width: 16; height: 16
                         }
                         Text {
-                            text: nav.navLabel(modelData.key); color: nav.currentIndex === index ? StyleTokens.textPrimary : "#8890a0"; font.pixelSize: StyleTokens.fontSizeMd
+                            text: nav.navLabel(modelData.key); color: nav.currentIndex === index ? StyleTokens.textPrimary : StyleTokens.textSubtle; font.pixelSize: StyleTokens.fontSizeMd
                             Behavior on color { ColorAnimation { duration: 200; easing.type: Easing.OutCubic } }
                             font.weight: nav.currentIndex === index ? Font.DemiBold : Font.Normal
                         }
@@ -115,7 +115,7 @@ Rectangle {
                 id: settingsIndicator
                 z: 10
                 x: 8; y: 8 + nav.currentIndex * 40
-                width: 2; height: 38; color: "#5d6fe0"; radius: StyleTokens.radiusXs
+                width: 2; height: 38; color: StyleTokens.accentLight; radius: StyleTokens.radiusXs
                 Behavior on y { SmoothedAnimation { velocity: 200; duration: 300 } }
             }
         }
@@ -226,7 +226,7 @@ Rectangle {
                 }
 
                 // ═══ 下载设置 ═══
-                Text { text: qsTr("下载"); font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold; color: "#b8c0d0"; Layout.topMargin: 8 }
+                Text { text: qsTr("下载"); font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold; color: StyleTokens.textTertiary; Layout.topMargin: 8 }
 
                 // ── 文件下载源 ──
                 Text { text: qsTr("文件下载源"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary }
@@ -302,7 +302,7 @@ Rectangle {
                 }
 
                 // ═══ 启动细节（2026-08-08 低垂果实批）═══
-                Text { text: qsTr("启动"); font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold; color: "#b8c0d0"; Layout.topMargin: 8 }
+                Text { text: qsTr("启动"); font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold; color: StyleTokens.textTertiary; Layout.topMargin: 8 }
 
                 // ── 进程优先级 ──
                 Text { text: qsTr("进程优先级"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary }
@@ -453,7 +453,7 @@ Rectangle {
                 Text { text: qsTr("以上默认值可在版本设置-启动配置中按版本单独覆盖"); font.pixelSize: StyleTokens.fontSizeXs; color: StyleTokens.textMuted }
 
                 // ═══ 配置管理（设置导入导出）═══
-                Text { text: qsTr("配置管理"); font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold; color: "#b8c0d0"; Layout.topMargin: 8 }
+                Text { text: qsTr("配置管理"); font.pixelSize: StyleTokens.fontSizeMd; font.weight: Font.DemiBold; color: StyleTokens.textTertiary; Layout.topMargin: 8 }
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 10
@@ -590,7 +590,7 @@ Rectangle {
                 id: ackDesc
                 text: modelData.desc
                 font.pixelSize: StyleTokens.fontSizeSm
-                color: "#8890a0"
+                color: StyleTokens.textSubtle
                 width: parent.width
                 wrapMode: Text.WordWrap
                 lineHeight: 1.35
@@ -632,7 +632,7 @@ Rectangle {
                         RowLayout {
                             Layout.fillWidth: true; spacing: 8
                             ShadowButton {
-                                accentColor: "#2d3748"
+                                accentColor: StyleTokens.accentSubtle
                                 text: qsTr("GitHub")
                                 Layout.preferredWidth: 74; Layout.preferredHeight: 26
                                 font.pixelSize: StyleTokens.fontSizeSm
@@ -652,7 +652,7 @@ Rectangle {
                         Text {
                             Layout.fillWidth: true
                             text: qsTr("(C) 2025-2026 影 / Shadow / xiaole1173")
-                            font.pixelSize: StyleTokens.fontSizeSm; color: "#707888"
+                            font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSubtle
                         }
                         ShadowButton {
                             accentColor: "transparent"
@@ -664,7 +664,7 @@ Rectangle {
                         Text {
                             Layout.fillWidth: true; wrapMode: Text.WordWrap
                             text: qsTr("非 Minecraft 官方产品。未经 Mojang 或 Microsoft 批准，也不与 Mojang 或 Microsoft 关联。")
-                            font.pixelSize: StyleTokens.fontSizeSm; color: "#707888"; lineHeight: 1.4
+                            font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSubtle; lineHeight: 1.4
                         }
                     }
                 }
@@ -711,17 +711,17 @@ Rectangle {
                         Text {
                             Layout.fillWidth: true; wrapMode: Text.WordWrap
                             text: qsTr("这里非常荣幸地宣布：jh_hello、XChenyYa二人以神奇的bug体制挖掘出了启动器的很多莫名其妙的bug，包括但不限于下载、UI显示、联机等多个方面。")
-                            font.pixelSize: StyleTokens.fontSizeSm; color: "#8890a0"; lineHeight: 1.35
+                            font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSubtle; lineHeight: 1.35
                         }
                         Text {
                             Layout.fillWidth: true; wrapMode: Text.WordWrap
                             text: qsTr("非常感谢jh_hello、XChenyYa、渡、LUVlhr等人对联机功能后续测试的全方位支持！")
-                            font.pixelSize: StyleTokens.fontSizeSm; color: "#8890a0"; lineHeight: 1.35
+                            font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSubtle; lineHeight: 1.35
                         }
                         Text {
                             Layout.fillWidth: true; wrapMode: Text.WordWrap
                             text: qsTr("以及其他参与内测的小伙伴们也十分感谢！")
-                            font.pixelSize: StyleTokens.fontSizeSm; color: "#8890a0"; lineHeight: 1.35
+                            font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSubtle; lineHeight: 1.35
                         }
                     }
                 }
@@ -743,7 +743,7 @@ Rectangle {
                             Layout.fillWidth: true
                         }
                         ShadowButton {
-                            accentColor: "#2d3748"; text: qsTr("打开文件夹")
+                            accentColor: StyleTokens.accentSubtle; text: qsTr("打开文件夹")
                             Layout.preferredHeight: 26; font.pixelSize: StyleTokens.fontSizeSm
                             onClicked: backend.openLauncherLogsFolder()
                         }
@@ -839,7 +839,7 @@ Rectangle {
                                             ? (qsTr("已检测到 ") + parent.parent.labelFor(modelData.major))
                                             : qsTr("未检测到，将自动安装")
                                         font.pixelSize: StyleTokens.fontSizeXs
-                                        color: parent.parent.hasMajor(modelData.major) ? "#7ec8a0" : StyleTokens.textMuted
+                                        color: parent.parent.hasMajor(modelData.major) ? StyleTokens.success : StyleTokens.textMuted
                                     }
                                 }
                             }
@@ -905,7 +905,7 @@ Rectangle {
                             Layout.fillWidth: true; spacing: 8
                             ShadowButton {
                                 accentColor: backend && backend.javaBackend && backend.javaBackend.javaInstalling
-                                    ? "#4a3a20" : StyleTokens.accent
+                                    ? StyleTokens.warningBg : StyleTokens.accent
                                 text: backend && backend.javaBackend && backend.javaBackend.javaInstalling
                                     ? qsTr("安装中…") : qsTr("一键安装")
                                 Layout.preferredWidth: 110; Layout.preferredHeight: 28
@@ -916,7 +916,7 @@ Rectangle {
                                 }
                             }
                             ShadowButton {
-                                accentColor: "#3a2020"
+                                accentColor: StyleTokens.errorBg
                                 text: qsTr("取消")
                                 Layout.preferredWidth: 70; Layout.preferredHeight: 28
                                 font.pixelSize: StyleTokens.fontSizeSm
