@@ -355,11 +355,11 @@ Rectangle {
     RowLayout {
         id: tabBar
         anchors.top: parent.top
-        anchors.margins: 12
+        anchors.margins: StyleTokens.spacingMd
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.leftMargin: 16
-        anchors.rightMargin: 16
+        anchors.leftMargin: StyleTokens.spacingLg
+        anchors.rightMargin: StyleTokens.spacingLg
         anchors.topMargin: 8
         height: 28
         spacing: 4

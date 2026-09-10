@@ -383,7 +383,7 @@ Rectangle {
         }
 
         RowLayout {
-            anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; spacing: 10
+            anchors.fill: parent; anchors.leftMargin: StyleTokens.spacingMd; anchors.rightMargin: StyleTokens.spacingMd; spacing: 10
             BackButton {
                 onClicked: root.goBack()
             }

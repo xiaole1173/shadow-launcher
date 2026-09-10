@@ -47,8 +47,8 @@ Item {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 24
-        spacing: 14
+        anchors.margins: StyleTokens.spacingXl
+        spacing: StyleTokens.spacingMd
 
         Text {
             text: qsTr("统计")

@@ -71,7 +71,7 @@ Rectangle {
     Rectangle {
         id: loginSwitch
         anchors.horizontalCenter: parent.horizontalCenter
-        anchors.top: parent.top; anchors.topMargin: 32
+        anchors.top: parent.top; anchors.topMargin: StyleTokens.spacing2xl
         width: 300; height: 42; radius: StyleTokens.radiusLg
         color: StyleTokens.bgSecondary; border.color: StyleTokens.bgInput
         RowLayout {

@@ -130,7 +130,7 @@ Rectangle {
             // Section 0: General (loaded immediately, stays cached)
             Loader {
                 id: generalLoader
-                anchors.fill: parent; anchors.margins: 24
+                anchors.fill: parent; anchors.margins: StyleTokens.spacingXl
                 active: true
                 opacity: page.currentSection === 0 ? 1 : 0
                 visible: opacity > 0
@@ -142,7 +142,7 @@ Rectangle {
             // Section 1: Java (external file)
             Loader {
                 id: javaLoader
-                anchors.fill: parent; anchors.margins: 24
+                anchors.fill: parent; anchors.margins: StyleTokens.spacingXl
                 active: true
                 source: "SettingsJavaPage.qml"
                 opacity: page.currentSection === 1 ? 1 : 0
@@ -161,7 +161,7 @@ Rectangle {
             // Section 2: Memory (lazy loaded, cached after first load)
             Loader {
                 id: memoryLoader
-                anchors.fill: parent; anchors.margins: 24
+                anchors.fill: parent; anchors.margins: StyleTokens.spacingXl
                 active: true
                 opacity: page.currentSection === 2 ? 1 : 0
                 visible: opacity > 0
@@ -173,7 +173,7 @@ Rectangle {
             // Section 3: Experimental (lazy loaded, cached after first load)
             Loader {
                 id: experimentalLoader
-                anchors.fill: parent; anchors.margins: 24
+                anchors.fill: parent; anchors.margins: StyleTokens.spacingXl
                 active: true
                 opacity: page.currentSection === 3 ? 1 : 0
                 visible: opacity > 0
@@ -185,7 +185,7 @@ Rectangle {
             // Section 4: About (lazy loaded, cached after first load)
             Loader {
                 id: aboutLoader
-                anchors.fill: parent; anchors.margins: 24
+                anchors.fill: parent; anchors.margins: StyleTokens.spacingXl
                 active: true
                 opacity: page.currentSection === 4 ? 1 : 0
                 visible: opacity > 0

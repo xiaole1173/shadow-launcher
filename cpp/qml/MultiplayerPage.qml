@@ -267,12 +267,12 @@ Rectangle {
         }
 
         ColumnLayout {
-            anchors.fill: parent; anchors.margins: 24; spacing: 16
+            anchors.fill: parent; anchors.margins: StyleTokens.spacingXl; spacing: StyleTokens.spacingLg
 
             Text {
                 Layout.alignment: Qt.AlignHCenter
                 text: "加入联机房间"
-                font.pixelSize: StyleTokens.fontSizeXl; font.bold: true; color: StyleTokens.accentLight
+                font.pixelSize: StyleTokens.fontSizeXl; font.bold: true; color: StyleTokens.textPrimary
             }
 
             ColumnLayout {

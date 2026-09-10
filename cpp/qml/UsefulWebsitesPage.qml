@@ -81,9 +81,9 @@ Item {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.leftMargin: 20; anchors.rightMargin: 20
-        anchors.topMargin: 16; anchors.bottomMargin: 16
-        spacing: 12
+        anchors.leftMargin: StyleTokens.spacingXl; anchors.rightMargin: StyleTokens.spacingXl
+        anchors.topMargin: StyleTokens.spacingLg; anchors.bottomMargin: StyleTokens.spacingLg
+        spacing: StyleTokens.spacingMd
 
         // ── 页头：返回 + 标题 ──
         RowLayout {

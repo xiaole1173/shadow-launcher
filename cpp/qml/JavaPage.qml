@@ -39,7 +39,7 @@ Item {
     Flickable {
         id: flick
         anchors.fill: parent
-        anchors.margins: 20
+        anchors.margins: StyleTokens.spacingXl
         contentHeight: contentColumn.implicitHeight
         clip: true
         boundsBehavior: Flickable.StopAtBounds
@@ -59,7 +59,7 @@ Item {
             spacing: 10
             Text {
                 text: "Java 运行环境下载"
-                color: StyleTokens.textSecondary
+                color: StyleTokens.textPrimary
                 font.pixelSize: StyleTokens.fontSizeXl
                 font.weight: Font.Bold
             }
