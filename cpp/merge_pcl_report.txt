@@ -1,0 +1,82 @@
+PCL parsed entries: 8006
+  skipped (no english / numeric id): 0
+  skipped (no cjk in zh): 209
+existing (confirmed): 205
+merged total: 8043 (added 7838 from PCL)
+output: D:\latest-code\cpp\qml\mod_zh_merged.json
+
+=== sanity: entries whose en is pure-ish numeric or suspicious ===
+  [C4] -> Qis的C4
+
+=== first 60 samples (alphabetical) ===
+  0Pack2Reload  ->  资源包惰性重载/抑验怠载
+  1.13 Bubble Columns for 1.12  ->  1.13水域机制
+  24Hourclock  ->  24小时制
+  3D Maneuver Gear  ->  3D立体机动装置
+  7 Days to Mine  ->  七日杀
+  [Arknights] Skadi Orca Plushie  ->  【明日方舟】斯卡蒂的虎鲸抱枕
+  [Legacy] LotRExtraCoins  ->  额外魔戒银币
+  [Let's Do Addon] Corn Expansion  ->  玉食俱馩
+  [Let's Do] Camping  ->  摇曳露营
+  [Let's Do] Candlelight  ->  烛火晚宴
+  [Let's Do] Farm & Charm  ->  沉浸农艺
+  [Let's Do] Furniture  ->  家居装饰
+  [Let's Do] Hearth & Timber  ->  木工营造
+  [Let's do] Meadow  ->  青青草甸
+  [Let's Do] TFC Farm Charm  ->  群峦农艺
+  [Let's Do] WilderNature  ->  野性自然
+  [SBM] Wooden Buckets  ->  木桶
+  [SBW] Wrecked!  ->  [SBW]残骸系统
+  A Better Foods  ->  更多的食物
+  A Block of Charcoal  ->  木炭块
+  A Block of Flint  ->  燧石块
+  A Cobblestone Crafting Table  ->  圆石工作台
+  A Minecraft Movie Discs  ->  Minecraft 大电影插曲唱片
+  A Paimon  ->  派蒙
+  a riot of colour craft  ->  五彩斑斓工艺
+  A Useless Mod  ->  无用之物
+  A Weird Bow  ->  奇奇怪怪的弓
+  A177 Added Modified Enchantments  ->  A177增修附魔
+  AAA's StrongerMobs  ->  更强的怪物
+  Abandoned urban  ->  废弃城市
+  abm991's Zombie Infection  ->  abm991的僵尸感染
+  Abyssal Corrupter  ->  深渊侵蚀者
+  AbyssalBlocks  ->  深渊国度幸运方块
+  AbyssalCraft  ->  深渊国度
+  AbyssalCraft Heads  ->  深渊国度头颅
+  AbyssalCraft Integration  ->  深渊国度联动
+  AbyssMana  ->  奈落魔法学
+  Academy Monster  ->  超能力怪物
+  AcademyCraft  ->  超能力/学园都市
+  Accelerated Recoiling  ->  加速碰撞
+  Acceleratedrendering  ->  加速渲染
+  AcceleratedRendering-reFabricated  ->  加速渲染：重织
+  AcceleratorCraft  ->  加速器工艺
+  Accurate Spears  ->  ‌精准长矛‌
+  Achievement Books  ->  成就书
+  Achievement Detection Fix  ->  成就检测修复
+  Achievement Fix  ->  成就修复
+  AcryliCraft  ->  亚克力窗口
+  Actually Additions  ->  实用拓展
+  Actually Additions V2 Coffee Edition  ->  实用拓展 V2 咖啡版
+  Actually Baubles  ->  实用拓展饰品
+  ActuallyComputers  ->  实用电脑
+  Ad Astra  ->  遨游星海
+  Adaptability  ->  适应性
+  Adaptive Nemesis  ->  自适应宿敌
+  Adaptive Performance Tweaks  ->  适应性性能调整
+  Add Potion into Your Food  ->  给您下药了
+  Additional Additions  ->  额外扩展
+  Additional Banners  ->  更多旗帜
+  Additional Buildcraft Objects  ->  更多管道
+
+=== spot check known mods ===
+  Sodium: Sodium -> 钠
+  Iris Shaders: NOT FOUND
+  Simple Voice Chat: Simple Voice Chat -> 简单的语音聊天
+  Applied Energistics 2: Applied Energistics 2 -> 应用能源2
+  Create: Create -> 机械动力
+  JEI: NOT FOUND
+  Sodium Reforged: NOT FOUND
+  Occultism: Occultism -> 神秘学
+  Distant Horizons: Distant Horizons -> 远景地平线
