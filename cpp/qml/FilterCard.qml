@@ -159,7 +159,7 @@ Rectangle {
             Rectangle {
                 id: preTog
                 width: preTogText.implicitWidth + 16; height: 24; radius: StyleTokens.radiusSm
-                color: preTogMouse.containsMouse ? (root.showPreReleases ? StyleTokens.accentSubtle : StyleTokens.accentSubtle) : (root.showPreReleases ? StyleTokens.accentSubtle : StyleTokens.bgSecondary)
+                color: preTogMouse.containsMouse ? StyleTokens.bgHover : (root.showPreReleases ? StyleTokens.accentSubtle : StyleTokens.bgSecondary)
                 border.color: root.showPreReleases ? StyleTokens.accentViolet : StyleTokens.borderLight; border.width: 1
                 Behavior on color { ColorAnimation { duration: 150 } }
                 Text {
@@ -408,7 +408,7 @@ Rectangle {
             Rectangle {
                 id: resetBtn
                 width: 100; height: 34; radius: StyleTokens.radiusMd
-                color: resetBtnMouse.containsMouse ? StyleTokens.accentSubtle : StyleTokens.accentSubtle
+                color: resetBtnMouse.containsMouse ? StyleTokens.bgHover : StyleTokens.bgSecondary
                 border.color: resetBtnMouse.containsMouse ? StyleTokens.accentHover : StyleTokens.bgHover; border.width: 1
                 scale: resetBtnMouse.pressed ? 0.94 : (resetBtnMouse.containsMouse ? 1.04 : 1.0)
                 Behavior on color { ColorAnimation { duration: 150 } }

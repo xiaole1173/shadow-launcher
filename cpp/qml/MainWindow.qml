@@ -1381,7 +1381,7 @@ Window {
                 spacing: 10; Layout.alignment: Qt.AlignRight
                 Rectangle {
                     width: 80; height: 30; radius: StyleTokens.radiusMd
-                    color: skipHov.hovered ? StyleTokens.errorBg : StyleTokens.errorBg
+                    color: skipHov.hovered ? StyleTokens.errorBg : StyleTokens.bgSecondary
                     border.color: skipHov.hovered ? StyleTokens.statusOff : StyleTokens.errorBg
                     Text { anchors.centerIn: parent; text: "跳过"; color: StyleTokens.textDanger; font.pixelSize: StyleTokens.fontSizeSm }
                     MouseArea { id: skipHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
@@ -1390,7 +1390,7 @@ Window {
                 }
                 Rectangle {
                     width: 80; height: 30; radius: StyleTokens.radiusMd
-                    color: retryHov.hovered ? StyleTokens.warningBg : StyleTokens.warningBg
+                    color: retryHov.hovered ? StyleTokens.warningBg : StyleTokens.bgSecondary
                     border.color: retryHov.hovered ? StyleTokens.warning : StyleTokens.warningBg
                     Text { anchors.centerIn: parent; text: "重试"; color: StyleTokens.warning; font.pixelSize: StyleTokens.fontSizeSm }
                     MouseArea { id: retryHov; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
@@ -1482,8 +1482,8 @@ Window {
         id: downloadFab
         z: 50
         width: 44; height: 44; radius: 22
-        color: fabMouse.containsMouse ? StyleTokens.accentSubtle : StyleTokens.accentSubtle
-        border.color: fabMouse.containsMouse ? StyleTokens.infoBg : StyleTokens.infoBg
+        color: fabMouse.containsMouse ? StyleTokens.bgHover : StyleTokens.accentSubtle
+        border.color: fabMouse.containsMouse ? StyleTokens.borderLight : StyleTokens.infoBg
         anchors.right: parent.right; anchors.bottom: parent.bottom
         anchors.rightMargin: 16; anchors.bottomMargin: 16
         // ── Fade in/out: opacity drives animation, visible hides render tree ──

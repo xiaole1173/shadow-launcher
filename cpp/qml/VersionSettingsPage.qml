@@ -468,7 +468,7 @@ Rectangle {
                             width: 80
                             height: 34
                             radius: StyleTokens.radiusLg
-                            color: applyAuthMouse.containsMouse ? StyleTokens.accent : StyleTokens.accent
+                            color: applyAuthMouse.containsMouse ? StyleTokens.accentVivid : StyleTokens.accent
                             scale: applyAuthMouse.containsMouse ? 1.04 : 1.0
 
                             Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
@@ -537,7 +537,7 @@ Rectangle {
                             Layout.preferredWidth: 140
                             height: 40
                             radius: StyleTokens.radiusLg
-                            color: integrityBtnMouse.containsMouse ? StyleTokens.accent : StyleTokens.accent
+                            color: integrityBtnMouse.containsMouse ? StyleTokens.accentVivid : StyleTokens.accent
                             scale: integrityBtnMouse.containsMouse ? 1.04 : 1.0
 
                             Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
@@ -1023,7 +1023,7 @@ Rectangle {
                     height: 36
                     radius: StyleTokens.radiusLg
                     color: "transparent"
-                    border.color: confirmDelMouse.containsMouse ? StyleTokens.error : StyleTokens.error
+                    border.color: confirmDelMouse.containsMouse ? StyleTokens.errorLight : StyleTokens.error
                     border.width: 1
                     scale: confirmDelMouse.containsMouse ? 1.04 : 1.0
 

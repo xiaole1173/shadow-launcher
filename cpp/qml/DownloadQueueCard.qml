@@ -173,7 +173,7 @@ Rectangle {
             height: 20; radius: 10
             width: retryRow.implicitWidth + 14
             visible: !!(_meta.failed && _meta.canRetry)
-            color: retryMouse.containsMouse ? StyleTokens.successBg : StyleTokens.successBg
+            color: retryMouse.containsMouse ? StyleTokens.successBg : StyleTokens.bgSecondary
 
             Behavior on color { ColorAnimation { duration: 120 } }
 

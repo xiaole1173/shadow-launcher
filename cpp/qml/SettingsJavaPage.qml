@@ -299,7 +299,7 @@ Item {
                     ]
                     Rectangle {
                         implicitWidth: gcLabel.implicitWidth + 20; height: 30; radius: StyleTokens.radiusMd
-                        color: gcHover.hovered || gcFlash.running ? StyleTokens.accentSubtle : StyleTokens.accentSubtle
+                        color: gcHover.hovered || gcFlash.running ? StyleTokens.accentSubtle : StyleTokens.surfaceLight
                         border.color: StyleTokens.bgHover
                         scale: gcMa.pressed ? 0.92 : 1.0
                         Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }

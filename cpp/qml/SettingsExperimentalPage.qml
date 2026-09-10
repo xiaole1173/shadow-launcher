@@ -180,7 +180,7 @@ Flickable {
                     }
                     Item { Layout.fillWidth: true }
                     Text { text: hasBg ? qsTr("已设置") : qsTr("未设置"); font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary }
-                    Rectangle { width: 60; height: 28; radius: StyleTokens.radiusSm; color: bgBrowseHov.pressed ? StyleTokens.accentSubtle : (bgBrowseHov.containsMouse ? StyleTokens.accentSubtle : StyleTokens.accentSubtle); border.color: bgBrowseHov.containsMouse ? StyleTokens.accentHover : StyleTokens.bgHover
+                    Rectangle { width: 60; height: 28; radius: StyleTokens.radiusSm; color: bgBrowseHov.pressed ? StyleTokens.accentSubtle : (bgBrowseHov.containsMouse ? StyleTokens.bgHover : StyleTokens.bgSecondary); border.color: bgBrowseHov.containsMouse ? StyleTokens.accentHover : StyleTokens.bgHover
                         Behavior on color { ColorAnimation { duration: 150 } }
                         Behavior on border.color { ColorAnimation { duration: 150 } }
                         scale: bgBrowseHov.containsMouse ? (bgBrowseHov.pressed ? 0.94 : 1.04) : 1.0

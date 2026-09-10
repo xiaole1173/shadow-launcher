@@ -573,7 +573,7 @@ Rectangle {
                     Rectangle {
                         id: importBtn
                         width: 180; height: 36; radius: StyleTokens.radiusMd
-                        color: importBtnHover.containsMouse ? StyleTokens.accentSubtle : StyleTokens.accentSubtle
+                        color: importBtnHover.containsMouse ? StyleTokens.accentSubtle : StyleTokens.bgSecondary
                         border.color: importBtnHover.containsMouse ? StyleTokens.accentViolet : StyleTokens.accentSubtle
                         border.width: 1
                         Behavior on color { ColorAnimation { duration: 200 } }

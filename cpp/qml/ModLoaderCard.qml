@@ -129,7 +129,7 @@ Rectangle {
                 readonly property bool itemEnabled: card.versionEnabled(modelData.version)
                 width: versionListView.width; height: itemRowH; radius: StyleTokens.radiusMd
                 opacity: itemEnabled ? 1.0 : 0.35
-                color: hoverDeleg.containsMouse ? (itemEnabled ? StyleTokens.accentSubtle : StyleTokens.accentSubtle) : "transparent"
+                color: hoverDeleg.containsMouse ? (itemEnabled ? StyleTokens.accentSubtle : StyleTokens.bgSecondary) : "transparent"
                 border.color: card.selectedVersion === modelData.version ? StyleTokens.accentHover : "transparent"
                 border.width: card.selectedVersion === modelData.version ? 1 : 0
 

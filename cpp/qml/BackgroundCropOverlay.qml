@@ -207,7 +207,7 @@ Rectangle {
             // Reset button
             Rectangle {
                 width: 100; height: 34; radius: StyleTokens.radiusMd
-                color: resetHov.hovered ? StyleTokens.accentSubtle : StyleTokens.accentSubtle; border.color: StyleTokens.bgHover
+                color: resetHov.hovered ? StyleTokens.bgHover : StyleTokens.bgSecondary; border.color: StyleTokens.bgHover
                 Text {
                     anchors.centerIn: parent; text: "重置居中"
                     font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textTertiary

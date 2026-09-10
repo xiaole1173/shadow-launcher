@@ -105,7 +105,7 @@ Rectangle {
             implicitHeight: 22
             radius: StyleTokens.radiusMd
             color: playerData.kind === "HOST" ? StyleTokens.warningTint :
-                   playerData.kind === "LOCAL" ? StyleTokens.accentTint : StyleTokens.accentTint
+                   playerData.kind === "LOCAL" ? StyleTokens.successTint : StyleTokens.accentTint
             Text {
                 id: roleLabel
                 anchors.centerIn: parent

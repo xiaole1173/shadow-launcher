@@ -597,7 +597,7 @@ Rectangle {
 
                         // Open folder button
                         Rectangle {
-                            width: 30; height: 30; radius: StyleTokens.radiusMd; color: modFolderBtnH.hovered ? StyleTokens.accentSubtle : StyleTokens.accentSubtle
+                            width: 30; height: 30; radius: StyleTokens.radiusMd; color: modFolderBtnH.hovered ? StyleTokens.bgHover : StyleTokens.surfaceOverlay
                             border.color: StyleTokens.bgHover
                             scale: modFolderBtnM.pressed ? 0.88 : 1.0
                             Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
@@ -860,7 +860,7 @@ Rectangle {
 
                         // Open folder button
                         Rectangle {
-                            width: 30; height: 30; radius: StyleTokens.radiusMd; color: rpFolderBtnH.hovered ? StyleTokens.accentSubtle : StyleTokens.accentSubtle
+                            width: 30; height: 30; radius: StyleTokens.radiusMd; color: rpFolderBtnH.hovered ? StyleTokens.bgHover : StyleTokens.surfaceOverlay
                             border.color: StyleTokens.bgHover
                             scale: rpFolderBtnM.pressed ? 0.88 : 1.0
                             Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
@@ -1055,7 +1055,7 @@ Rectangle {
 
                     // Open folder button
                     Rectangle {
-                        width: 30; height: 30; radius: StyleTokens.radiusMd; color: saveFolderBtnH.hovered ? StyleTokens.accentSubtle : StyleTokens.accentSubtle
+                        width: 30; height: 30; radius: StyleTokens.radiusMd; color: saveFolderBtnH.hovered ? StyleTokens.bgHover : StyleTokens.surfaceOverlay
                         border.color: StyleTokens.bgHover
                         scale: saveFolderBtnM.pressed ? 0.88 : 1.0
                         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
@@ -1142,7 +1142,7 @@ Rectangle {
                 // Start button
                 Rectangle {
                     width: 140; height: 36; radius: StyleTokens.radiusMd
-                    color: versionSettingsOverlay._verifyRunning ? StyleTokens.borderLight : (verifyBtnMouse.containsMouse ? StyleTokens.accent : StyleTokens.accent)
+                    color: versionSettingsOverlay._verifyRunning ? StyleTokens.borderLight : (verifyBtnMouse.containsMouse ? StyleTokens.accentVivid : StyleTokens.accent)
                     scale: verifyBtnMouse.containsMouse && !versionSettingsOverlay._verifyRunning ? 1.04 : 1.0
                     Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                     Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
@@ -1209,7 +1209,7 @@ Rectangle {
                     Rectangle {
                         width: 140; height: 36; radius: StyleTokens.radiusMd
                         color: "transparent"
-                        border.color: repairBtnHover.hovered ? StyleTokens.warning : StyleTokens.warning
+                        border.color: repairBtnHover.hovered ? StyleTokens.warning : StyleTokens.warningDim
                         border.width: 1.5
                         Row {
                             anchors.centerIn: parent; spacing: 6
@@ -1219,7 +1219,7 @@ Rectangle {
                                 sourceSize.width: 14; sourceSize.height: 14
                                 anchors.verticalCenter: parent.verticalCenter
                             }
-                            Text { text: qsTr("一键修复"); font.pixelSize: StyleTokens.fontSizeSm; color: repairBtnHover.hovered ? StyleTokens.warning : StyleTokens.warning }
+                            Text { text: qsTr("一键修复"); font.pixelSize: StyleTokens.fontSizeSm; color: repairBtnHover.hovered ? StyleTokens.warning : StyleTokens.warningDim }
                         }
                         HoverHandler { id: repairBtnHover }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
@@ -1240,7 +1240,7 @@ Rectangle {
                         color: "transparent"
                         border.color: reportBtnHover.hovered ? StyleTokens.errorLight : StyleTokens.statusOff
                         border.width: 1.5
-                        Text { anchors.centerIn: parent; text: qsTr("[详情] 查看异常详情"); font.pixelSize: StyleTokens.fontSizeSm; color: reportBtnHover.hovered ? StyleTokens.errorLight : StyleTokens.errorLight }
+                        Text { anchors.centerIn: parent; text: qsTr("[详情] 查看异常详情"); font.pixelSize: StyleTokens.fontSizeSm; color: reportBtnHover.hovered ? StyleTokens.errorLight : StyleTokens.textDanger }
                         HoverHandler { id: reportBtnHover }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                             onClicked: {

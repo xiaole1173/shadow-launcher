@@ -54,6 +54,7 @@ QtObject {
     readonly property color success:       "#4bc870"
     readonly property color successBg:     "#1a3a1a"
     readonly property color warning:       "#ff9800"
+    readonly property color warningDim:    "#c06420"
     readonly property color warningBg:     "#3a3000"
     readonly property color error:         "#ef4444"
     readonly property color errorBg:       "#3a1a1a"

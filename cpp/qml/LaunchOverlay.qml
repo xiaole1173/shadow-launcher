@@ -389,7 +389,7 @@ Rectangle {
             Layout.fillWidth: true
             Layout.maximumHeight: 48
             text: statusText
-            color: checkFailed ? StyleTokens.textSubtle : StyleTokens.textSubtle
+            color: checkFailed ? StyleTokens.statusOff : StyleTokens.textSubtle
             font.pixelSize: StyleTokens.fontSizeSm
             elide: Text.ElideRight
             maximumLineCount: 3
@@ -455,7 +455,7 @@ Rectangle {
                     text: qsTr("重新登录")
                     font.pixelSize: StyleTokens.fontSizeSm
                     font.weight: Font.DemiBold
-                    color: reloginMouse ? (reloginMouse.containsMouse ? StyleTokens.accentLink : StyleTokens.accentLink) : StyleTokens.accentLink
+                    color: reloginMouse ? (reloginMouse.containsMouse ? StyleTokens.accentLink : StyleTokens.info) : StyleTokens.info
                 }
 
                 MouseArea {
@@ -477,8 +477,8 @@ Rectangle {
                 width: checkFailed ? 140 : 120; height: 34; radius: StyleTokens.radiusMd
                 color: checkFailed ? (actionMouse ? (actionMouse.containsMouse ? StyleTokens.successBg : "transparent") : "transparent")
                                    : (actionMouse ? (actionMouse.containsMouse ? StyleTokens.errorBg : "transparent") : "transparent")
-                border.color: checkFailed ? (actionMouse ? (actionMouse.containsMouse ? StyleTokens.successBg : StyleTokens.successBg) : StyleTokens.successBg)
-                                          : (actionMouse ? (actionMouse.containsMouse ? StyleTokens.errorBg : StyleTokens.errorBg) : StyleTokens.errorBg)
+                border.color: checkFailed ? (actionMouse ? (actionMouse.containsMouse ? StyleTokens.success : StyleTokens.successBg) : StyleTokens.successBg)
+                                          : (actionMouse ? (actionMouse.containsMouse ? StyleTokens.error : StyleTokens.errorBg) : StyleTokens.errorBg)
                 scale: actionMouse ? (actionMouse.pressed ? 0.9 : (actionMouse.containsMouse ? 1.04 : 1.0)) : 1.0
                 Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
                 Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
