@@ -84,8 +84,8 @@ Rectangle {
 
     scale: _pressed ? 0.85 : (_hovered ? 1.12 : 1.0)
 
-    Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
-    Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+    Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.colorEasing } }
+    Behavior on scale { NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing } }
 
     // ── Content ──
     Image {

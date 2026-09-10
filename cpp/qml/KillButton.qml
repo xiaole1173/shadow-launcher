@@ -26,17 +26,17 @@ Rectangle {
     property color expandedTextColor: StyleTokens.error
 
     Behavior on width {
-        NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
+        NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing }
     }
     Behavior on radius {
-        NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
+        NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing }
     }
 
     Text {
         id: killText
         anchors.centerIn: parent
         text: expanded ? "[优化] 强制结束游戏进程" : "[电源]"
-        font.pixelSize: expanded ? 12 : 16
+        font.pixelSize: expanded ? StyleTokens.fontSizeSm : StyleTokens.fontSizeLg
         font.bold: expanded
         color: expanded ? expandedTextColor : textColor
         Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
@@ -47,7 +47,7 @@ Rectangle {
     border.width: 1.5
 
     Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
-    Behavior on border.color { ColorAnimation { duration: 200 } }
+    Behavior on border.color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.colorEasing } }
 
     MouseArea {
         id: mouseArea

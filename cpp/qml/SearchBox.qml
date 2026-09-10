@@ -26,8 +26,8 @@ Rectangle {
     border.color: searchInput.activeFocus ? StyleTokens.accentHover : StyleTokens.borderLight
     border.width: 1
 
-    Behavior on color { ColorAnimation { duration: 200 } }
-    Behavior on border.color { ColorAnimation { duration: 200 } }
+    Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.colorEasing } }
+    Behavior on border.color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.colorEasing } }
 
     // 搜索图标
     Image {

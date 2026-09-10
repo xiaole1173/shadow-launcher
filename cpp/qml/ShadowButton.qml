@@ -31,7 +31,7 @@ Button {
     // 弹性动画
     scale: 1.0
     Behavior on scale {
-        NumberAnimation { duration: 120; easing.type: Easing.OutBack; easing.overshoot: 0.15 }
+        NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: Easing.OutBack; easing.overshoot: 0.15 }
     }
 
     onHoveredChanged: updateScale()
@@ -66,7 +66,7 @@ Button {
                 color: !shadowBtn.enabled ? StyleTokens.textMuted : shadowBtn.textColor
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
-                Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.colorEasing } }
             }
         }
     }
@@ -92,7 +92,7 @@ Button {
         }
         border.width: shadowBtn.outlined ? 1 : 0
 
-        Behavior on color { ColorAnimation { duration: 180; easing.type: Easing.OutCubic } }
-        Behavior on border.color { ColorAnimation { duration: 200; easing.type: Easing.OutCubic } }
+        Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.colorEasing } }
+        Behavior on border.color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.colorEasing } }
     }
 }

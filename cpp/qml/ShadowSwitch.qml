@@ -44,7 +44,7 @@ Switch {
         anchors.verticalCenter: parent.verticalCenter
 
         Behavior on color {
-            ColorAnimation { duration: 150; easing.type: Easing.OutCubic }
+            ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.colorEasing }
         }
 
         // 滑块
@@ -57,10 +57,10 @@ Switch {
             x: control.checked ? parent.width - width - 3 : 3
 
             Behavior on x {
-                NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+                NumberAnimation { duration: AnimationTokens.buttonDuration; easing.type: AnimationTokens.buttonEasing }
             }
             Behavior on color {
-                ColorAnimation { duration: 150; easing.type: Easing.OutCubic }
+                ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.colorEasing }
             }
         }
     }
