@@ -5,6 +5,8 @@
 
 一个基于 **C++ / Qt6 / QML** 的 Minecraft 启动器。追求流畅的原生体验、完整的加载器支持和细致的交互细节。
 
+启动器开发过程中参考了PCL2、HMCL等主流MC启动器的功能实现路径，在此十分感谢这这些开源项目。若非如此，本启动器可能还在debug的水深火热中……
+
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 
 ---
