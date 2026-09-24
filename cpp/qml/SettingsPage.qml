@@ -680,10 +680,19 @@ Rectangle {
                         anchors.left: parent.left; anchors.right: parent.right
                         anchors.top: parent.top; anchors.margins: 17; spacing: 12
                         Text { text: qsTr("鸣谢"); font.pixelSize: StyleTokens.fontSizeXl; font.bold: true; color: StyleTokens.textPrimary }
+                        Text {
+                            Layout.fillWidth: true; wrapMode: Text.WordWrap
+                            text: qsTr("启动器开发过程中参考了主流 MC 启动器的功能实现路径，在此十分感谢这些项目。若非如此，本启动器可能还在 debug 的水深火热中……（本项目为独立实现，与上述项目无隶属或授权关系。）")
+                            font.pixelSize: StyleTokens.fontSizeSm; color: StyleTokens.textSubtle; lineHeight: 1.35
+                        }
                         Column { Layout.fillWidth: true; spacing: 14
                             Repeater {
                                 width: parent.width
                                 model: [
+                                    { name: "PCL2", url: "https://github.com/Meloong-Git/PCL", badge: "",
+                                      desc: qsTr("启动器的下载引擎与版本隔离设计参考了它的实现路径。点击名字直达项目主页。") },
+                                    { name: "HMCL", url: "https://github.com/HMCL-dev/HMCL", badge: "",
+                                      desc: qsTr("启动参数构建、版本目录识别等实现路径参考了它。点击名字直达项目主页。") },
                                     { name: "bangbang93", url: "https://afdian.com/a/bangbang93", badge: "",
                                       desc: qsTr("提供了镜像源和Forge安装工具。点击名字直达镜像源赞助页。") },
                                     { name: "z0z0r4", url: "https://www.mcimirror.top/", badge: "",

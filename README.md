@@ -5,7 +5,7 @@
 
 一个基于 **C++ / Qt6 / QML** 的 Minecraft 启动器。追求流畅的原生体验、完整的加载器支持和细致的交互细节。
 
-启动器开发过程中参考了PCL2、HMCL等主流MC启动器的功能实现路径，在此十分感谢这这些开源项目。若非如此，本启动器可能还在debug的水深火热中……
+启动器开发过程中参考了 PCL2、HMCL 等主流 MC 启动器的功能实现路径，在此十分感谢这些开源项目。若非如此，本启动器可能还在 debug 的水深火热中……
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 
@@ -186,6 +186,8 @@ f) 本地数据保护 — 本软件不包含任何远程上报或数据外传机
 
 | 项目 / 作者 | 贡献 |
 |-------------|------|
+| [**PCL2**](https://github.com/Meloong-Git/PCL) | 下载引擎与版本隔离等功能的实现路径参考 |
+| [**HMCL**](https://github.com/HMCL-dev/HMCL) | 启动参数构建、版本目录识别等实现路径参考 |
 | [**bangbang93 / BMCLAPI**](https://bmclapidoc.bangbang93.com/) | Minecraft / Forge / NeoForge / OptiFine 国内镜像加速 |
 | [**z0z0r4 / MCIM**](https://github.com/z0z0r4/mcim) | Modrinth API 国内镜像加速 |
 | [**Lucide**](https://lucide.dev) | 启动器全部图标库 |
