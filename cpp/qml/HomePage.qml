@@ -199,6 +199,61 @@ Rectangle {
                 }
             }
 
+            // ── 快捷跳转（仅正版登录未登录态；登录中整行隐藏，不与进度框重叠；登录后随表单一起隐藏）──
+            RowLayout {
+                id: premiumLinksRow
+                readonly property int linkFontSize: StyleTokens.fontSizeSm
+                readonly property int linkIconSize: StyleTokens.fontSizeSm
+                Layout.alignment: Qt.AlignHCenter
+                visible: !msLoginForm.msInProgress
+                spacing: StyleTokens.spacingLg
+
+                Repeater {
+                    model: [
+                        { label: qsTr("购买正版"), icon: "icons/lucide/shopping-cart.svg", url: "https://www.xbox.com/zh-cn/games/store/minecraft-java-bedrock-edition-for-pc/9nxp44l49shj" },
+                        { label: qsTr("跳转官网"), icon: "icons/lucide/globe.svg", url: "https://www.minecraft.net/" }
+                    ]
+                    delegate: Item {
+                        id: premiumLinkItem
+                        // 悬停态由 MouseArea 显式赋值（本编译环境下绑定 MouseArea.hovered 不触发重算）
+                        property bool linkHovered: false
+                        implicitWidth: linkContent.implicitWidth
+                        implicitHeight: linkContent.implicitHeight
+                        Layout.alignment: Qt.AlignVCenter
+
+                        RowLayout {
+                            id: linkContent
+                            anchors.fill: parent
+                            spacing: StyleTokens.spacingXs
+                            Image {
+                                source: modelData.icon
+                                Layout.preferredWidth: premiumLinksRow.linkIconSize
+                                Layout.preferredHeight: premiumLinksRow.linkIconSize
+                                Layout.alignment: Qt.AlignVCenter
+                                opacity: premiumLinkItem.linkHovered ? 1.0 : 0.8
+                                Behavior on opacity { NumberAnimation { duration: AnimationTokens.colorDuration } }
+                            }
+                            Text {
+                                text: modelData.label
+                                Layout.alignment: Qt.AlignVCenter
+                                font.pixelSize: premiumLinksRow.linkFontSize
+                                color: premiumLinkItem.linkHovered ? StyleTokens.accentLink : StyleTokens.textTertiary
+                                font.underline: true
+                                Behavior on color { ColorAnimation { duration: AnimationTokens.colorDuration; easing.type: AnimationTokens.buttonEasing } }
+                            }
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onEntered: premiumLinkItem.linkHovered = true
+                            onExited: premiumLinkItem.linkHovered = false
+                            onClicked: Qt.openUrlExternally(modelData.url)
+                        }
+                    }
+                }
+            }
+
             // Progress area
             Rectangle {
                 Layout.fillWidth: true
